@@ -19,13 +19,9 @@ class ReportsError(RuntimeError):
 
 
 def _decrypt_payload(payload: bytes, key: KeyPair) -> bytes:
-    eph_key = ec.EllipticCurvePublicKey.from_encoded_point(
-        ec.SECP224R1(), payload[5:62]
-    )
+    eph_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP224R1(), payload[5:62])
     shared_key = key.dh_exchange(eph_key)
-    symmetric_key = hashlib.sha256(
-        shared_key + b"\x00\x00\x00\x01" + payload[5:62]
-    ).digest()
+    symmetric_key = hashlib.sha256(shared_key + b"\x00\x00\x00\x01" + payload[5:62]).digest()
 
     decryption_key = symmetric_key[:16]
     iv = symmetric_key[16:]
@@ -160,9 +156,7 @@ async def fetch_reports(
 
     for report in resp.get("results", []):
         key = id_to_key[report["id"]]
-        date_published = datetime.utcfromtimestamp(
-            report.get("datePublished", 0) / 1000
-        )
+        date_published = datetime.utcfromtimestamp(report.get("datePublished", 0) / 1000)
         description = report.get("description", "")
         payload = base64.b64decode(report["payload"])
 

@@ -85,9 +85,7 @@ class BaseAppleAccount(ABC):
         return NotImplemented
 
     @abstractmethod
-    def fetch_reports(
-        self, keys: Sequence[KeyPair], date_from: datetime, date_to: datetime
-    ):
+    def fetch_reports(self, keys: Sequence[KeyPair], date_from: datetime, date_to: datetime):
         return NotImplemented
 
     @abstractmethod

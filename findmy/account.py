@@ -92,11 +92,7 @@ def _extract_phone_numbers(html: str) -> list[dict]:
         raise RuntimeError("Could not find HTML element containing phone numbers")
 
     data = json.loads(data_elem.text)
-    return (
-        data.get("direct", {})
-        .get("phoneNumberVerification", {})
-        .get("trustedPhoneNumbers", [])
-    )
+    return data.get("direct", {}).get("phoneNumberVerification", {}).get("trustedPhoneNumbers", [])
 
 
 def _require_login_state(*states: LoginState):
@@ -156,9 +152,7 @@ class SmsSecondFactor(BaseSecondFactorMethod):
 
 
 class AsyncAppleAccount(BaseAppleAccount):
-    def __init__(
-        self, anisette: AnisetteProvider, user_id: str = None, device_id: str = None
-    ):
+    def __init__(self, anisette: AnisetteProvider, user_id: str = None, device_id: str = None):
         self._anisette: AnisetteProvider = anisette
         self._uid: str = user_id or str(uuid.uuid4())
         self._devid: str = device_id or str(uuid.uuid4())
@@ -173,9 +167,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         self._http = HttpSession()
 
-    def _set_login_state(
-        self, state: LoginState, data: Optional[dict] = None
-    ) -> LoginState:
+    def _set_login_state(self, state: LoginState, data: Optional[dict] = None) -> LoginState:
         # clear account info if downgrading state (e.g. LOGGED_IN -> LOGGED_OUT)
         if state < self._login_state:
             logging.debug("Clearing cached account information")
@@ -192,23 +184,17 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._login_state
 
     @property
-    @_require_login_state(
-        LoginState.LOGGED_IN, LoginState.AUTHENTICATED, LoginState.REQUIRE_2FA
-    )
+    @_require_login_state(LoginState.LOGGED_IN, LoginState.AUTHENTICATED, LoginState.REQUIRE_2FA)
     def account_name(self):
         return self._account_info["account_name"] if self._account_info else None
 
     @property
-    @_require_login_state(
-        LoginState.LOGGED_IN, LoginState.AUTHENTICATED, LoginState.REQUIRE_2FA
-    )
+    @_require_login_state(LoginState.LOGGED_IN, LoginState.AUTHENTICATED, LoginState.REQUIRE_2FA)
     def first_name(self):
         return self._account_info["first_name"] if self._account_info else None
 
     @property
-    @_require_login_state(
-        LoginState.LOGGED_IN, LoginState.AUTHENTICATED, LoginState.REQUIRE_2FA
-    )
+    @_require_login_state(LoginState.LOGGED_IN, LoginState.AUTHENTICATED, LoginState.REQUIRE_2FA)
     def last_name(self):
         return self._account_info["last_name"] if self._account_info else None
 
@@ -266,9 +252,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             logging.warning("Unable to extract phone numbers from login page")
 
         methods.extend(
-            AsyncSmsSecondFactor(
-                self, number.get("id"), number.get("numberWithDialCode")
-            )
+            AsyncSmsSecondFactor(self, number.get("id"), number.get("numberWithDialCode"))
             for number in phone_numbers
         )
 
@@ -278,9 +262,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     async def sms_2fa_request(self, phone_number_id: int):
         data = {"phoneNumber": {"id": phone_number_id}, "mode": "sms"}
 
-        await self._sms_2fa_request(
-            "PUT", "https://gsa.apple.com/auth/verify/phone", data
-        )
+        await self._sms_2fa_request("PUT", "https://gsa.apple.com/auth/verify/phone", data)
 
     @_require_login_state(LoginState.REQUIRE_2FA)
     async def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
@@ -303,9 +285,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return await self._login_mobileme()
 
     @_require_login_state(LoginState.LOGGED_IN)
-    async def fetch_reports(
-        self, keys: Sequence[KeyPair], date_from: datetime, date_to: datetime
-    ):
+    async def fetch_reports(self, keys: Sequence[KeyPair], date_from: datetime, date_to: datetime):
         anisette_headers = await self.get_anisette_headers()
 
         return await fetch_reports(
@@ -355,9 +335,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             raise LoginException(f"Email verify failed: {message}")
         sp = r.get("sp")
         if sp != "s2k":
-            raise LoginException(
-                f"This implementation only supports s2k. Server returned {sp}"
-            )
+            raise LoginException(f"This implementation only supports s2k. Server returned {sp}")
 
         logging.debug("Attempting password challenge")
 
@@ -365,9 +343,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         m1 = usr.process_challenge(r["s"], r["B"])
         if m1 is None:
             raise LoginException("Failed to process challenge")
-        r = await self._gsa_request(
-            {"c": r["c"], "M1": m1, "u": self._username, "o": "complete"}
-        )
+        r = await self._gsa_request({"c": r["c"], "M1": m1, "u": self._username, "o": "complete"})
 
         logging.debug("Verifying password challenge response")
 
@@ -442,18 +418,14 @@ class AsyncAppleAccount(BaseAppleAccount):
         status = mobileme_data.get("status")
         if status != 0:
             message = mobileme_data.get("status-message")
-            raise LoginException(
-                f"com.apple.mobileme login failed with status {status}: {message}"
-            )
+            raise LoginException(f"com.apple.mobileme login failed with status {status}: {message}")
 
         return self._set_login_state(
             LoginState.LOGGED_IN,
             {"dsid": resp["dsid"], "mobileme_data": mobileme_data["service-data"]},
         )
 
-    async def _sms_2fa_request(
-        self, method: str, url: str, data: Optional[dict] = None
-    ) -> str:
+    async def _sms_2fa_request(self, method: str, url: str, data: Optional[dict] = None) -> str:
         adsid = self._login_state_data["adsid"]
         idms_token = self._login_state_data["idms_token"]
         identity_token = base64.b64encode((adsid + ":" + idms_token).encode()).decode()
@@ -469,9 +441,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         }
         headers.update(await self.get_anisette_headers())
 
-        async with await self._http.request(
-            method, url, json=data, headers=headers
-        ) as r:
+        async with await self._http.request(method, url, json=data, headers=headers) as r:
             if not r.ok:
                 raise LoginException(f"HTTP request failed: {r.status_code}")
 
@@ -516,9 +486,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
 
 class AppleAccount(BaseAppleAccount):
-    def __init__(
-        self, anisette: AnisetteProvider, user_id: str = None, device_id: str = None
-    ):
+    def __init__(self, anisette: AnisetteProvider, user_id: str = None, device_id: str = None):
         self._asyncacc = AsyncAppleAccount(anisette, user_id, device_id)
 
         try:
@@ -580,9 +548,7 @@ class AppleAccount(BaseAppleAccount):
         coro = self._asyncacc.sms_2fa_submit(phone_number_id, code)
         return self._loop.run_until_complete(coro)
 
-    def fetch_reports(
-        self, keys: Sequence[KeyPair], date_from: datetime, date_to: datetime
-    ):
+    def fetch_reports(self, keys: Sequence[KeyPair], date_from: datetime, date_to: datetime):
         coro = self._asyncacc.fetch_reports(keys, date_from, date_to)
         return self._loop.run_until_complete(coro)
 

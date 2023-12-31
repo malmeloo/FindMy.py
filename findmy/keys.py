@@ -9,9 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 class KeyPair:
     def __init__(self, private_key: bytes):
         priv_int = int.from_bytes(private_key, "big")
-        self._priv_key = ec.derive_private_key(
-            priv_int, ec.SECP224R1(), default_backend()
-        )
+        self._priv_key = ec.derive_private_key(priv_int, ec.SECP224R1(), default_backend())
 
     @classmethod
     def generate(cls) -> "KeyPair":

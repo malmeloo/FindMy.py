@@ -32,9 +32,7 @@ class AnisetteProvider(ABC):
     async def close(self):
         return NotImplemented
 
-    async def get_headers(
-        self, user_id: str, device_id: str, serial: str = "0"
-    ) -> dict[str, str]:
+    async def get_headers(self, user_id: str, device_id: str, serial: str = "0") -> dict[str, str]:
         base_headers = await self._get_base_headers()
         base_headers.update(_gen_meta_headers(user_id, device_id, serial))
 
