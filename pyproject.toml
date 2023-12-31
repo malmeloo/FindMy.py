@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "FindMy"
-version = "0.2.0"
+version = "0.2.1"
 description = "Everything you need to query Apple's Find My network!"
 authors = ["Mike Almeloo <git@mikealmel.ooo>"]
 readme = "README.md"
