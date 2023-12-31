@@ -7,7 +7,7 @@ from datetime import datetime
 from .http import HttpSession
 
 
-def _gen_meta_headers(user_id: str, device_id: str, serial: str = '0'):
+def _gen_meta_headers(user_id: str, device_id: str, serial: str = "0"):
     now = datetime.utcnow()
     locale_str = locale.getdefaultlocale()[0] or "en_US"
 
@@ -16,11 +16,10 @@ def _gen_meta_headers(user_id: str, device_id: str, serial: str = '0'):
         "X-Apple-I-TimeZone": str(now.astimezone().tzinfo),
         "loc": locale_str,
         "X-Apple-Locale": locale_str,
-
         "X-Apple-I-MD-RINFO": "17106176",
         "X-Apple-I-MD-LU": base64.b64encode(str(user_id).upper().encode()).decode(),
         "X-Mme-Device-Id": str(device_id).upper(),
-        "X-Apple-I-SRL-NO": serial
+        "X-Apple-I-SRL-NO": serial,
     }
 
 
@@ -33,7 +32,9 @@ class AnisetteProvider(ABC):
     async def close(self):
         return NotImplemented
 
-    async def get_headers(self, user_id: str, device_id: str, serial: str = '0') -> dict[str, str]:
+    async def get_headers(
+        self, user_id: str, device_id: str, serial: str = "0"
+    ) -> dict[str, str]:
         base_headers = await self._get_base_headers()
         base_headers.update(_gen_meta_headers(user_id, device_id, serial))
 
@@ -52,7 +53,10 @@ class RemoteAnisetteProvider(AnisetteProvider):
         async with await self._http.get(self._server_url) as r:
             headers = await r.json()
 
-        return {"X-Apple-I-MD": headers["X-Apple-I-MD"], "X-Apple-I-MD-M": headers["X-Apple-I-MD-M"]}
+        return {
+            "X-Apple-I-MD": headers["X-Apple-I-MD"],
+            "X-Apple-I-MD-M": headers["X-Apple-I-MD-M"],
+        }
 
     async def close(self):
         await self._http.close()

@@ -37,7 +37,7 @@ async def login(account: AppleAccount):
         # Just take the first one to keep things simple
         method = methods[0]
         await method.request()
-        code = input('Code: ')
+        code = input("Code: ")
 
         # This automatically finishes the post-2FA login flow
         await method.submit(code)
