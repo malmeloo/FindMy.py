@@ -13,6 +13,8 @@ cryptography = "^41.0.7"
 beautifulsoup4 = "^4.12.2"
 aiohttp = "^3.9.1"
 
+[tool.ruff]
+line-length = 100
 
 [build-system]
 requires = ["poetry-core"]
