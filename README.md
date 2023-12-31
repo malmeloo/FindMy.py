@@ -1,5 +1,9 @@
 # FindMy.py
 
+![](https://img.shields.io/pypi/v/FindMy)
+![](https://img.shields.io/github/license/malmeloo/FindMy.py)
+![](https://img.shields.io/pypi/pyversions/FindMy)
+
 The all-in-one library that provides everything you need
 to query Apple's FindMy network!
 
@@ -9,7 +13,7 @@ written by [several authors](#Credits). This project aims to
 unify this scene, providing common building blocks for any
 application wishing to integrate with the Find My network.
 
-## Features
+### Features
 
 - [x] Works without any Apple devices
 - [x] Apple Account log-in
@@ -19,7 +23,7 @@ application wishing to integrate with the Find My network.
 - [x] Both async and sync API
 - [x] Modular with a high degree of manual control
 
-## Roadmap
+### Roadmap
 
 - [ ] Trusted device 2FA
     - Work has been done, but needs testing (I don't own any Apple devices)
@@ -27,13 +31,37 @@ application wishing to integrate with the Find My network.
     - Can be done using [pyprovision](https://github.com/Dadoum/pyprovision/),
       however I want to wait until Python wheels are available.
 
-# Installation
+## Installation
 
-TODO
+The package can be installed from [PyPi](https://pypi.org/project/findmy/):
 
-# Credits
+```shell
+pip install findmy
+```
 
-While I designed the library, the vast majority of the actual functionality
+For usage examples, see the [examples](examples) directory. Documentation coming soon™.
+
+## Contributing
+
+Want to contribute code? That's great! For new features, please open an
+[issue](https://github.com/malmeloo/FindMy.py/issues) first so we can discuss.
+
+This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting.
+Before opening a pull request, please ensure that your code adheres to these rules.
+There are pre-commit hooks included to help you with this, which you can set up as follows:
+
+```shell
+pip install poetry ruff
+poetry install  # this installs pre-commit into your environment
+pre-commit install
+```
+
+After following the above steps, your code will be linted and formatted automatically
+before committing it.
+
+## Credits
+
+While I designed the library, the vast majority of actual functionality
 is made possible by the following wonderful people and organizations:
 
 - @seemo-lab for [OpenHaystack](https://github.com/seemoo-lab/openhaystack/)

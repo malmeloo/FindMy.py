@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "findmy.py"
+name = "FindMy"
 version = "0.2.0"
 description = "Everything you need to query Apple's Find My network!"
 authors = ["Mike Almeloo <git@mikealmel.ooo>"]
