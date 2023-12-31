@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -5,9 +6,7 @@ import json
 import logging
 import plistlib
 import uuid
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from enum import Enum
 from functools import wraps
 from typing import Optional, TypedDict, Any
 from typing import Sequence
@@ -19,6 +18,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from .anisette import AnisetteProvider
+from .base import BaseAppleAccount, BaseSecondFactorMethod, LoginState
 from .http import HttpSession
 from .keys import KeyPair
 from .reports import fetch_reports
@@ -27,22 +27,6 @@ logging.getLogger(__name__)
 
 srp.rfc5054_enable()
 srp.no_username_in_x()
-
-
-class LoginState(Enum):
-    LOGGED_OUT = 0
-    REQUIRE_2FA = 1
-    AUTHENTICATED = 2
-    LOGGED_IN = 3
-
-    def __lt__(self, other):
-        if isinstance(other, LoginState):
-            return self.value < other.value
-
-        return NotImplemented
-
-    def __repr__(self):
-        return self.__str__()
 
 
 class AccountInfo(TypedDict):
@@ -118,7 +102,7 @@ def _extract_phone_numbers(html: str) -> list[dict]:
 def _require_login_state(*states: LoginState):
     def decorator(func):
         @wraps(func)
-        def wrapper(acc: "AppleAccount", *args, **kwargs):
+        def wrapper(acc: "BaseAppleAccount", *args, **kwargs):
             if acc.login_state not in states:
                 raise InvalidStateException(
                     f"Invalid login state! Currently: {acc.login_state} but should be one of: {states}"
@@ -131,29 +115,16 @@ def _require_login_state(*states: LoginState):
     return decorator
 
 
-class SecondFactorMethod(ABC):
-    def __init__(self, account: "AppleAccount"):
-        self._account = account
-
-    @property
-    def account(self):
-        return self._account
-
-    @abstractmethod
-    def request(self) -> None:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def submit(self, code: str) -> LoginState:
-        raise NotImplementedError()
-
-
-class SmsSecondFactor(SecondFactorMethod):
-    def __init__(self, account: "AppleAccount", number_id: int, phone_number: str):
+class AsyncSmsSecondFactor(BaseSecondFactorMethod):
+    def __init__(self, account: "AsyncAppleAccount", number_id: int, phone_number: str):
         super().__init__(account)
 
         self._phone_number_id: int = number_id
         self._phone_number: str = phone_number
+
+    @property
+    def phone_number_id(self):
+        return self._phone_number_id
 
     @property
     def phone_number(self):
@@ -166,7 +137,25 @@ class SmsSecondFactor(SecondFactorMethod):
         return await self.account.sms_2fa_submit(self._phone_number_id, code)
 
 
-class AppleAccount:
+class SmsSecondFactor(BaseSecondFactorMethod):
+    def __init__(self, account: "AppleAccount", number_id: int, phone_number: str):
+        super().__init__(account)
+
+        self._phone_number_id: int = number_id
+        self._phone_number: str = phone_number
+
+    @property
+    def phone_number(self):
+        return self._phone_number
+
+    def request(self) -> None:
+        return self.account.sms_2fa_request(self._phone_number_id)
+
+    def submit(self, code: str) -> LoginState:
+        return self.account.sms_2fa_submit(self._phone_number_id, code)
+
+
+class AsyncAppleAccount(BaseAppleAccount):
     def __init__(
         self, anisette: AnisetteProvider, user_id: str = None, device_id: str = None
     ):
@@ -237,7 +226,7 @@ class AppleAccount:
             },
         }
 
-    def restore(self, data: dict) -> None:
+    def restore(self, data: dict):
         try:
             self._uid = data["ids"]["uid"]
             self._devid = data["ids"]["devid"]
@@ -266,26 +255,27 @@ class AppleAccount:
         return await self._login_mobileme()
 
     @_require_login_state(LoginState.REQUIRE_2FA)
-    async def get_2fa_methods(self) -> list[SecondFactorMethod]:
-        methods: list[SecondFactorMethod] = []
+    async def get_2fa_methods(self) -> list[BaseSecondFactorMethod]:
+        methods: list[BaseSecondFactorMethod] = []
 
         # sms
         auth_page = await self._sms_2fa_request("GET", "https://gsa.apple.com/auth")
         try:
             phone_numbers = _extract_phone_numbers(auth_page)
-            methods.extend(
-                SmsSecondFactor(
-                    self, number.get("id"), number.get("numberWithDialCode")
-                )
-                for number in phone_numbers
-            )
         except RuntimeError:
             logging.warning("Unable to extract phone numbers from login page")
+
+        methods.extend(
+            AsyncSmsSecondFactor(
+                self, number.get("id"), number.get("numberWithDialCode")
+            )
+            for number in phone_numbers
+        )
 
         return methods
 
     @_require_login_state(LoginState.REQUIRE_2FA)
-    async def sms_2fa_request(self, phone_number_id):
+    async def sms_2fa_request(self, phone_number_id: int):
         data = {"phoneNumber": {"id": phone_number_id}, "mode": "sms"}
 
         await self._sms_2fa_request(
@@ -523,3 +513,83 @@ class AppleAccount:
 
     async def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
         return await self._anisette.get_headers(self._uid, self._devid, serial)
+
+
+class AppleAccount(BaseAppleAccount):
+    def __init__(
+        self, anisette: AnisetteProvider, user_id: str = None, device_id: str = None
+    ):
+        self._asyncacc = AsyncAppleAccount(anisette, user_id, device_id)
+
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+
+    def __del__(self) -> None:
+        coro = self._asyncacc.close()
+        return self._loop.run_until_complete(coro)
+
+    @property
+    def login_state(self):
+        return self._asyncacc.login_state
+
+    @property
+    def account_name(self):
+        return self._asyncacc.account_name
+
+    @property
+    def first_name(self):
+        return self._asyncacc.first_name
+
+    @property
+    def last_name(self):
+        return self._asyncacc.last_name
+
+    def export(self) -> dict:
+        return self._asyncacc.export()
+
+    def restore(self, data: dict):
+        return self._asyncacc.restore(data)
+
+    def login(self, username: str, password: str) -> LoginState:
+        coro = self._asyncacc.login(username, password)
+        return self._loop.run_until_complete(coro)
+
+    def get_2fa_methods(self) -> list[BaseSecondFactorMethod]:
+        coro = self._asyncacc.get_2fa_methods()
+        methods = self._loop.run_until_complete(coro)
+
+        res = []
+        for m in methods:
+            if isinstance(m, AsyncSmsSecondFactor):
+                res.append(SmsSecondFactor(self, m.phone_number_id, m.phone_number))
+            else:
+                raise RuntimeError(
+                    f"Failed to cast 2FA object to sync alternative: {m}. This is a bug, please report it."
+                )
+
+        return res
+
+    def sms_2fa_request(self, phone_number_id: int):
+        coro = self._asyncacc.sms_2fa_request(phone_number_id)
+        return self._loop.run_until_complete(coro)
+
+    def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
+        coro = self._asyncacc.sms_2fa_submit(phone_number_id, code)
+        return self._loop.run_until_complete(coro)
+
+    def fetch_reports(
+        self, keys: Sequence[KeyPair], date_from: datetime, date_to: datetime
+    ):
+        coro = self._asyncacc.fetch_reports(keys, date_from, date_to)
+        return self._loop.run_until_complete(coro)
+
+    def fetch_last_reports(self, keys: Sequence[KeyPair], hours: int = 7 * 24):
+        coro = self._asyncacc.fetch_last_reports(keys, hours)
+        return self._loop.run_until_complete(coro)
+
+    def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
+        coro = self._asyncacc.get_anisette_headers()
+        return self._loop.run_until_complete(coro)

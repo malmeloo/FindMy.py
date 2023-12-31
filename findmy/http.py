@@ -24,7 +24,7 @@ class HttpSession:
 
     def __del__(self) -> None:
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             loop.call_soon_threadsafe(loop.create_task, self.close())
         except RuntimeError:  # cannot await closure
             pass

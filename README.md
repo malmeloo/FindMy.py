@@ -15,9 +15,8 @@ application wishing to integrate with the Find My network.
 - [x] Apple Account log-in
 - [x] SMS 2FA support
 - [x] Fetch location reports
-- [x] Generate new accessory keys
-- [x] Import accessory keys
-- [x] Fully async
+- [x] Generate and import accessory keys
+- [x] Both async and sync API
 - [x] Modular with a high degree of manual control
 
 ## Roadmap
@@ -27,9 +26,6 @@ application wishing to integrate with the Find My network.
 - [ ] Local anisette generation (without server)
     - Can be done using [pyprovision](https://github.com/Dadoum/pyprovision/),
       however I want to wait until Python wheels are available.
-- [ ] Sync API wrapper
-    - I realize not everyone may be comfortable using an async library;
-      building a synchronous wrapper around the `AppleAccount` class would be nice.
 
 # Installation
 
