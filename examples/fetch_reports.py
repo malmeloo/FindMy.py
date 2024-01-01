@@ -2,8 +2,13 @@ import json
 import logging
 import os
 
-from findmy import AppleAccount, LoginState, SmsSecondFactor, RemoteAnisetteProvider
-from findmy import keys
+from findmy import (
+    AppleAccount,
+    LoginState,
+    RemoteAnisetteProvider,
+    SmsSecondFactor,
+    keys,
+)
 
 # URL to (public or local) anisette server
 ANISETTE_SERVER = "http://localhost:6969"
@@ -50,7 +55,7 @@ def fetch_reports(lookup_key):
 
     # Save / restore account logic
     if os.path.isfile("account.json"):
-        with open("account.json", "r") as f:
+        with open("account.json") as f:
             acc.restore(json.load(f))
     else:
         login(acc)

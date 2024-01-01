@@ -1,14 +1,21 @@
+"""Module for Anisette header providers."""
+from __future__ import annotations
+
 import base64
 import locale
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .http import HttpSession
 
 
-def _gen_meta_headers(user_id: str, device_id: str, serial: str = "0"):
-    now = datetime.utcnow()
+def _gen_meta_headers(
+    user_id: str,
+    device_id: str,
+    serial: str = "0",
+) -> dict[str, str]:
+    now = datetime.now(tz=timezone.utc)
     locale_str = locale.getdefaultlocale()[0] or "en_US"
 
     return {
@@ -23,29 +30,44 @@ def _gen_meta_headers(user_id: str, device_id: str, serial: str = "0"):
     }
 
 
-class AnisetteProvider(ABC):
+class BaseAnisetteProvider(ABC):
+    """Abstract base class for Anisette providers."""
+
     @abstractmethod
     async def _get_base_headers(self) -> dict[str, str]:
-        return NotImplemented
+        raise NotImplementedError
 
     @abstractmethod
-    async def close(self):
-        return NotImplemented
+    async def close(self) -> None:
+        """Close any underlying sessions. Call when the provider will no longer be used."""
+        raise NotImplementedError
 
-    async def get_headers(self, user_id: str, device_id: str, serial: str = "0") -> dict[str, str]:
+    async def get_headers(
+        self,
+        user_id: str,
+        device_id: str,
+        serial: str = "0",
+    ) -> dict[str, str]:
+        """Retrieve a complete dictionary of Anisette headers.
+
+        Consider using `BaseAppleAccount.get_anisette_headers` instead.
+        """
         base_headers = await self._get_base_headers()
         base_headers.update(_gen_meta_headers(user_id, device_id, serial))
 
         return base_headers
 
 
-class RemoteAnisetteProvider(AnisetteProvider):
-    def __init__(self, server_url: str):
+class RemoteAnisetteProvider(BaseAnisetteProvider):
+    """Anisette provider. Fetches headers from a remote Anisette server."""
+
+    def __init__(self, server_url: str) -> None:
+        """Initialize the provider with URL to te remote server."""
         self._server_url = server_url
 
         self._http = HttpSession()
 
-        logging.info(f"Using remote anisette server: {self._server_url}")
+        logging.info("Using remote anisette server: %s", self._server_url)
 
     async def _get_base_headers(self) -> dict[str, str]:
         async with await self._http.get(self._server_url) as r:
@@ -56,17 +78,21 @@ class RemoteAnisetteProvider(AnisetteProvider):
             "X-Apple-I-MD-M": headers["X-Apple-I-MD-M"],
         }
 
-    async def close(self):
+    async def close(self) -> None:
+        """See `AnisetteProvider.close`."""
         await self._http.close()
 
 
-# TODO: implement using pyprovision
-class LocalAnisetteProvider(AnisetteProvider):
-    def __init__(self):
-        pass
+# TODO(malmeloo): implement using pyprovision
+# https://github.com/malmeloo/FindMy.py/issues/2
+class LocalAnisetteProvider(BaseAnisetteProvider):
+    """Anisette provider. Generates headers without a remote server using pyprovision."""
+
+    def __init__(self) -> None:
+        """Initialize the provider."""
 
     async def _get_base_headers(self) -> dict[str, str]:
         return NotImplemented
 
-    async def close(self):
-        pass
+    async def close(self) -> None:
+        """See `AnisetteProvider.close`."""

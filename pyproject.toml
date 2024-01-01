@@ -17,6 +17,19 @@ aiohttp = "^3.9.1"
 pre-commit = "^3.6.0"
 
 [tool.ruff]
+exclude = [
+    "examples/"
+]
+
+select = [
+    "ALL",
+]
+ignore = [
+    "ANN101", # annotations on `self`
+    "ANN102", # annotations on `cls`
+    "FIX002", # resolving TODOs
+]
+
 line-length = 100
 
 [build-system]

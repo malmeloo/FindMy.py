@@ -6,10 +6,10 @@ import os
 from findmy import (
     AsyncAppleAccount,
     LoginState,
-    SmsSecondFactor,
     RemoteAnisetteProvider,
+    SmsSecondFactor,
+    keys,
 )
-from findmy import keys
 
 # URL to (public or local) anisette server
 ANISETTE_SERVER = "http://localhost:6969"
@@ -57,7 +57,7 @@ async def fetch_reports(lookup_key):
     try:
         # Save / restore account logic
         if os.path.isfile("account.json"):
-            with open("account.json", "r") as f:
+            with open("account.json") as f:
                 acc.restore(json.load(f))
         else:
             await login(acc)
