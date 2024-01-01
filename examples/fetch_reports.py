@@ -59,8 +59,8 @@ def fetch_reports(lookup_key):
             acc.restore(json.load(f))
     else:
         login(acc)
-        # with open("account.json", "w+") as f:
-        #     json.dump(acc.export(), f)
+        with open("account.json", "w+") as f:
+            json.dump(acc.export(), f)
 
     print(f"Logged in as: {acc.account_name} ({acc.first_name} {acc.last_name})")
 
