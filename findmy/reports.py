@@ -178,16 +178,16 @@ async def fetch_reports(  # noqa: PLR0913
 
     # TODO(malmeloo): do not create a new session every time
     # https://github.com/malmeloo/FindMy.py/issues/3
-    async with await _session.post(
+    r = await _session.post(
         "https://gateway.icloud.com/acsnservice/fetch",
         auth=(dsid, search_party_token),
         headers=anisette_headers,
         json=data,
-    ) as r:
-        resp = await r.json()
-        if not r.ok or resp["statusCode"] != "200":
-            msg = f"Failed to fetch reports: {resp['statusCode']}"
-            raise ReportsError(msg)
+    )
+    resp = r.json()
+    if not r.ok or resp["statusCode"] != "200":
+        msg = f"Failed to fetch reports: {resp['statusCode']}"
+        raise ReportsError(msg)
     await _session.close()
 
     reports: dict[KeyPair, list[KeyReport]] = {key: [] for key in keys}

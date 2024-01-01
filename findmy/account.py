@@ -20,7 +20,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from .base import BaseAppleAccount, BaseSecondFactorMethod, LoginState
-from .http import HttpSession
+from .http import HttpSession, decode_plist
 from .reports import KeyReport, fetch_reports
 
 if TYPE_CHECKING:
@@ -52,18 +52,6 @@ class InvalidStateError(RuntimeError):
 
 class ExportRestoreError(ValueError):
     """Raised when an error occurs while exporting or restoring the account's current state."""
-
-
-def _load_plist(data: bytes) -> Any:  # noqa: ANN401
-    plist_header = (
-        b"<?xml version='1.0' encoding='UTF-8'?>"
-        b"<!DOCTYPE plist PUBLIC '-//Apple//DTD PLIST 1.0//EN' 'http://www.apple.com/DTDs/PropertyList-1.0.dtd'>"
-    )
-
-    if not data.startswith(b"<?xml"):
-        data = plist_header + data
-
-    return plistlib.loads(data)
 
 
 def _encrypt_password(password: str, salt: bytes, iterations: int) -> bytes:
@@ -228,7 +216,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         self._account_info: _AccountInfo | None = None
 
-        self._http = HttpSession()
+        self._http: HttpSession = HttpSession()
 
     def _set_login_state(
         self,
@@ -477,7 +465,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         logging.debug("Decrypting SPD data in response")
 
         spd = _decrypt_cbc(usr.get_session_key(), r["spd"])
-        spd = _load_plist(spd)
+        spd = decode_plist(spd)
 
         logging.debug("Received account information")
         self._account_info: _AccountInfo = {
@@ -528,16 +516,15 @@ class AsyncAppleAccount(BaseAppleAccount):
         }
         headers.update(await self.get_anisette_headers())
 
-        async with await self._http.post(
+        resp = await self._http.post(
             "https://setup.icloud.com/setup/iosbuddy/loginDelegates",
             auth=(self._username, self._login_state_data["idms_pet"]),
             data=data,
             headers=headers,
-        ) as r:
-            content = await r.content.read()
-            resp = _load_plist(content)
+        )
+        data = resp.plist()
 
-        mobileme_data = resp.get("delegates", {}).get("com.apple.mobileme", {})
+        mobileme_data = data.get("delegates", {}).get("com.apple.mobileme", {})
         status = mobileme_data.get("status")
         if status != 0:
             status_message = mobileme_data.get("status-message")
@@ -546,7 +533,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         return self._set_login_state(
             LoginState.LOGGED_IN,
-            {"dsid": resp["dsid"], "mobileme_data": mobileme_data["service-data"]},
+            {"dsid": data["dsid"], "mobileme_data": mobileme_data["service-data"]},
         )
 
     async def _sms_2fa_request(
@@ -570,17 +557,17 @@ class AsyncAppleAccount(BaseAppleAccount):
         }
         headers.update(await self.get_anisette_headers())
 
-        async with await self._http.request(
+        r = await self._http.request(
             method,
             url,
             json=data,
             headers=headers,
-        ) as r:
-            if not r.ok:
-                msg = f"HTTP request failed: {r.status_code}"
-                raise LoginError(msg)
+        )
+        if not r.ok:
+            msg = f"HTTP request failed: {r.status_code}"
+            raise LoginError(msg)
 
-            return await r.text()
+        return r.text()
 
     async def _gsa_request(self, params: dict[str, Any]) -> Any:
         request_data = {
@@ -608,13 +595,12 @@ class AsyncAppleAccount(BaseAppleAccount):
             "<com.apple.AOSKit/282 (com.apple.dt.Xcode/3594.4.19)>",
         }
 
-        async with await self._http.post(
+        resp = await self._http.post(
             "https://gsa.apple.com/grandslam/GsService2",
             headers=headers,
             data=plistlib.dumps(body),
-        ) as r:
-            content = await r.content.read()
-            return _load_plist(content)["Response"]
+        )
+        return resp.plist()["Response"]
 
     async def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
         """See `BaseAppleAccount.get_anisette_headers`."""

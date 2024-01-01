@@ -2,20 +2,63 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import plistlib
 from typing import Any
 
-from aiohttp import BasicAuth, ClientResponse, ClientSession, ClientTimeout
+from aiohttp import BasicAuth, ClientSession, ClientTimeout
 
 logging.getLogger(__name__)
+
+
+def decode_plist(data: bytes) -> Any:  # noqa: ANN401
+    """Decode a plist file."""
+    plist_header = (
+        b"<?xml version='1.0' encoding='UTF-8'?>"
+        b"<!DOCTYPE plist PUBLIC '-//Apple//DTD PLIST 1.0//EN' 'http://www.apple.com/DTDs/PropertyList-1.0.dtd'>"
+    )
+
+    if not data.startswith(b"<?xml"):  # append header ourselves
+        data = plist_header + data
+
+    return plistlib.loads(data)
 
 
 class HttpResponse:
     """Response of a request made by `HttpSession`."""
 
-    def __init__(self, resp: ClientResponse) -> None:
+    def __init__(self, status_code: int, content: bytes) -> None:
         """Initialize the response."""
-        self._resp: ClientResponse = resp
+        self._status_code = status_code
+        self._content = content
+
+    @property
+    def status_code(self) -> int:
+        """HTTP status code of the response."""
+        return self._status_code
+
+    @property
+    def ok(self) -> bool:
+        """Whether the status code is "OK" (2xx)."""
+        return str(self._status_code).startswith("2")
+
+    def text(self) -> str:
+        """Response content as a UTF-8 encoded string."""
+        return self._content.decode("utf-8")
+
+    def json(self) -> dict[Any, Any]:
+        """Response content as a dict, obtained by JSON-decoding the response content."""
+        return json.loads(self.text())
+
+    def plist(self) -> dict[Any, Any]:
+        """Response content as a dict, obtained by Plist-decoding the response content."""
+        data = decode_plist(self._content)
+        if not isinstance(data, dict):
+            msg = f"Unknown Plist-encoded data type: {data}. This is a bug, please report it."
+            raise TypeError(msg)
+
+        return data
 
 
 class HttpSession:
@@ -56,7 +99,7 @@ class HttpSession:
         url: str,
         auth: tuple[str] | None = None,
         **kwargs: Any,
-    ) -> ClientResponse:
+    ) -> HttpResponse:
         """Make an HTTP request.
 
         Keyword arguments will directly be passed to `aiohttp.ClientSession.request`.
@@ -67,12 +110,19 @@ class HttpSession:
         if auth is not None:
             basic_auth = BasicAuth(auth[0], auth[1])
 
-        return await self._session.request(method, url, auth=basic_auth, ssl=False, **kwargs)
+        async with await self._session.request(
+            method,
+            url,
+            auth=basic_auth,
+            ssl=False,
+            **kwargs,
+        ) as r:
+            return HttpResponse(r.status, await r.content.read())
 
-    async def get(self, url: str, **kwargs: Any) -> ClientResponse:
+    async def get(self, url: str, **kwargs: Any) -> HttpResponse:
         """Alias for `HttpSession.request("GET", ...)`."""
         return await self.request("GET", url, **kwargs)
 
-    async def post(self, url: str, **kwargs: Any) -> ClientResponse:
+    async def post(self, url: str, **kwargs: Any) -> HttpResponse:
         """Alias for `HttpSession.request("POST", ...)`."""
         return await self.request("POST", url, **kwargs)
