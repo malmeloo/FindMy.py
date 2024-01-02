@@ -5,7 +5,7 @@ import asyncio
 import json
 import logging
 import plistlib
-from typing import Any
+from typing import Any, ParamSpec
 
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 
@@ -61,6 +61,9 @@ class HttpResponse:
         return data
 
 
+P = ParamSpec("P")
+
+
 class HttpSession:
     """Asynchronous HTTP session manager. For internal use only."""
 
@@ -98,7 +101,7 @@ class HttpSession:
         method: str,
         url: str,
         auth: tuple[str] | None = None,
-        **kwargs: Any,
+        **kwargs: P.kwargs,
     ) -> HttpResponse:
         """Make an HTTP request.
 
@@ -119,10 +122,10 @@ class HttpSession:
         ) as r:
             return HttpResponse(r.status, await r.content.read())
 
-    async def get(self, url: str, **kwargs: Any) -> HttpResponse:
+    async def get(self, url: str, **kwargs: P.kwargs) -> HttpResponse:
         """Alias for `HttpSession.request("GET", ...)`."""
         return await self.request("GET", url, **kwargs)
 
-    async def post(self, url: str, **kwargs: Any) -> HttpResponse:
+    async def post(self, url: str, **kwargs: P.kwargs) -> HttpResponse:
         """Alias for `HttpSession.request("POST", ...)`."""
         return await self.request("POST", url, **kwargs)
