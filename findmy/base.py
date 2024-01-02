@@ -21,7 +21,8 @@ class LoginState(Enum):
     LOGGED_IN = 3
 
     def __lt__(self, other: LoginState) -> bool:
-        """Compare against another `LoginState`.
+        """
+        Compare against another `LoginState`.
 
         A `LoginState` is said to be "less than" another `LoginState` iff it is in
         an "earlier" stage of the login process, going from LOGGED_OUT to LOGGED_IN.
@@ -53,7 +54,8 @@ class BaseSecondFactorMethod(ABC):
 
     @abstractmethod
     def request(self) -> None:
-        """Put in a request for the second-factor challenge.
+        """
+        Put in a request for the second-factor challenge.
 
         Exact meaning is up to the implementing class.
         """
@@ -77,7 +79,8 @@ class BaseAppleAccount(ABC):
     @property
     @abstractmethod
     def account_name(self) -> str:
-        """The name of the account as reported by Apple.
+        """
+        The name of the account as reported by Apple.
 
         This is usually an e-mail address.
         May be None in some cases, such as when not logged in.
@@ -87,7 +90,8 @@ class BaseAppleAccount(ABC):
     @property
     @abstractmethod
     def first_name(self) -> str | None:
-        """First name of the account holder as reported by Apple.
+        """
+        First name of the account holder as reported by Apple.
 
         May be None in some cases, such as when not logged in.
         """
@@ -96,7 +100,8 @@ class BaseAppleAccount(ABC):
     @property
     @abstractmethod
     def last_name(self) -> str | None:
-        """Last name of the account holder as reported by Apple.
+        """
+        Last name of the account holder as reported by Apple.
 
         May be None in some cases, such as when not logged in.
         """
@@ -104,7 +109,8 @@ class BaseAppleAccount(ABC):
 
     @abstractmethod
     def export(self) -> dict:
-        """Export a representation of the current state of the account as a dictionary.
+        """
+        Export a representation of the current state of the account as a dictionary.
 
         The output of this method is guaranteed to be JSON-serializable, and passing
         the return value of this function as an argument to `BaseAppleAccount.restore`
@@ -116,7 +122,8 @@ class BaseAppleAccount(ABC):
 
     @abstractmethod
     def restore(self, data: dict) -> None:
-        """Restore a previous export of the internal state of the account.
+        """
+        Restore a previous export of the internal state of the account.
 
         See `BaseAppleAccount.export` for more information.
         """
@@ -129,7 +136,8 @@ class BaseAppleAccount(ABC):
 
     @abstractmethod
     def get_2fa_methods(self) -> list[BaseSecondFactorMethod]:
-        """Get a list of 2FA methods that can be used as a secondary challenge.
+        """
+        Get a list of 2FA methods that can be used as a secondary challenge.
 
         Currently, only SMS-based 2FA methods are supported.
         """
@@ -137,7 +145,8 @@ class BaseAppleAccount(ABC):
 
     @abstractmethod
     def sms_2fa_request(self, phone_number_id: int) -> None:
-        """Request a 2FA code to be sent to a specific phone number ID.
+        """
+        Request a 2FA code to be sent to a specific phone number ID.
 
         Consider using `BaseSecondFactorMethod.request` instead.
         """
@@ -145,7 +154,8 @@ class BaseAppleAccount(ABC):
 
     @abstractmethod
     def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
-        """Submit a 2FA code that was sent to a specific phone number ID.
+        """
+        Submit a 2FA code that was sent to a specific phone number ID.
 
         Consider using `BaseSecondFactorMethod.submit` instead.
         """
@@ -158,7 +168,8 @@ class BaseAppleAccount(ABC):
         date_from: datetime,
         date_to: datetime,
     ) -> dict[KeyPair, list[KeyReport]]:
-        """Fetch location reports for a sequence of `KeyPair`s between `date_from` and `date_end`.
+        """
+        Fetch location reports for a sequence of `KeyPair`s between `date_from` and `date_end`.
 
         Returns a dictionary mapping `KeyPair`s to a list of their location reports.
         """
@@ -170,7 +181,8 @@ class BaseAppleAccount(ABC):
         keys: Sequence[KeyPair],
         hours: int = 7 * 24,
     ) -> dict[KeyPair, list[KeyReport]]:
-        """Fetch location reports for a sequence of `KeyPair`s for the last `hours` hours.
+        """
+        Fetch location reports for a sequence of `KeyPair`s for the last `hours` hours.
 
         Utility method as an alternative to using `BaseAppleAccount.fetch_reports` directly.
         """
@@ -178,7 +190,8 @@ class BaseAppleAccount(ABC):
 
     @abstractmethod
     def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
-        """Retrieve a complete dictionary of Anisette headers.
+        """
+        Retrieve a complete dictionary of Anisette headers.
 
         Utility method for `AnisetteProvider.get_headers` using this account's user and device ID.
         """

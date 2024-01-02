@@ -120,7 +120,8 @@ class KeyReport:
         description: str,
         payload: bytes,
     ) -> KeyReport:
-        """Create a `KeyReport` from fields and a payload as reported by Apple.
+        """
+        Create a `KeyReport` from fields and a payload as reported by Apple.
 
         Requires a `KeyPair` to decrypt the report's payload.
         """
@@ -145,7 +146,8 @@ class KeyReport:
         )
 
     def __lt__(self, other: KeyReport) -> bool:
-        """Compare against another `KeyReport`.
+        """
+        Compare against another `KeyReport`.
 
         A `KeyReport` is said to be "less than" another `KeyReport` iff its recorded
         timestamp is strictly less than the other report.

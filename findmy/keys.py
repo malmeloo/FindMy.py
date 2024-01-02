@@ -27,7 +27,8 @@ class KeyPair:
 
     @classmethod
     def from_b64(cls, key_b64: str) -> "KeyPair":
-        """Import an existing `KeyPair` from its base64-encoded representation.
+        """
+        Import an existing `KeyPair` from its base64-encoded representation.
 
         Same format as returned by `KeyPair.private_key_b64`.
         """
@@ -41,7 +42,8 @@ class KeyPair:
 
     @property
     def private_key_b64(self) -> str:
-        """Return the private key as a base64-encoded string.
+        """
+        Return the private key as a base64-encoded string.
 
         Can be re-imported using `KeyPair.from_b64`.
         """

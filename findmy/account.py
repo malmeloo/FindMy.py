@@ -53,7 +53,8 @@ class LoginError(Exception):
 
 
 class InvalidStateError(RuntimeError):
-    """Raised when a method is used that is in conflict with the internal account state.
+    """
+    Raised when a method is used that is in conflict with the internal account state.
 
     For example: calling `BaseAppleAccount.login` while already logged in.
     """
@@ -133,7 +134,8 @@ class AsyncSmsSecondFactor(BaseSecondFactorMethod):
         number_id: int,
         phone_number: str,
     ) -> None:
-        """Initialize the second factor method.
+        """
+        Initialize the second factor method.
 
         Should not be done manually; use `BaseAppleAccount.get_2fa_methods` instead.
         """
@@ -149,7 +151,8 @@ class AsyncSmsSecondFactor(BaseSecondFactorMethod):
 
     @property
     def phone_number(self) -> str:
-        """The 2FA method's phone number.
+        """
+        The 2FA method's phone number.
 
         May be masked using unicode characters; should only be used for identification purposes.
         """
@@ -165,7 +168,8 @@ class AsyncSmsSecondFactor(BaseSecondFactorMethod):
 
 
 class SmsSecondFactor(BaseSecondFactorMethod):
-    """A sync implementation of `BaseSecondFactorMethod`.
+    """
+    A sync implementation of `BaseSecondFactorMethod`.
 
     Uses `AsyncSmsSecondFactor` internally.
     """
@@ -210,7 +214,8 @@ class AsyncAppleAccount(BaseAppleAccount):
         user_id: str | None = None,
         device_id: str | None = None,
     ) -> None:
-        """Initialize the apple account.
+        """
+        Initialize the apple account.
 
         :param anisette: An instance of `AsyncAnisetteProvider`.
         :param user_id: An optional user ID to use. Will be auto-generated if missing.
@@ -313,7 +318,8 @@ class AsyncAppleAccount(BaseAppleAccount):
             raise ExportRestoreError(msg) from None
 
     async def close(self) -> None:
-        """Close any sessions or other resources in use by this object.
+        """
+        Close any sessions or other resources in use by this object.
 
         Should be called when the object will no longer be used.
         """
@@ -620,7 +626,8 @@ class AsyncAppleAccount(BaseAppleAccount):
 
 
 class AppleAccount(BaseAppleAccount):
-    """A sync implementation of `BaseappleAccount`.
+    """
+    A sync implementation of `BaseappleAccount`.
 
     Uses `AsyncappleAccount` internally.
     """

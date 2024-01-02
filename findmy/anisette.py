@@ -48,7 +48,8 @@ class BaseAnisetteProvider(ABC):
         device_id: str,
         serial: str = "0",
     ) -> dict[str, str]:
-        """Retrieve a complete dictionary of Anisette headers.
+        """
+        Retrieve a complete dictionary of Anisette headers.
 
         Consider using `BaseAppleAccount.get_anisette_headers` instead.
         """

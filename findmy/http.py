@@ -83,7 +83,8 @@ class HttpSession:
             self._session = None
 
     def __del__(self) -> None:
-        """Attempt to gracefully close the session.
+        """
+        Attempt to gracefully close the session.
 
         Ideally this should be done by manually calling close().
         """
@@ -103,7 +104,8 @@ class HttpSession:
         auth: tuple[str] | None = None,
         **kwargs: P.kwargs,
     ) -> HttpResponse:
-        """Make an HTTP request.
+        """
+        Make an HTTP request.
 
         Keyword arguments will directly be passed to `aiohttp.ClientSession.request`.
         """
