@@ -3,7 +3,7 @@ from .account import AppleAccount, AsyncAppleAccount
 from .anisette import RemoteAnisetteProvider
 from .keys import KeyPair
 from .state import LoginState
-from .twofactor import SecondFactorType, SmsSecondFactorMethod
+from .twofactor import SmsSecondFactorMethod
 
 __all__ = (
     "AppleAccount",
@@ -11,6 +11,5 @@ __all__ = (
     "LoginState",
     "RemoteAnisetteProvider",
     "KeyPair",
-    "SecondFactorType",
     "SmsSecondFactorMethod",
 )
