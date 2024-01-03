@@ -2,12 +2,12 @@ import json
 import logging
 import os
 
-from findmy import (
+from findmy.reports import (
     AppleAccount,
     LoginState,
     RemoteAnisetteProvider,
-    SmsSecondFactor,
     keys,
+    SmsSecondFactorMethod,
 )
 
 # URL to (public or local) anisette server
@@ -35,7 +35,7 @@ def login(account: AppleAccount):
 
         # Print the (masked) phone numbers
         for method in methods:
-            if isinstance(method, SmsSecondFactor):
+            if isinstance(method, SmsSecondFactorMethod):
                 print(method.phone_number)
 
         # Just take the first one to keep things simple

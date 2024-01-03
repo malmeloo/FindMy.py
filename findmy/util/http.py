@@ -1,28 +1,16 @@
-"""Module to simplify asynchronous HTTP calls. For internal use only."""
+"""Module to simplify asynchronous HTTP calls."""
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import plistlib
 from typing import Any, ParamSpec
 
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 
+from .parsers import decode_plist
+
 logging.getLogger(__name__)
-
-
-def decode_plist(data: bytes) -> Any:  # noqa: ANN401
-    """Decode a plist file."""
-    plist_header = (
-        b"<?xml version='1.0' encoding='UTF-8'?>"
-        b"<!DOCTYPE plist PUBLIC '-//Apple//DTD PLIST 1.0//EN' 'http://www.apple.com/DTDs/PropertyList-1.0.dtd'>"
-    )
-
-    if not data.startswith(b"<?xml"):  # append header ourselves
-        data = plist_header + data
-
-    return plistlib.loads(data)
 
 
 class HttpResponse:

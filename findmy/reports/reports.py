@@ -11,7 +11,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
-from .http import HttpSession
+from findmy.util import HttpSession
 
 if TYPE_CHECKING:
     from .keys import KeyPair

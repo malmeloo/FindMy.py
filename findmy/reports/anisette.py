@@ -7,7 +7,7 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
-from .http import HttpSession
+from findmy.util import HttpSession
 
 
 def _gen_meta_headers(

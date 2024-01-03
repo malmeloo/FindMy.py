@@ -3,11 +3,11 @@ import json
 import logging
 import os
 
-from findmy import (
+from findmy.reports import (
     AsyncAppleAccount,
     LoginState,
     RemoteAnisetteProvider,
-    SmsSecondFactor,
+    SmsSecondFactorMethod,
     keys,
 )
 
@@ -36,7 +36,7 @@ async def login(account: AsyncAppleAccount):
 
         # Print the (masked) phone numbers
         for method in methods:
-            if isinstance(method, SmsSecondFactor):
+            if isinstance(method, SmsSecondFactorMethod):
                 print(method.phone_number)
 
         # Just take the first one to keep things simple
