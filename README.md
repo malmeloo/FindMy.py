@@ -13,15 +13,24 @@ written by [several authors](#Credits). This project aims to
 unify this scene, providing common building blocks for any
 application wishing to integrate with the Find My network.
 
+> [!IMPORTANT]
+> This project is currently in Alpha. While existing functionality
+> will likely not change much, the API design is subject to change
+> without prior warning.
+> 
+> You are encouraged to report any issues you can find on the
+> [issue tracker](https://github.com/malmeloo/FindMy.py/)!
+
 ### Features
 
-- [x] Works without any Apple devices
-- [x] Apple Account log-in
-- [x] SMS 2FA support
+- [x] Cross-platform: no Mac needed
 - [x] Fetch location reports
-- [x] Generate and import accessory keys
-- [x] Both async and sync API
-- [x] Modular with a high degree of manual control
+  - [x] Apple acount sign-in
+  - [x] SMS 2FA support
+- [x] Scan for nearby FindMy-devices
+  - [x] Decode their info, such as public keys and status bytes
+- [x] Import or create your own accessory keys
+- [x] Both async and sync APIs
 
 ### Roadmap
 
