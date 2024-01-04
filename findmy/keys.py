@@ -3,12 +3,42 @@
 import base64
 import hashlib
 import secrets
+from abc import ABC, abstractmethod
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 
 
-class KeyPair:
+class HasPublicKey(ABC):
+    """
+    ABC for anything that has a public FindMy-key.
+
+    Also called an "advertisement" key, since it is the key that is advertised by findable devices.
+    """
+
+    @property
+    @abstractmethod
+    def adv_key_bytes(self) -> bytes:
+        """Return the advertised (public) key as bytes."""
+        raise NotImplementedError
+
+    @property
+    def adv_key_b64(self) -> str:
+        """Return the advertised (public) key as a base64-encoded string."""
+        return base64.b64encode(self.adv_key_bytes).decode("ascii")
+
+    @property
+    def hashed_adv_key_bytes(self) -> bytes:
+        """Return the hashed advertised (public) key as bytes."""
+        return hashlib.sha256(self.adv_key_bytes).digest()
+
+    @property
+    def hashed_adv_key_b64(self) -> str:
+        """Return the hashed advertised (public) key as a base64-encoded string."""
+        return base64.b64encode(self.hashed_adv_key_bytes).decode("ascii")
+
+
+class KeyPair(HasPublicKey):
     """A private-public keypair for a trackable FindMy accessory."""
 
     def __init__(self, private_key: bytes) -> None:
@@ -54,21 +84,6 @@ class KeyPair:
         """Return the advertised (public) key as bytes."""
         key_bytes = self._priv_key.public_key().public_numbers().x
         return int.to_bytes(key_bytes, 28, "big")
-
-    @property
-    def adv_key_b64(self) -> str:
-        """Return the advertised (public) key as a base64-encoded string."""
-        return base64.b64encode(self.adv_key_bytes).decode("ascii")
-
-    @property
-    def hashed_adv_key_bytes(self) -> bytes:
-        """Return the hashed advertised (public) key as bytes."""
-        return hashlib.sha256(self.adv_key_bytes).digest()
-
-    @property
-    def hashed_adv_key_b64(self) -> str:
-        """Return the hashed advertised (public) key as a base64-encoded string."""
-        return base64.b64encode(self.hashed_adv_key_bytes).decode("ascii")
 
     def dh_exchange(self, other_pub_key: ec.EllipticCurvePublicKey) -> bytes:
         """Do a Diffie-Hellman key exchange using another EC public key."""

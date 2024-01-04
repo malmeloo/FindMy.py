@@ -38,8 +38,9 @@ from .twofactor import (
 )
 
 if TYPE_CHECKING:
+    from findmy.keys import KeyPair
+
     from .anisette import BaseAnisetteProvider
-    from .keys import KeyPair
 
 logging.getLogger(__name__)
 

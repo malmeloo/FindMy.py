@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from findmy.util import HttpSession
 
 if TYPE_CHECKING:
-    from .keys import KeyPair
+    from findmy.keys import KeyPair
 
 _session = HttpSession()
 

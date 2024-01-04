@@ -7,11 +7,17 @@ readme = "README.md"
 packages = [{ include = "findmy" }]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.9,<3.13"
 srp = "^1.0.20"
 cryptography = "^41.0.7"
 beautifulsoup4 = "^4.12.2"
 aiohttp = "^3.9.1"
+
+# Optional dependencies
+bleak = { version = "^0.21.1", optional = true }
+
+[tool.poetry.extras]
+scan = ["bleak"]
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
@@ -32,8 +38,8 @@ ignore = [
     "ANN102", # annotations on `cls`
     "FIX002", # resolving TODOs
 
-    "D203",   # one blank line before class docstring
-    "D212",   # multi-line docstring start at first line
+    "D203", # one blank line before class docstring
+    "D212", # multi-line docstring start at first line
 ]
 
 line-length = 100
