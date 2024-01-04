@@ -1,4 +1,4 @@
-name: Upload Python Package
+name: Deploy documentation
 
 on:
   workflow_dispatch:
@@ -34,3 +34,7 @@ jobs:
       uses: actions/upload-pages-artifact@v3
       with:
         path: 'docs/_build/html/'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
