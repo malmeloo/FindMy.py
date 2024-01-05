@@ -18,6 +18,9 @@ async def scan():
         print(f"  Lookup key:   {device.hashed_adv_key_b64}")
         print(f"  Status byte:  {device.status:x}")
         print(f"  Hint byte:    {device.hint:x}")
+        print(f"  Extra data:")
+        for k, v in sorted(device.additional_data.items()):
+            print(f"    {k:20}: {v}")
         print()
 
 

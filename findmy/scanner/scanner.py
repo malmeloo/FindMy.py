@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 
 import bleak
 
@@ -20,18 +20,21 @@ class OfflineFindingDevice(HasPublicKey):
     OF_TYPE = 0x12
     OF_DATA_LEN = 25
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         mac_bytes: bytes,
         status: int,
         public_key: bytes,
         hint: int,
+        additional_data: dict[Any, Any] | None = None,
     ) -> None:
         """Initialize an `OfflineFindingDevice`."""
         self._mac_bytes: bytes = mac_bytes
         self._status: int = status
         self._public_key: bytes = public_key
         self._hint: int = hint
+
+        self._additional_data: dict[Any, Any] = additional_data or {}
 
     @property
     def mac_address(self) -> str:
@@ -50,6 +53,11 @@ class OfflineFindingDevice(HasPublicKey):
         return self._hint % 255
 
     @property
+    def additional_data(self) -> dict[Any, Any]:
+        """Any additional data. No guarantees about the contents of this dictionary."""
+        return self._additional_data
+
+    @property
     def adv_key_bytes(self) -> bytes:
         """See `HasPublicKey.adv_key_bytes`."""
         return self._public_key
@@ -59,6 +67,7 @@ class OfflineFindingDevice(HasPublicKey):
         cls,
         mac_address: str,
         payload: bytes,
+        additional_data: dict[Any, Any],
     ) -> OfflineFindingDevice | None:
         """Get an OfflineFindingDevice object from a BLE payload."""
         if len(payload) < cls.OF_HEADER_SIZE:
@@ -91,7 +100,7 @@ class OfflineFindingDevice(HasPublicKey):
 
         hint = payload[cls.OF_HEADER_SIZE + 24]
 
-        return OfflineFindingDevice(mac_bytes, status, pubkey, hint)
+        return OfflineFindingDevice(mac_bytes, status, pubkey, hint, additional_data)
 
     def __repr__(self) -> str:
         """Human-readable string representation of an OfflineFindingDevice."""
@@ -169,7 +178,8 @@ class OfflineFindingScanner:
         if not apple_data:
             return None
 
-        return OfflineFindingDevice.from_payload(device.address, apple_data)
+        additional_data = device.details.get("props", {})
+        return OfflineFindingDevice.from_payload(device.address, apple_data, additional_data)
 
     async def scan_for(
         self,
