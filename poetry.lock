@@ -222,7 +222,7 @@ name = "bleak"
 version = "0.21.1"
 description = "Bluetooth Low Energy platform Agnostic Klient"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.8,<3.13"
 files = [
     {file = "bleak-0.21.1-py3-none-any.whl", hash = "sha256:ccec260a0f5ec02dd133d68b0351c0151b2ecf3ddd0bcabc4c04a1cdd7f33256"},
@@ -250,7 +250,7 @@ name = "bleak-winrt"
 version = "1.2.0"
 description = "Python WinRT bindings for Bleak"
 category = "main"
-optional = true
+optional = false
 python-versions = "*"
 files = [
     {file = "bleak-winrt-1.2.0.tar.gz", hash = "sha256:0577d070251b9354fc6c45ffac57e39341ebb08ead014b1bdbd43e211d2ce1d6"},
@@ -518,7 +518,7 @@ name = "dbus-fast"
 version = "2.21.0"
 description = "A faster version of dbus-next"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.7,<4.0"
 files = [
     {file = "dbus_fast-2.21.0-cp310-cp310-manylinux_2_17_i686.manylinux_2_5_i686.manylinux1_i686.manylinux2014_i686.whl", hash = "sha256:67fc9ca7c8fa6dec14950f3f785eab78256cb1533c0a2a6237e8dfec9dfb03a5"},
@@ -1011,7 +1011,7 @@ name = "pyobjc-core"
 version = "9.2"
 description = "Python<->ObjC Interoperability Module"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "pyobjc-core-9.2.tar.gz", hash = "sha256:d734b9291fec91ff4e3ae38b9c6839debf02b79c07314476e87da8e90b2c68c3"},
@@ -1029,7 +1029,7 @@ name = "pyobjc-framework-cocoa"
 version = "9.2"
 description = "Wrappers for the Cocoa frameworks on macOS"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "pyobjc-framework-Cocoa-9.2.tar.gz", hash = "sha256:efd78080872d8c8de6c2b97e0e4eac99d6203a5d1637aa135d071d464eb2db53"},
@@ -1050,7 +1050,7 @@ name = "pyobjc-framework-corebluetooth"
 version = "9.2"
 description = "Wrappers for the framework CoreBluetooth on macOS"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "pyobjc-framework-CoreBluetooth-9.2.tar.gz", hash = "sha256:cb2481b1dfe211ae9ce55f36537dc8155dbf0dc8ff26e0bc2e13f7afb0a291d1"},
@@ -1068,7 +1068,7 @@ name = "pyobjc-framework-libdispatch"
 version = "9.2"
 description = "Wrappers for libdispatch on macOS"
 category = "main"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "pyobjc-framework-libdispatch-9.2.tar.gz", hash = "sha256:542e7f7c2b041939db5ed6f3119c1d67d73ec14a996278b92485f8513039c168"},
@@ -1460,7 +1460,7 @@ name = "winrt-runtime"
 version = "2.0.0b1"
 description = "Python projection of Windows Runtime (WinRT) APIs"
 category = "main"
-optional = true
+optional = false
 python-versions = "<3.13,>=3.9"
 files = [
     {file = "winrt-runtime-2.0.0b1.tar.gz", hash = "sha256:28db2ebe7bfb347d110224e9f23fe8079cea45af0fcbd643d039524ced07d22c"},
@@ -1483,7 +1483,7 @@ name = "winrt-windows-devices-bluetooth"
 version = "2.0.0b1"
 description = "Python projection of Windows Runtime (WinRT) APIs"
 category = "main"
-optional = true
+optional = false
 python-versions = "<3.13,>=3.9"
 files = [
     {file = "winrt-Windows.Devices.Bluetooth-2.0.0b1.tar.gz", hash = "sha256:786bd43786b873a083b89debece538974f720584662a2573d6a8a8501a532860"},
@@ -1512,7 +1512,7 @@ name = "winrt-windows-devices-bluetooth-advertisement"
 version = "2.0.0b1"
 description = "Python projection of Windows Runtime (WinRT) APIs"
 category = "main"
-optional = true
+optional = false
 python-versions = "<3.13,>=3.9"
 files = [
     {file = "winrt-Windows.Devices.Bluetooth.Advertisement-2.0.0b1.tar.gz", hash = "sha256:d9050faa4377d410d4f0e9cabb5ec555a267531c9747370555ac9ec93ec9f399"},
@@ -1541,7 +1541,7 @@ name = "winrt-windows-devices-bluetooth-genericattributeprofile"
 version = "2.0.0b1"
 description = "Python projection of Windows Runtime (WinRT) APIs"
 category = "main"
-optional = true
+optional = false
 python-versions = "<3.13,>=3.9"
 files = [
     {file = "winrt-Windows.Devices.Bluetooth.GenericAttributeProfile-2.0.0b1.tar.gz", hash = "sha256:93b745d51ecfb3e9d3a21623165cc065735c9e0146cb7a26744182c164e63e14"},
@@ -1570,7 +1570,7 @@ name = "winrt-windows-devices-enumeration"
 version = "2.0.0b1"
 description = "Python projection of Windows Runtime (WinRT) APIs"
 category = "main"
-optional = true
+optional = false
 python-versions = "<3.13,>=3.9"
 files = [
     {file = "winrt-Windows.Devices.Enumeration-2.0.0b1.tar.gz", hash = "sha256:8f214040e4edbe57c4943488887db89f4a00d028c34169aafd2205e228026100"},
@@ -1599,7 +1599,7 @@ name = "winrt-windows-foundation"
 version = "2.0.0b1"
 description = "Python projection of Windows Runtime (WinRT) APIs"
 category = "main"
-optional = true
+optional = false
 python-versions = "<3.13,>=3.9"
 files = [
     {file = "winrt-Windows.Foundation-2.0.0b1.tar.gz", hash = "sha256:976b6da942747a7ca5a179a35729d8dc163f833e03b085cf940332a5e9070d54"},
@@ -1628,7 +1628,7 @@ name = "winrt-windows-foundation-collections"
 version = "2.0.0b1"
 description = "Python projection of Windows Runtime (WinRT) APIs"
 category = "main"
-optional = true
+optional = false
 python-versions = "<3.13,>=3.9"
 files = [
     {file = "winrt-Windows.Foundation.Collections-2.0.0b1.tar.gz", hash = "sha256:185d30f8103934124544a40aac005fa5918a9a7cb3179f45e9863bb86e22ad43"},
@@ -1657,7 +1657,7 @@ name = "winrt-windows-storage-streams"
 version = "2.0.0b1"
 description = "Python projection of Windows Runtime (WinRT) APIs"
 category = "main"
-optional = true
+optional = false
 python-versions = "<3.13,>=3.9"
 files = [
     {file = "winrt-Windows.Storage.Streams-2.0.0b1.tar.gz", hash = "sha256:029d67cdc9b092d56c682740fe3c42f267dc5d3346b5c0b12ebc03f38e7d2f1f"},
@@ -1807,4 +1807,4 @@ scan = ["bleak"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "ea79322ab775017ffd7fc791885ceef05d700f808187d16971ca27d2733b8776"
+content-hash = "a6d9b36007bb5bb78116bd9c733cd9eaa3b765b04b341f7f8f7cb059a1d42c55"
