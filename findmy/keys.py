@@ -1,12 +1,15 @@
 """Module to work with private and public keys as used in FindMy accessories."""
+from __future__ import annotations
 
 import base64
 import hashlib
 import secrets
 from abc import ABC, abstractmethod
+from typing import Generator, Generic, TypeVar, overload
 
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
+
+from .util import crypto
 
 
 class HasPublicKey(ABC):
@@ -43,20 +46,19 @@ class KeyPair(HasPublicKey):
 
     def __init__(self, private_key: bytes) -> None:
         """Initialize the `KeyPair` with the private key bytes."""
-        priv_int = int.from_bytes(private_key, "big")
+        priv_int = crypto.bytes_to_int(private_key)
         self._priv_key = ec.derive_private_key(
             priv_int,
             ec.SECP224R1(),
-            default_backend(),
         )
 
     @classmethod
-    def generate(cls) -> "KeyPair":
+    def new(cls) -> KeyPair:
         """Generate a new random `KeyPair`."""
         return cls(secrets.token_bytes(28))
 
     @classmethod
-    def from_b64(cls, key_b64: str) -> "KeyPair":
+    def from_b64(cls, key_b64: str) -> KeyPair:
         """
         Import an existing `KeyPair` from its base64-encoded representation.
 
@@ -88,3 +90,33 @@ class KeyPair(HasPublicKey):
     def dh_exchange(self, other_pub_key: ec.EllipticCurvePublicKey) -> bytes:
         """Do a Diffie-Hellman key exchange using another EC public key."""
         return self._priv_key.exchange(ec.ECDH(), other_pub_key)
+
+    def __repr__(self) -> str:
+        return f'KeyPair(public_key="{self.adv_key_b64}")'
+
+
+K = TypeVar("K")
+
+
+class KeyGenerator(ABC, Generic[K]):
+    """KeyPair generator."""
+
+    @abstractmethod
+    def __iter__(self) -> KeyGenerator:
+        return NotImplemented
+
+    @abstractmethod
+    def __next__(self) -> K:
+        return NotImplemented
+
+    @overload
+    def __getitem__(self, val: int) -> K:
+        ...
+
+    @overload
+    def __getitem__(self, slc: slice) -> Generator[K, None, None]:
+        ...
+
+    @abstractmethod
+    def __getitem__(self, val: int | slice) -> K | Generator[K, None, None]:
+        return NotImplemented
