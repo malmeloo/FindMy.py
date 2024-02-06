@@ -1,6 +1,7 @@
+# ruff: noqa: T201, D103, S101
 """
-Example showing how to retrieve the primary key of your own AirTag
-(or any other FindMy-accessory).
+Example showing how to retrieve the primary key of your own AirTag, or any other FindMy-accessory.
+
 This key can be used to retrieve the device's location for a single day.
 """
 
@@ -29,20 +30,20 @@ def main() -> None:
 
     for i in range(MAX_LOOKAHEAD):
         prim_key, sec_key = airtag.keys_at(i)
-        if LOOKUP_KEY == prim_key.adv_key_b64 or LOOKUP_KEY == prim_key.adv_key_b64:
-            print(f"KEY FOUND!!")
+        if LOOKUP_KEY in (prim_key.adv_key_b64, prim_key.adv_key_b64):
+            print("KEY FOUND!!")
             print(f"This key was found at index {i}."
                   f" It was likely paired approximately {i * 15} minutes ago")
             print()
             print("KEEP THE BELOW KEY SECRET! IT CAN BE USED TO RETRIEVE THE DEVICE'S LOCATION!")
-            if LOOKUP_KEY == prim_key.adv_key_b64:
+            if prim_key.adv_key_b64 == LOOKUP_KEY:
                 print(f"PRIMARY key: {prim_key.private_key_b64}")
             else:
                 print(f"SECONDARY key: {sec_key.private_key_b64}")
+            break
     else:
         print("No match found! :(")
-        return
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

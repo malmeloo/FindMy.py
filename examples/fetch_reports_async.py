@@ -1,14 +1,15 @@
+# ruff: noqa: T201, D103, S101
 import asyncio
 import json
 import logging
-import os
+from pathlib import Path
 
+from findmy import KeyPair
 from findmy.reports import (
     AsyncAppleAccount,
     LoginState,
     RemoteAnisetteProvider,
     SmsSecondFactorMethod,
-    keys,
 )
 
 # URL to (public or local) anisette server
@@ -16,7 +17,7 @@ ANISETTE_SERVER = "http://localhost:6969"
 
 # Apple account details
 ACCOUNT_EMAIL = "test@test.com"
-ACCOUNT_PASS = "1234"
+ACCOUNT_PASS = ""
 
 # Private base64-encoded key to look up
 KEY_PRIV = ""
@@ -27,7 +28,7 @@ KEY_ADV = ""
 logging.basicConfig(level=logging.DEBUG)
 
 
-async def login(account: AsyncAppleAccount):
+async def login(account: AsyncAppleAccount) -> None:
     state = await account.login(ACCOUNT_EMAIL, ACCOUNT_PASS)
 
     if state == LoginState.REQUIRE_2FA:  # Account requires 2FA
@@ -47,21 +48,19 @@ async def login(account: AsyncAppleAccount):
         # This automatically finishes the post-2FA login flow
         await method.submit(code)
 
-    return account
 
-
-async def fetch_reports(lookup_key):
+async def fetch_reports(lookup_key: KeyPair) -> None:
     anisette = RemoteAnisetteProvider(ANISETTE_SERVER)
     acc = AsyncAppleAccount(anisette)
 
     try:
-        # Save / restore account logic
-        if os.path.isfile("account.json"):
-            with open("account.json") as f:
+        acc_store = Path("account.json")
+        try:
+            with acc_store.open() as f:
                 acc.restore(json.load(f))
-        else:
+        except FileNotFoundError:
             await login(acc)
-            with open("account.json", "w+") as f:
+            with acc_store.open("w+") as f:
                 json.dump(acc.export(), f)
 
         print(f"Logged in as: {acc.account_name} ({acc.first_name} {acc.last_name})")
@@ -75,7 +74,7 @@ async def fetch_reports(lookup_key):
 
 
 if __name__ == "__main__":
-    key = keys.KeyPair.from_b64(KEY_PRIV)
+    key = KeyPair.from_b64(KEY_PRIV)
     if KEY_ADV:  # verify that your adv key is correct :D
         assert key.adv_key_b64 == KEY_ADV
 
