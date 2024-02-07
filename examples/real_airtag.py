@@ -40,7 +40,7 @@ def main() -> None:
 
     for i in range(MAX_LOOKAHEAD):
         prim_key, sec_key = airtag.keys_at(i)
-        if PUBLIC_KEY in (prim_key.adv_key_b64, prim_key.adv_key_b64):
+        if PUBLIC_KEY in (prim_key.adv_key_b64, sec_key.adv_key_b64):
             print("KEY FOUND!!")
             print(f"This key was found at index {i}."
                   f" It was likely paired approximately {i * 15} minutes ago.")
