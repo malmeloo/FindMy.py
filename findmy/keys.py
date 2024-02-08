@@ -5,11 +5,20 @@ import base64
 import hashlib
 import secrets
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Generator, Generic, TypeVar, overload
 
 from cryptography.hazmat.primitives.asymmetric import ec
 
 from .util import crypto
+
+
+class KeyType(Enum):
+    """Enum of possible key types."""
+
+    UNKNOWN = 0
+    PRIMARY = 1
+    SECONDARY = 2
 
 
 class HasPublicKey(ABC):
@@ -40,17 +49,33 @@ class HasPublicKey(ABC):
         """Return the hashed advertised (public) key as a base64-encoded string."""
         return base64.b64encode(self.hashed_adv_key_bytes).decode("ascii")
 
+    def __hash__(self) -> int:
+        return crypto.bytes_to_int(self.adv_key_bytes)
+
+    def __eq__(self, other: HasPublicKey) -> bool:
+        if not isinstance(other, HasPublicKey):
+            return NotImplemented
+
+        return self.adv_key_bytes == other.adv_key_bytes
+
 
 class KeyPair(HasPublicKey):
     """A private-public keypair for a trackable FindMy accessory."""
 
-    def __init__(self, private_key: bytes) -> None:
+    def __init__(self, private_key: bytes, key_type: KeyType = KeyType.UNKNOWN) -> None:
         """Initialize the `KeyPair` with the private key bytes."""
         priv_int = crypto.bytes_to_int(private_key)
         self._priv_key = ec.derive_private_key(
             priv_int,
             ec.SECP224R1(),
         )
+
+        self._key_type = key_type
+
+    @property
+    def key_type(self) -> KeyType:
+        """Type of this key."""
+        return self._key_type
 
     @classmethod
     def new(cls) -> KeyPair:
@@ -92,7 +117,7 @@ class KeyPair(HasPublicKey):
         return self._priv_key.exchange(ec.ECDH(), other_pub_key)
 
     def __repr__(self) -> str:
-        return f'KeyPair(public_key="{self.adv_key_b64}")'
+        return f'KeyPair(public_key="{self.adv_key_b64}", type={self.key_type})'
 
 
 K = TypeVar("K")
