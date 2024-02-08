@@ -1,4 +1,3 @@
-# ruff: noqa: T201, D103
 import asyncio
 import logging
 

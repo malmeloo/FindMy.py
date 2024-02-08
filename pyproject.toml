@@ -24,7 +24,6 @@ sphinx-autoapi = "^3.0.0"
 
 [tool.ruff]
 exclude = [
-    "examples/",
     "docs/",
 ]
 
@@ -44,6 +43,14 @@ ignore = [
 ]
 
 line-length = 100
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*" = [
+    "T201",  # use of "print"
+    "S101",  # use of "assert"
+    "D",  # documentation
+    "INP001",  # namespacing
+]
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,4 +1,3 @@
-# ruff: noqa: T201, D103, S101
 """
 Example showing how to retrieve the primary key of your own AirTag, or any other FindMy-accessory.
 
@@ -39,7 +38,7 @@ def main() -> None:
     lookup_time = paired_at.replace(
         minute=paired_at.minute // 15 * 15,
         second=0,
-        microsecond=0
+        microsecond=0,
     ) + timedelta(minutes=15)
 
     while lookup_time < now:
