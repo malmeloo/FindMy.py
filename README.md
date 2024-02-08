@@ -1,8 +1,8 @@
 # FindMy.py
 
-![](https://img.shields.io/pypi/v/FindMy)
-![](https://img.shields.io/github/license/malmeloo/FindMy.py)
-![](https://img.shields.io/pypi/pyversions/FindMy)
+[![](https://img.shields.io/pypi/v/FindMy)](https://pypi.org/project/FindMy/)
+[![](https://img.shields.io/github/license/malmeloo/FindMy.py)](LICENSE.md)
+[![](https://img.shields.io/pypi/pyversions/FindMy)](#)
 
 The all-in-one library that provides everything you need
 to query Apple's FindMy network!
