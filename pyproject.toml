@@ -25,6 +25,8 @@ pyright = "^1.1.350"
 
 [tool.pyright]
 typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
 
 [tool.ruff]
 exclude = [
