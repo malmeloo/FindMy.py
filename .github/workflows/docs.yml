@@ -3,12 +3,13 @@ name: Deploy documentation
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    tags:        
+      - 'v[0-9]\.[0-9]+\.[0-9]+'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
 
     permissions:
       pages: write
