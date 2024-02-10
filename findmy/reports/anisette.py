@@ -70,6 +70,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
 
         logging.info("Using remote anisette server: %s", self._server_url)
 
+    @override
     async def _get_base_headers(self) -> dict[str, str]:
         r = await self._http.get(self._server_url)
         headers = r.json()
@@ -94,6 +95,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider):
         """Initialize the provider."""
         super().__init__()
 
+    @override
     async def _get_base_headers(self) -> dict[str, str]:
         return NotImplemented
 

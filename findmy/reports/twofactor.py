@@ -1,6 +1,10 @@
 """Public classes related to handling two-factor authentication."""
-from abc import ABCMeta, abstractmethod
-from typing import TYPE_CHECKING, TypeVar
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Generic, TypeVar
+
+from typing_extensions import override
+
+from findmy.util.types import MaybeCoro
 
 from .state import LoginState
 
@@ -8,23 +12,23 @@ if TYPE_CHECKING:
     # noinspection PyUnresolvedReferences
     from .account import AppleAccount, AsyncAppleAccount, BaseAppleAccount
 
-T = TypeVar("T", bound="BaseAppleAccount")
+_AccType = TypeVar("_AccType", bound="BaseAppleAccount")
 
 
-class BaseSecondFactorMethod(metaclass=ABCMeta):
+class BaseSecondFactorMethod(ABC, Generic[_AccType]):
     """Base class for a second-factor authentication method for an Apple account."""
 
-    def __init__(self, account: T) -> None:
+    def __init__(self, account: _AccType) -> None:
         """Initialize the second-factor method."""
-        self._account: T = account
+        self._account: _AccType = account
 
     @property
-    def account(self) -> T:
+    def account(self) -> _AccType:
         """The account associated with the second-factor method."""
         return self._account
 
     @abstractmethod
-    def request(self) -> None:
+    def request(self) -> MaybeCoro[None]:
         """
         Put in a request for the second-factor challenge.
 
@@ -33,12 +37,12 @@ class BaseSecondFactorMethod(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def submit(self, code: str) -> LoginState:
+    def submit(self, code: str) -> MaybeCoro[LoginState]:
         """Submit a code to complete the second-factor challenge."""
         raise NotImplementedError
 
 
-class AsyncSecondFactorMethod(BaseSecondFactorMethod, metaclass=ABCMeta):
+class AsyncSecondFactorMethod(BaseSecondFactorMethod, ABC):
     """
     An asynchronous implementation of a second-factor authentication method.
 
@@ -50,12 +54,25 @@ class AsyncSecondFactorMethod(BaseSecondFactorMethod, metaclass=ABCMeta):
         super().__init__(account)
 
     @property
+    @override
     def account(self) -> "AsyncAppleAccount":
         """The account associated with the second-factor method."""
         return self._account
 
+    @override
+    @abstractmethod
+    async def request(self) -> None:
+        """See `BaseSecondFactorMethod.request`."""
+        raise NotImplementedError
 
-class SyncSecondFactorMethod(BaseSecondFactorMethod, metaclass=ABCMeta):
+    @override
+    @abstractmethod
+    async def submit(self, code: str) -> LoginState:
+        """See `BaseSecondFactorMethod.submit`."""
+        raise NotImplementedError
+
+
+class SyncSecondFactorMethod(BaseSecondFactorMethod, ABC):
     """
     A synchronous implementation of a second-factor authentication method.
 
@@ -67,12 +84,25 @@ class SyncSecondFactorMethod(BaseSecondFactorMethod, metaclass=ABCMeta):
         super().__init__(account)
 
     @property
+    @override
     def account(self) -> "AppleAccount":
         """The account associated with the second-factor method."""
         return self._account
 
+    @override
+    @abstractmethod
+    def request(self) -> None:
+        """See `BaseSecondFactorMethod.request`."""
+        raise NotImplementedError
 
-class SmsSecondFactorMethod(BaseSecondFactorMethod, metaclass=ABCMeta):
+    @override
+    @abstractmethod
+    def submit(self, code: str) -> LoginState:
+        """See `BaseSecondFactorMethod.submit`."""
+        raise NotImplementedError
+
+
+class SmsSecondFactorMethod(BaseSecondFactorMethod, ABC):
     """Base class for SMS-based two-factor authentication."""
 
     @property
@@ -112,11 +142,13 @@ class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
         self._phone_number: str = phone_number
 
     @property
+    @override
     def phone_number_id(self) -> int:
         """The phone number's ID. You most likely don't need this."""
         return self._phone_number_id
 
     @property
+    @override
     def phone_number(self) -> str:
         """
         The 2FA method's phone number.
@@ -125,10 +157,12 @@ class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
         """
         return self._phone_number
 
+    @override
     async def request(self) -> None:
         """Request an SMS to the corresponding phone number containing a 2FA code."""
         return await self.account.sms_2fa_request(self._phone_number_id)
 
+    @override
     async def submit(self, code: str) -> LoginState:
         """See `BaseSecondFactorMethod.submit`."""
         return await self.account.sms_2fa_submit(self._phone_number_id, code)
@@ -154,19 +188,23 @@ class SyncSmsSecondFactor(SyncSecondFactorMethod, SmsSecondFactorMethod):
         self._phone_number: str = phone_number
 
     @property
+    @override
     def phone_number_id(self) -> int:
         """See `AsyncSmsSecondFactor.phone_number_id`."""
         return self._phone_number_id
 
     @property
+    @override
     def phone_number(self) -> str:
         """See `AsyncSmsSecondFactor.phone_number`."""
         return self._phone_number
 
+    @override
     def request(self) -> None:
         """See `AsyncSmsSecondFactor.request`."""
         return self.account.sms_2fa_request(self._phone_number_id)
 
+    @override
     def submit(self, code: str) -> LoginState:
         """See `AsyncSmsSecondFactor.submit`."""
         return self.account.sms_2fa_submit(self._phone_number_id, code)

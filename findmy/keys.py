@@ -9,6 +9,7 @@ from enum import Enum
 from typing import Generator, Generic, TypeVar, overload
 
 from cryptography.hazmat.primitives.asymmetric import ec
+from typing_extensions import override
 
 from .util import crypto
 
@@ -49,10 +50,12 @@ class HasPublicKey(ABC):
         """Return the hashed advertised (public) key as a base64-encoded string."""
         return base64.b64encode(self.hashed_adv_key_bytes).decode("ascii")
 
+    @override
     def __hash__(self) -> int:
         return crypto.bytes_to_int(self.adv_key_bytes)
 
-    def __eq__(self, other: HasPublicKey) -> bool:
+    @override
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, HasPublicKey):
             return NotImplemented
 
@@ -107,6 +110,7 @@ class KeyPair(HasPublicKey):
         return base64.b64encode(self.private_key_bytes).decode("ascii")
 
     @property
+    @override
     def adv_key_bytes(self) -> bytes:
         """Return the advertised (public) key as bytes."""
         key_bytes = self._priv_key.public_key().public_numbers().x
@@ -116,6 +120,7 @@ class KeyPair(HasPublicKey):
         """Do a Diffie-Hellman key exchange using another EC public key."""
         return self._priv_key.exchange(ec.ECDH(), other_pub_key)
 
+    @override
     def __repr__(self) -> str:
         return f'KeyPair(public_key="{self.adv_key_b64}", type={self.key_type})'
 
@@ -135,11 +140,13 @@ class KeyGenerator(ABC, Generic[K]):
         return NotImplemented
 
     @overload
+    @abstractmethod
     def __getitem__(self, val: int) -> K:
         ...
 
     @overload
-    def __getitem__(self, slc: slice) -> Generator[K, None, None]:
+    @abstractmethod
+    def __getitem__(self, val: slice) -> Generator[K, None, None]:
         ...
 
     @abstractmethod
