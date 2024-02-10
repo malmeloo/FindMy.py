@@ -1,13 +1,13 @@
 """Module to simplify asynchronous HTTP calls."""
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from typing import Any, ParamSpec
 
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 
+from .closable import Closable
 from .parsers import decode_plist
 
 logging.getLogger(__name__)
@@ -52,10 +52,12 @@ class HttpResponse:
 P = ParamSpec("P")
 
 
-class HttpSession:
+class HttpSession(Closable):
     """Asynchronous HTTP session manager. For internal use only."""
 
     def __init__(self) -> None:  # noqa: D107
+        super().__init__()
+
         self._session: ClientSession | None = None
 
     async def _ensure_session(self) -> None:
@@ -69,21 +71,6 @@ class HttpSession:
             logging.debug("Closing aiohttp session")
             await self._session.close()
             self._session = None
-
-    def __del__(self) -> None:
-        """
-        Attempt to gracefully close the session.
-
-        Ideally this should be done by manually calling close().
-        """
-        if self._session is None:
-            return
-
-        try:
-            loop = asyncio.get_running_loop()
-            loop.call_soon_threadsafe(loop.create_task, self.close())
-        except RuntimeError:  # cannot await closure
-            pass
 
     async def request(
         self,

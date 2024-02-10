@@ -24,8 +24,9 @@ from cryptography.hazmat.primitives import hashes, padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from findmy.util import HttpSession, decode_plist
+from findmy.util.closable import Closable
 from findmy.util.errors import InvalidCredentialsError, UnhandledProtocolError
+from findmy.util.http import HttpSession, decode_plist
 
 from .reports import LocationReport, LocationReportsFetcher
 from .state import LoginState, require_login_state
@@ -91,7 +92,7 @@ def _extract_phone_numbers(html: str) -> list[dict]:
     return data.get("direct", {}).get("phoneNumberVerification", {}).get("trustedPhoneNumbers", [])
 
 
-class BaseAppleAccount(ABC):
+class BaseAppleAccount(Closable, ABC):
     """Base class for an Apple account."""
 
     @property
@@ -238,6 +239,8 @@ class AsyncAppleAccount(BaseAppleAccount):
         :param user_id: An optional user ID to use. Will be auto-generated if missing.
         :param device_id: An optional device ID to use. Will be auto-generated if missing.
         """
+        super().__init__()
+
         self._anisette: BaseAnisetteProvider = anisette
         self._uid: str = user_id or str(uuid.uuid4())
         self._devid: str = device_id or str(uuid.uuid4())
@@ -686,10 +689,11 @@ class AppleAccount(BaseAppleAccount):
             self._loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self._loop)
 
-    def __del__(self) -> None:
-        """Gracefully close the async instance's session when garbage collected."""
-        coro = self._asyncacc.close()
-        return self._loop.run_until_complete(coro)
+        super().__init__(self._loop)
+
+    async def close(self) -> None:
+        """See `AsyncAppleAccount.close`."""
+        await self._asyncacc.close()
 
     @property
     def login_state(self) -> LoginState:
