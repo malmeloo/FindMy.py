@@ -74,7 +74,7 @@ def require_login_state(*states: LoginState) -> Callable[[_F], _F]:
     def decorator(func: _F) -> _F:
         @wraps(func)
         def wrapper(acc: _A, *args: _P.args, **kwargs: _P.kwargs) -> _R:  # pyright: ignore [reportInvalidTypeVarUse]
-            if not isinstance(args[0], BaseAppleAccount):
+            if not isinstance(acc, BaseAppleAccount):
                 msg = "This decorator can only be used on instances of BaseAppleAccount."
                 raise TypeError(msg)
 
