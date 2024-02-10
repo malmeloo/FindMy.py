@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 
 from typing_extensions import override
 
-from findmy.util import HttpSession
+from findmy.util.closable import Closable
+from findmy.util.http import HttpSession
 
 
 def _gen_meta_headers(
@@ -32,16 +33,11 @@ def _gen_meta_headers(
     }
 
 
-class BaseAnisetteProvider(ABC):
+class BaseAnisetteProvider(Closable, ABC):
     """Abstract base class for Anisette providers."""
 
     @abstractmethod
     async def _get_base_headers(self) -> dict[str, str]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def close(self) -> None:
-        """Close any underlying sessions. Call when the provider will no longer be used."""
         raise NotImplementedError
 
     async def get_headers(
@@ -66,6 +62,8 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
 
     def __init__(self, server_url: str) -> None:
         """Initialize the provider with URL to te remote server."""
+        super().__init__()
+
         self._server_url = server_url
 
         self._http = HttpSession()
@@ -95,6 +93,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider):
 
     def __init__(self) -> None:
         """Initialize the provider."""
+        super().__init__()
 
     @override
     async def _get_base_headers(self) -> dict[str, str]:

@@ -1,14 +1,16 @@
 name: Upload Python Package
 
+
 on:
   workflow_dispatch:
   push:
     tags:        
-      - '*'
+      - 'v[0-9]\.[0-9]+\.[0-9]+'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
 
     steps:
     - uses: actions/checkout@v4
