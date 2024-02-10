@@ -2,6 +2,8 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Generic, TypeVar
 
+from typing_extensions import override
+
 from findmy.util.types import MaybeCoro
 
 from .state import LoginState
@@ -52,15 +54,18 @@ class AsyncSecondFactorMethod(BaseSecondFactorMethod, ABC):
         super().__init__(account)
 
     @property
+    @override
     def account(self) -> "AsyncAppleAccount":
         """The account associated with the second-factor method."""
         return self._account
 
+    @override
     @abstractmethod
     async def request(self) -> None:
         """See `BaseSecondFactorMethod.request`."""
         raise NotImplementedError
 
+    @override
     @abstractmethod
     async def submit(self, code: str) -> LoginState:
         """See `BaseSecondFactorMethod.submit`."""
@@ -79,15 +84,18 @@ class SyncSecondFactorMethod(BaseSecondFactorMethod, ABC):
         super().__init__(account)
 
     @property
+    @override
     def account(self) -> "AppleAccount":
         """The account associated with the second-factor method."""
         return self._account
 
+    @override
     @abstractmethod
     def request(self) -> None:
         """See `BaseSecondFactorMethod.request`."""
         raise NotImplementedError
 
+    @override
     @abstractmethod
     def submit(self, code: str) -> LoginState:
         """See `BaseSecondFactorMethod.submit`."""
@@ -134,11 +142,13 @@ class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
         self._phone_number: str = phone_number
 
     @property
+    @override
     def phone_number_id(self) -> int:
         """The phone number's ID. You most likely don't need this."""
         return self._phone_number_id
 
     @property
+    @override
     def phone_number(self) -> str:
         """
         The 2FA method's phone number.
@@ -147,10 +157,12 @@ class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
         """
         return self._phone_number
 
+    @override
     async def request(self) -> None:
         """Request an SMS to the corresponding phone number containing a 2FA code."""
         return await self.account.sms_2fa_request(self._phone_number_id)
 
+    @override
     async def submit(self, code: str) -> LoginState:
         """See `BaseSecondFactorMethod.submit`."""
         return await self.account.sms_2fa_submit(self._phone_number_id, code)
@@ -176,19 +188,23 @@ class SyncSmsSecondFactor(SyncSecondFactorMethod, SmsSecondFactorMethod):
         self._phone_number: str = phone_number
 
     @property
+    @override
     def phone_number_id(self) -> int:
         """See `AsyncSmsSecondFactor.phone_number_id`."""
         return self._phone_number_id
 
     @property
+    @override
     def phone_number(self) -> str:
         """See `AsyncSmsSecondFactor.phone_number`."""
         return self._phone_number
 
+    @override
     def request(self) -> None:
         """See `AsyncSmsSecondFactor.request`."""
         return self.account.sms_2fa_request(self._phone_number_id)
 
+    @override
     def submit(self, code: str) -> LoginState:
         """See `AsyncSmsSecondFactor.submit`."""
         return self.account.sms_2fa_submit(self._phone_number_id, code)

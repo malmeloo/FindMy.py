@@ -7,6 +7,8 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
+from typing_extensions import override
+
 from findmy.util import HttpSession
 
 
@@ -70,6 +72,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
 
         logging.info("Using remote anisette server: %s", self._server_url)
 
+    @override
     async def _get_base_headers(self) -> dict[str, str]:
         r = await self._http.get(self._server_url)
         headers = r.json()
@@ -79,6 +82,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
             "X-Apple-I-MD-M": headers["X-Apple-I-MD-M"],
         }
 
+    @override
     async def close(self) -> None:
         """See `AnisetteProvider.close`."""
         await self._http.close()
@@ -92,8 +96,10 @@ class LocalAnisetteProvider(BaseAnisetteProvider):
     def __init__(self) -> None:
         """Initialize the provider."""
 
+    @override
     async def _get_base_headers(self) -> dict[str, str]:
         return NotImplemented
 
+    @override
     async def close(self) -> None:
         """See `AnisetteProvider.close`."""

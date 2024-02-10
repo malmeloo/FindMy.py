@@ -9,6 +9,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Generator, overload
 
+from typing_extensions import override
+
 from .keys import KeyGenerator, KeyPair, KeyType
 from .util import crypto
 
@@ -141,10 +143,12 @@ class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
 
             ind += 1
 
+    @override
     def __iter__(self) -> KeyGenerator:
         self._iter_ind = -1
         return self
 
+    @override
     def __next__(self) -> KeyPair:
         self._iter_ind += 1
 
@@ -158,6 +162,7 @@ class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
     def __getitem__(self, val: slice) -> Generator[KeyPair, None, None]:
         ...
 
+    @override
     def __getitem__(self, val: int | slice) -> KeyPair | Generator[KeyPair, None, None]:
         if isinstance(val, int):
             if val < 0:

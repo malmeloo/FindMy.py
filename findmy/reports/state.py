@@ -3,6 +3,8 @@ from enum import Enum
 from functools import wraps
 from typing import Callable, Concatenate, ParamSpec, TypeVar
 
+from typing_extensions import override
+
 from findmy.util.errors import InvalidStateError
 
 from .account import BaseAppleAccount
@@ -28,6 +30,7 @@ class LoginState(Enum):
 
         return NotImplemented
 
+    @override
     def __repr__(self) -> str:
         """Human-readable string representation of the state."""
         return self.__str__()

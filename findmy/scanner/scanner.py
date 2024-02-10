@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from bleak import BleakScanner
+from typing_extensions import override
 
 from findmy.keys import HasPublicKey
 
@@ -62,6 +63,7 @@ class OfflineFindingDevice(HasPublicKey):
         return self._additional_data
 
     @property
+    @override
     def adv_key_bytes(self) -> bytes:
         """See `HasPublicKey.adv_key_bytes`."""
         return self._public_key
@@ -106,16 +108,13 @@ class OfflineFindingDevice(HasPublicKey):
 
         return OfflineFindingDevice(mac_bytes, status, pubkey, hint, additional_data)
 
+    @override
     def __repr__(self) -> str:
         """Human-readable string representation of an OfflineFindingDevice."""
         return (
             f"OfflineFindingDevice({self.mac_address}, pubkey={self.adv_key_b64},"
             f" status={self.status}, hint={self.hint})"
         )
-
-    def __hash__(self) -> int:
-        """Hash an OfflineFindingDevice. This is simply the MAC address as an integer."""
-        return int.from_bytes(self._mac_bytes, "big")
 
 
 class OfflineFindingScanner:

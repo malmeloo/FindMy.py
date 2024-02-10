@@ -24,9 +24,12 @@ sphinx-autoapi = "^3.0.0"
 pyright = "^1.1.350"
 
 [tool.pyright]
-typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
+
+# rule overrides
+typeCheckingMode = "standard"
+reportImplicitOverride = true
 
 [tool.ruff]
 exclude = [

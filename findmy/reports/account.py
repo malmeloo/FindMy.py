@@ -18,6 +18,7 @@ import srp._pysrp as srp
 from cryptography.hazmat.primitives import hashes, padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from typing_extensions import override
 
 from findmy.util import HttpSession, decode_plist
 from findmy.util.errors import InvalidCredentialsError, UnhandledProtocolError
@@ -265,6 +266,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return state
 
     @property
+    @override
     def login_state(self) -> LoginState:
         """See `BaseAppleAccount.login_state`."""
         return self._login_state
@@ -275,6 +277,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         LoginState.AUTHENTICATED,
         LoginState.REQUIRE_2FA,
     )
+    @override
     def account_name(self) -> str | None:
         """See `BaseAppleAccount.account_name`."""
         return self._account_info["account_name"] if self._account_info else None
@@ -285,6 +288,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         LoginState.AUTHENTICATED,
         LoginState.REQUIRE_2FA,
     )
+    @override
     def first_name(self) -> str | None:
         """See `BaseAppleAccount.first_name`."""
         return self._account_info["first_name"] if self._account_info else None
@@ -295,10 +299,12 @@ class AsyncAppleAccount(BaseAppleAccount):
         LoginState.AUTHENTICATED,
         LoginState.REQUIRE_2FA,
     )
+    @override
     def last_name(self) -> str | None:
         """See `BaseAppleAccount.last_name`."""
         return self._account_info["last_name"] if self._account_info else None
 
+    @override
     def export(self) -> dict:
         """See `BaseAppleAccount.export`."""
         return {
@@ -314,6 +320,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             },
         }
 
+    @override
     def restore(self, data: dict) -> None:
         """See `BaseAppleAccount.restore`."""
         try:
@@ -340,6 +347,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         await self._http.close()
 
     @require_login_state(LoginState.LOGGED_OUT)
+    @override
     async def login(self, username: str, password: str) -> LoginState:
         """See `BaseAppleAccount.login`."""
         # LOGGED_OUT -> (REQUIRE_2FA or AUTHENTICATED)
@@ -351,6 +359,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return await self._login_mobileme()
 
     @require_login_state(LoginState.REQUIRE_2FA)
+    @override
     async def get_2fa_methods(self) -> Sequence[AsyncSecondFactorMethod]:
         """See `BaseAppleAccount.get_2fa_methods`."""
         methods: list[AsyncSecondFactorMethod] = []
@@ -373,6 +382,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return methods
 
     @require_login_state(LoginState.REQUIRE_2FA)
+    @override
     async def sms_2fa_request(self, phone_number_id: int) -> None:
         """See `BaseAppleAccount.sms_2fa_request`."""
         data = {"phoneNumber": {"id": phone_number_id}, "mode": "sms"}
@@ -384,6 +394,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         )
 
     @require_login_state(LoginState.REQUIRE_2FA)
+    @override
     async def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
         """See `BaseAppleAccount.sms_2fa_submit`."""
         data = {
@@ -408,6 +419,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return await self._login_mobileme()
 
     @require_login_state(LoginState.LOGGED_IN)
+    @override
     async def fetch_reports(
         self,
         keys: Sequence[KeyPair],
@@ -427,6 +439,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         )
 
     @require_login_state(LoginState.LOGGED_IN)
+    @override
     async def fetch_last_reports(
         self,
         keys: Sequence[KeyPair],
@@ -636,6 +649,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             raise UnhandledProtocolError(msg)
         return resp.plist()["Response"]
 
+    @override
     async def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
         """See `BaseAppleAccount.get_anisette_headers`."""
         return await self._anisette.get_headers(self._uid, self._devid, serial)
@@ -669,38 +683,46 @@ class AppleAccount(BaseAppleAccount):
         return self._loop.run_until_complete(coro)
 
     @property
+    @override
     def login_state(self) -> LoginState:
         """See `AsyncAppleAccount.login_state`."""
         return self._asyncacc.login_state
 
     @property
+    @override
     def account_name(self) -> str | None:
         """See `AsyncAppleAccount.login_state`."""
         return self._asyncacc.account_name
 
     @property
+    @override
     def first_name(self) -> str | None:
         """See `AsyncAppleAccount.first_name`."""
         return self._asyncacc.first_name
 
     @property
+    @override
     def last_name(self) -> str | None:
         """See `AsyncAppleAccount.last_name`."""
         return self._asyncacc.last_name
 
+    @override
     def export(self) -> dict:
         """See `AsyncAppleAccount.export`."""
         return self._asyncacc.export()
 
+    @override
     def restore(self, data: dict) -> None:
         """See `AsyncAppleAccount.restore`."""
         return self._asyncacc.restore(data)
 
+    @override
     def login(self, username: str, password: str) -> LoginState:
         """See `AsyncAppleAccount.login`."""
         coro = self._asyncacc.login(username, password)
         return self._loop.run_until_complete(coro)
 
+    @override
     def get_2fa_methods(self) -> Sequence[SyncSecondFactorMethod]:
         """See `AsyncAppleAccount.get_2fa_methods`."""
         coro = self._asyncacc.get_2fa_methods()
@@ -719,16 +741,19 @@ class AppleAccount(BaseAppleAccount):
 
         return res
 
+    @override
     def sms_2fa_request(self, phone_number_id: int) -> None:
         """See `AsyncAppleAccount.sms_2fa_request`."""
         coro = self._asyncacc.sms_2fa_request(phone_number_id)
         return self._loop.run_until_complete(coro)
 
+    @override
     def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
         """See `AsyncAppleAccount.sms_2fa_submit`."""
         coro = self._asyncacc.sms_2fa_submit(phone_number_id, code)
         return self._loop.run_until_complete(coro)
 
+    @override
     def fetch_reports(
         self,
         keys: Sequence[KeyPair],
@@ -739,6 +764,7 @@ class AppleAccount(BaseAppleAccount):
         coro = self._asyncacc.fetch_reports(keys, date_from, date_to)
         return self._loop.run_until_complete(coro)
 
+    @override
     def fetch_last_reports(
         self,
         keys: Sequence[KeyPair],
@@ -748,6 +774,7 @@ class AppleAccount(BaseAppleAccount):
         coro = self._asyncacc.fetch_last_reports(keys, hours)
         return self._loop.run_until_complete(coro)
 
+    @override
     def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
         """See `AsyncAppleAccount.get_anisette_headers`."""
         coro = self._asyncacc.get_anisette_headers(serial)

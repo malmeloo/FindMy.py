@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Sequence
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from typing_extensions import override
 
 from findmy.util import HttpSession
 
@@ -156,11 +157,12 @@ class KeyReport:
             return self.timestamp < other.timestamp
         return NotImplemented
 
+    @override
     def __repr__(self) -> str:
         """Human-readable string representation of the location report."""
         return (
-            f"<KeyReport(key={self._key.hashed_adv_key_b64}, timestamp={self._timestamp},"
-            f" lat={self._lat}, lng={self._lng})>"
+            f"KeyReport(key={self._key.hashed_adv_key_b64}, timestamp={self._timestamp},"
+            f" lat={self._lat}, lng={self._lng})"
         )
 
 
