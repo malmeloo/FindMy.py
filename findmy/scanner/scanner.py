@@ -4,11 +4,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any, AsyncGenerator
 
-import bleak
+from bleak import BleakScanner
 
 from findmy.keys import HasPublicKey
+
+if TYPE_CHECKING:
+    from bleak.backends.device import BLEDevice
+    from bleak.backends.scanner import AdvertisementData
 
 logging.getLogger(__name__)
 
@@ -109,12 +113,6 @@ class OfflineFindingDevice(HasPublicKey):
             f" status={self.status}, hint={self.hint})"
         )
 
-    def __eq__(self, other: OfflineFindingDevice) -> bool:
-        """Check if two OfflineFindingDevices are equal by comparing their MAC addresses."""
-        if not isinstance(other, OfflineFindingDevice):
-            return False
-        return other.mac_address == self.mac_address
-
     def __hash__(self) -> int:
         """Hash an OfflineFindingDevice. This is simply the MAC address as an integer."""
         return int.from_bytes(self._mac_bytes, "big")
@@ -134,12 +132,10 @@ class OfflineFindingScanner:
         You most likely do not want to use this yourself;
         check out `OfflineFindingScanner.create` instead.
         """
-        self._scanner: bleak.BleakScanner = bleak.BleakScanner(self._scan_callback)
+        self._scanner: BleakScanner = BleakScanner(self._scan_callback)
 
         self._loop = loop
-        self._device_fut: asyncio.Future[
-            (bleak.BLEDevice, bleak.AdvertisementData)
-        ] = loop.create_future()
+        self._device_fut: asyncio.Future[tuple[BLEDevice, AdvertisementData]] = loop.create_future()
 
         self._scanner_count: int = 0
 
@@ -165,8 +161,8 @@ class OfflineFindingScanner:
 
     async def _scan_callback(
         self,
-        device: bleak.BLEDevice,
-        data: bleak.AdvertisementData,
+        device: BLEDevice,
+        data: AdvertisementData,
     ) -> None:
         self._device_fut.set_result((device, data))
         self._device_fut = self._loop.create_future()
@@ -186,7 +182,7 @@ class OfflineFindingScanner:
         timeout: float = 10,
         *,
         extend_timeout: bool = False,
-    ) -> AsyncGenerator[OfflineFindingDevice]:
+    ) -> AsyncGenerator[OfflineFindingDevice, None]:
         """
         Scan for `OfflineFindingDevice`s for up to `timeout` seconds.
 

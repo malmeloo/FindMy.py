@@ -11,12 +11,7 @@ import plistlib
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Sequence,
-    TypedDict,
-)
+from typing import TYPE_CHECKING, Any, Sequence, TypedDict
 
 import bs4
 import srp._pysrp as srp
@@ -39,6 +34,7 @@ from .twofactor import (
 
 if TYPE_CHECKING:
     from findmy.keys import KeyPair
+    from findmy.util.types import MaybeCoro
 
     from .anisette import BaseAnisetteProvider
 
@@ -82,7 +78,7 @@ def _decrypt_cbc(session_key: bytes, data: bytes) -> bytes:
 
 def _extract_phone_numbers(html: str) -> list[dict]:
     soup = bs4.BeautifulSoup(html, features="html.parser")
-    data_elem = soup.find("script", **{"class": "boot_args"})
+    data_elem = soup.find("script", {"class": "boot_args"})
     if not data_elem:
         msg = "Could not find HTML element containing phone numbers"
         raise RuntimeError(msg)
@@ -102,7 +98,7 @@ class BaseAppleAccount(ABC):
 
     @property
     @abstractmethod
-    def account_name(self) -> str:
+    def account_name(self) -> str | None:
         """
         The name of the account as reported by Apple.
 
@@ -154,12 +150,12 @@ class BaseAppleAccount(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def login(self, username: str, password: str) -> LoginState:
+    def login(self, username: str, password: str) -> MaybeCoro[LoginState]:
         """Log in to an Apple account using a username and password."""
         raise NotImplementedError
 
     @abstractmethod
-    def get_2fa_methods(self) -> list[BaseSecondFactorMethod]:
+    def get_2fa_methods(self) -> MaybeCoro[Sequence[BaseSecondFactorMethod]]:
         """
         Get a list of 2FA methods that can be used as a secondary challenge.
 
@@ -168,7 +164,7 @@ class BaseAppleAccount(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def sms_2fa_request(self, phone_number_id: int) -> None:
+    def sms_2fa_request(self, phone_number_id: int) -> MaybeCoro[None]:
         """
         Request a 2FA code to be sent to a specific phone number ID.
 
@@ -177,7 +173,7 @@ class BaseAppleAccount(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
+    def sms_2fa_submit(self, phone_number_id: int, code: str) -> MaybeCoro[LoginState]:
         """
         Submit a 2FA code that was sent to a specific phone number ID.
 
@@ -191,7 +187,7 @@ class BaseAppleAccount(ABC):
         keys: Sequence[KeyPair],
         date_from: datetime,
         date_to: datetime,
-    ) -> dict[KeyPair, list[KeyReport]]:
+    ) -> MaybeCoro[dict[KeyPair, list[KeyReport]]]:
         """
         Fetch location reports for a sequence of `KeyPair`s between `date_from` and `date_end`.
 
@@ -204,7 +200,7 @@ class BaseAppleAccount(ABC):
         self,
         keys: Sequence[KeyPair],
         hours: int = 7 * 24,
-    ) -> dict[KeyPair, list[KeyReport]]:
+    ) -> MaybeCoro[dict[KeyPair, list[KeyReport]]]:
         """
         Fetch location reports for a sequence of `KeyPair`s for the last `hours` hours.
 
@@ -213,7 +209,7 @@ class BaseAppleAccount(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
+    def get_anisette_headers(self, serial: str = "0") -> MaybeCoro[dict[str, str]]:
         """
         Retrieve a complete dictionary of Anisette headers.
 
@@ -355,7 +351,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return await self._login_mobileme()
 
     @require_login_state(LoginState.REQUIRE_2FA)
-    async def get_2fa_methods(self) -> list[AsyncSecondFactorMethod]:
+    async def get_2fa_methods(self) -> Sequence[AsyncSecondFactorMethod]:
         """See `BaseAppleAccount.get_2fa_methods`."""
         methods: list[AsyncSecondFactorMethod] = []
 
@@ -366,8 +362,8 @@ class AsyncAppleAccount(BaseAppleAccount):
             methods.extend(
                 AsyncSmsSecondFactor(
                     self,
-                    number.get("id"),
-                    number.get("numberWithDialCode"),
+                    number.get("id") or -1,
+                    number.get("numberWithDialCode") or "-",
                 )
                 for number in phone_numbers
             )
@@ -499,11 +495,11 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         logging.debug("Decrypting SPD data in response")
 
-        spd = _decrypt_cbc(usr.get_session_key(), r["spd"])
+        spd = _decrypt_cbc(usr.get_session_key() or b"", r["spd"])
         spd = decode_plist(spd)
 
         logging.debug("Received account information")
-        self._account_info: _AccountInfo = {
+        self._account_info = {
             "account_name": spd.get("acname"),
             "first_name": spd.get("fn"),
             "last_name": spd.get("ln"),
@@ -553,7 +549,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         resp = await self._http.post(
             "https://setup.icloud.com/setup/iosbuddy/loginDelegates",
-            auth=(self._username, self._login_state_data["idms_pet"]),
+            auth=(self._username or "", self._login_state_data["idms_pet"]),
             data=data,
             headers=headers,
         )
@@ -575,7 +571,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         self,
         method: str,
         url: str,
-        data: dict | None = None,
+        data: dict[str, Any] | None = None,
     ) -> str:
         adsid = self._login_state_data["adsid"]
         idms_token = self._login_state_data["idms_token"]
@@ -595,7 +591,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         r = await self._http.request(
             method,
             url,
-            json=data,
+            json=data or {},
             headers=headers,
         )
         if not r.ok:
@@ -678,7 +674,7 @@ class AppleAccount(BaseAppleAccount):
         return self._asyncacc.login_state
 
     @property
-    def account_name(self) -> str:
+    def account_name(self) -> str | None:
         """See `AsyncAppleAccount.login_state`."""
         return self._asyncacc.account_name
 
@@ -705,7 +701,7 @@ class AppleAccount(BaseAppleAccount):
         coro = self._asyncacc.login(username, password)
         return self._loop.run_until_complete(coro)
 
-    def get_2fa_methods(self) -> list[SyncSecondFactorMethod]:
+    def get_2fa_methods(self) -> Sequence[SyncSecondFactorMethod]:
         """See `AsyncAppleAccount.get_2fa_methods`."""
         coro = self._asyncacc.get_2fa_methods()
         methods = self._loop.run_until_complete(coro)

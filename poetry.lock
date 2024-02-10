@@ -1074,6 +1074,24 @@ files = [
 pyobjc-core = ">=9.2"
 
 [[package]]
+name = "pyright"
+version = "1.1.350"
+description = "Command line wrapper for pyright"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "pyright-1.1.350-py3-none-any.whl", hash = "sha256:f1dde6bcefd3c90aedbe9dd1c573e4c1ddbca8c74bf4fa664dd3b1a599ac9a66"},
+    {file = "pyright-1.1.350.tar.gz", hash = "sha256:a8ba676de3a3737ea4d8590604da548d4498cc5ee9ee00b1a403c6db987916c6"},
+]
+
+[package.dependencies]
+nodeenv = ">=1.6.0"
+
+[package.extras]
+all = ["twine (>=3.4.1)"]
+dev = ["twine (>=3.4.1)"]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.1"
 description = "YAML parser and emitter for Python"
@@ -1760,4 +1778,4 @@ scan = ["bleak"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "f0a6463477183b86d152b71aa14404fea80a3b28df20c43782eb56de00db8d91"
+content-hash = "696a56ccbba231e3ec702aaee911977819b996d21074b37807c42a45d107c7ab"

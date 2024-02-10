@@ -52,7 +52,7 @@ class HasPublicKey(ABC):
     def __hash__(self) -> int:
         return crypto.bytes_to_int(self.adv_key_bytes)
 
-    def __eq__(self, other: HasPublicKey) -> bool:
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, HasPublicKey):
             return NotImplemented
 
@@ -135,11 +135,13 @@ class KeyGenerator(ABC, Generic[K]):
         return NotImplemented
 
     @overload
+    @abstractmethod
     def __getitem__(self, val: int) -> K:
         ...
 
     @overload
-    def __getitem__(self, slc: slice) -> Generator[K, None, None]:
+    @abstractmethod
+    def __getitem__(self, val: slice) -> Generator[K, None, None]:
         ...
 
     @abstractmethod

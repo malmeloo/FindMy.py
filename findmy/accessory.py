@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
-from typing import Generator
+from typing import Generator, overload
 
 from .keys import KeyGenerator, KeyPair, KeyType
 from .util import crypto
@@ -149,6 +149,14 @@ class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
         self._iter_ind += 1
 
         return self._get_keypair(self._iter_ind)
+
+    @overload
+    def __getitem__(self, val: int) -> KeyPair:
+        ...
+
+    @overload
+    def __getitem__(self, val: slice) -> Generator[KeyPair, None, None]:
+        ...
 
     def __getitem__(self, val: int | slice) -> KeyPair | Generator[KeyPair, None, None]:
         if isinstance(val, int):
