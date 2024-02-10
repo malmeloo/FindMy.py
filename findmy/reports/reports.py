@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Sequence, TypedDict, overload
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from typing_extensions import override, Unpack
+from typing_extensions import Unpack, override
 
 from findmy.keys import KeyPair
 from findmy.util.http import HttpSession

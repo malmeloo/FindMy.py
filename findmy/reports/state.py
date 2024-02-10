@@ -1,13 +1,7 @@
-"""Code related to internal account state handling."""
+"""Account  login state."""
 from enum import Enum
-from functools import wraps
-from typing import Callable, Concatenate, ParamSpec, TypeVar
 
 from typing_extensions import override
-
-from findmy.util.errors import InvalidStateError
-
-from .account import BaseAppleAccount
 
 
 class LoginState(Enum):
@@ -34,33 +28,3 @@ class LoginState(Enum):
     def __repr__(self) -> str:
         """Human-readable string representation of the state."""
         return self.__str__()
-
-
-_P = ParamSpec("_P")
-_R = TypeVar("_R")
-_A = TypeVar("_A", bound="BaseAppleAccount")
-_F = Callable[Concatenate[_A, _P], _R]
-
-
-def require_login_state(*states: LoginState) -> Callable[[_F], _F]:
-    """Enforce a login state as precondition for a method."""
-
-    def decorator(func: _F) -> _F:
-        @wraps(func)
-        def wrapper(acc: _A, *args: _P.args, **kwargs: _P.kwargs) -> _R:  # pyright: ignore [reportInvalidTypeVarUse]
-            if not isinstance(args[0], BaseAppleAccount):
-                msg = "This decorator can only be used on instances of BaseAppleAccount."
-                raise TypeError(msg)
-
-            if acc.login_state not in states:
-                msg = (
-                    f"Invalid login state! Currently: {acc.login_state}"
-                    f" but should be one of: {states}"
-                )
-                raise InvalidStateError(msg)
-
-            return func(acc, *args, **kwargs)
-
-        return wrapper
-
-    return decorator

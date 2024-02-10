@@ -6,7 +6,7 @@ import logging
 from typing import Any, TypedDict
 
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
-from typing_extensions import Unpack
+from typing_extensions import Unpack, override
 
 from .closable import Closable
 from .parsers import decode_plist
@@ -73,6 +73,7 @@ class HttpSession(Closable):
         self._session = ClientSession(timeout=ClientTimeout(total=5))
         return self._session
 
+    @override
     async def close(self) -> None:
         """Close the underlying session. Should be called when session will no longer be used."""
         if self._session is not None:

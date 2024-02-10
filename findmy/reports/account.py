@@ -11,7 +11,17 @@ import plistlib
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, Sequence, TypedDict
+from functools import wraps
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Concatenate,
+    ParamSpec,
+    Sequence,
+    TypedDict,
+    TypeVar,
+)
 
 import bs4
 import srp._pysrp as srp
@@ -21,11 +31,11 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing_extensions import override
 
 from findmy.util.closable import Closable
-from findmy.util.errors import InvalidCredentialsError, UnhandledProtocolError
+from findmy.util.errors import InvalidCredentialsError, InvalidStateError, UnhandledProtocolError
 from findmy.util.http import HttpSession, decode_plist
 
 from .reports import LocationReport, LocationReportsFetcher
-from .state import LoginState, require_login_state
+from .state import LoginState
 from .twofactor import (
     AsyncSecondFactorMethod,
     AsyncSmsSecondFactor,
@@ -50,6 +60,36 @@ class _AccountInfo(TypedDict):
     account_name: str
     first_name: str
     last_name: str
+
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+_A = TypeVar("_A", bound="BaseAppleAccount")
+_F = Callable[Concatenate[_A, _P], _R]
+
+
+def require_login_state(*states: LoginState) -> Callable[[_F], _F]:
+    """Enforce a login state as precondition for a method."""
+
+    def decorator(func: _F) -> _F:
+        @wraps(func)
+        def wrapper(acc: _A, *args: _P.args, **kwargs: _P.kwargs) -> _R:  # pyright: ignore [reportInvalidTypeVarUse]
+            if not isinstance(args[0], BaseAppleAccount):
+                msg = "This decorator can only be used on instances of BaseAppleAccount."
+                raise TypeError(msg)
+
+            if acc.login_state not in states:
+                msg = (
+                    f"Invalid login state! Currently: {acc.login_state}"
+                    f" but should be one of: {states}"
+                )
+                raise InvalidStateError(msg)
+
+            return func(acc, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def _encrypt_password(password: str, salt: bytes, iterations: int) -> bytes:
@@ -341,6 +381,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             msg = f"Failed to restore account data: {e}"
             raise ValueError(msg) from None
 
+    @override
     async def close(self) -> None:
         """
         Close any sessions or other resources in use by this object.
@@ -442,7 +483,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             raise UnhandledProtocolError(msg)
 
         return resp
-    
+
     @require_login_state(LoginState.LOGGED_IN)
     @override
     async def fetch_reports(
@@ -694,13 +735,14 @@ class AppleAccount(BaseAppleAccount):
         self._asyncacc = AsyncAppleAccount(anisette, user_id, device_id)
 
         try:
-            self._loop = asyncio.get_running_loop()
+            self._evt_loop = asyncio.get_running_loop()
         except RuntimeError:
-            self._loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self._loop)
+            self._evt_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._evt_loop)
 
-        super().__init__(self._loop)
+        super().__init__(self._evt_loop)
 
+    @override
     async def close(self) -> None:
         """See `AsyncAppleAccount.close`."""
         await self._asyncacc.close()
@@ -743,13 +785,13 @@ class AppleAccount(BaseAppleAccount):
     def login(self, username: str, password: str) -> LoginState:
         """See `AsyncAppleAccount.login`."""
         coro = self._asyncacc.login(username, password)
-        return self._loop.run_until_complete(coro)
+        return self._evt_loop.run_until_complete(coro)
 
     @override
     def get_2fa_methods(self) -> Sequence[SyncSecondFactorMethod]:
         """See `AsyncAppleAccount.get_2fa_methods`."""
         coro = self._asyncacc.get_2fa_methods()
-        methods = self._loop.run_until_complete(coro)
+        methods = self._evt_loop.run_until_complete(coro)
 
         res = []
         for m in methods:
@@ -768,13 +810,13 @@ class AppleAccount(BaseAppleAccount):
     def sms_2fa_request(self, phone_number_id: int) -> None:
         """See `AsyncAppleAccount.sms_2fa_request`."""
         coro = self._asyncacc.sms_2fa_request(phone_number_id)
-        return self._loop.run_until_complete(coro)
+        return self._evt_loop.run_until_complete(coro)
 
     @override
     def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
         """See `AsyncAppleAccount.sms_2fa_submit`."""
         coro = self._asyncacc.sms_2fa_submit(phone_number_id, code)
-        return self._loop.run_until_complete(coro)
+        return self._evt_loop.run_until_complete(coro)
 
     @override
     def fetch_reports(
@@ -785,7 +827,7 @@ class AppleAccount(BaseAppleAccount):
     ) -> dict[KeyPair, list[LocationReport]]:
         """See `AsyncAppleAccount.fetch_reports`."""
         coro = self._asyncacc.fetch_reports(keys, date_from, date_to)
-        return self._loop.run_until_complete(coro)
+        return self._evt_loop.run_until_complete(coro)
 
     @override
     def fetch_last_reports(
@@ -795,10 +837,10 @@ class AppleAccount(BaseAppleAccount):
     ) -> dict[KeyPair, list[LocationReport]]:
         """See `AsyncAppleAccount.fetch_last_reports`."""
         coro = self._asyncacc.fetch_last_reports(keys, hours)
-        return self._loop.run_until_complete(coro)
+        return self._evt_loop.run_until_complete(coro)
 
     @override
     def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
         """See `AsyncAppleAccount.get_anisette_headers`."""
         coro = self._asyncacc.get_anisette_headers(serial)
-        return self._loop.run_until_complete(coro)
+        return self._evt_loop.run_until_complete(coro)
