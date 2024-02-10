@@ -27,7 +27,7 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from findmy.util import HttpSession, decode_plist
 from findmy.util.errors import InvalidCredentialsError, UnhandledProtocolError
 
-from .reports import KeyReport, fetch_reports
+from .reports import LocationReport, LocationReportsFetcher
 from .state import LoginState, require_login_state
 from .twofactor import (
     AsyncSecondFactorMethod,
@@ -190,8 +190,8 @@ class BaseAppleAccount(ABC):
         self,
         keys: Sequence[KeyPair],
         date_from: datetime,
-        date_to: datetime,
-    ) -> dict[KeyPair, list[KeyReport]]:
+        date_to: datetime | None,
+    ) -> dict[KeyPair, list[LocationReport]]:
         """
         Fetch location reports for a sequence of `KeyPair`s between `date_from` and `date_end`.
 
@@ -204,7 +204,7 @@ class BaseAppleAccount(ABC):
         self,
         keys: Sequence[KeyPair],
         hours: int = 7 * 24,
-    ) -> dict[KeyPair, list[KeyReport]]:
+    ) -> dict[KeyPair, list[LocationReport]]:
         """
         Fetch location reports for a sequence of `KeyPair`s for the last `hours` hours.
 
@@ -251,6 +251,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         self._account_info: _AccountInfo | None = None
 
         self._http: HttpSession = HttpSession()
+        self._reports: LocationReportsFetcher = LocationReportsFetcher(self)
 
     def _set_login_state(
         self,
@@ -412,19 +413,37 @@ class AsyncAppleAccount(BaseAppleAccount):
         return await self._login_mobileme()
 
     @require_login_state(LoginState.LOGGED_IN)
+    async def fetch_raw_reports(self, start: int, end: int, ids: list[str]) -> dict[str, Any]:
+        """Make a request for location reports, returning raw data."""
+        auth = (
+            self._login_state_data["dsid"],
+            self._login_state_data["mobileme_data"]["tokens"]["searchPartyToken"],
+        )
+        data = {"search": [{"startDate": start, "endDate": end, "ids": ids}]}
+        r = await self._http.post(
+            "https://gateway.icloud.com/acsnservice/fetch",
+            auth=auth,
+            headers=await self.get_anisette_headers(),
+            json=data,
+        )
+        resp = r.json()
+        if not r.ok or resp["statusCode"] != "200":
+            msg = f"Failed to fetch reports: {resp['statusCode']}"
+            raise UnhandledProtocolError(msg)
+
+        return resp
+
+    @require_login_state(LoginState.LOGGED_IN)
     async def fetch_reports(
         self,
         keys: Sequence[KeyPair],
         date_from: datetime,
-        date_to: datetime,
-    ) -> dict[KeyPair, list[KeyReport]]:
+        date_to: datetime | None,
+    ) -> dict[KeyPair, list[LocationReport]]:
         """See `BaseAppleAccount.fetch_reports`."""
-        anisette_headers = await self.get_anisette_headers()
+        date_to = date_to or datetime.now().astimezone()
 
-        return await fetch_reports(
-            self._login_state_data["dsid"],
-            self._login_state_data["mobileme_data"]["tokens"]["searchPartyToken"],
-            anisette_headers,
+        return await self._reports.fetch_reports(
             date_from,
             date_to,
             keys,
@@ -435,7 +454,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         self,
         keys: Sequence[KeyPair],
         hours: int = 7 * 24,
-    ) -> dict[KeyPair, list[KeyReport]]:
+    ) -> dict[KeyPair, list[LocationReport]]:
         """See `BaseAppleAccount.fetch_last_reports`."""
         end = datetime.now(tz=timezone.utc)
         start = end - timedelta(hours=hours)
@@ -737,8 +756,8 @@ class AppleAccount(BaseAppleAccount):
         self,
         keys: Sequence[KeyPair],
         date_from: datetime,
-        date_to: datetime,
-    ) -> dict[KeyPair, list[KeyReport]]:
+        date_to: datetime | None,
+    ) -> dict[KeyPair, list[LocationReport]]:
         """See `AsyncAppleAccount.fetch_reports`."""
         coro = self._asyncacc.fetch_reports(keys, date_from, date_to)
         return self._loop.run_until_complete(coro)
@@ -747,7 +766,7 @@ class AppleAccount(BaseAppleAccount):
         self,
         keys: Sequence[KeyPair],
         hours: int = 7 * 24,
-    ) -> dict[KeyPair, list[KeyReport]]:
+    ) -> dict[KeyPair, list[LocationReport]]:
         """See `AsyncAppleAccount.fetch_last_reports`."""
         coro = self._asyncacc.fetch_last_reports(keys, hours)
         return self._loop.run_until_complete(coro)
