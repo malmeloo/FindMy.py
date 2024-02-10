@@ -3,6 +3,8 @@ name: Deploy documentation
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
 
 jobs:
   deploy:
