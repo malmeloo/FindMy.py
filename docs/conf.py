@@ -14,13 +14,18 @@ release = "0.2.1"
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ["sphinx.ext.duration", "autoapi.extension"]
+extensions = [
+    "myst_parser",
+    "sphinx.ext.duration",
+    "autoapi.extension"
+]
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- AutoAPI Options ---------------------------------------------------------
 autoapi_dirs = ["../findmy/"]
+autoapi_add_toctree_entry = False
 autoapi_options = [
     "members",
     "undoc-members",
@@ -33,5 +38,5 @@ autoapi_options = [
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "alabaster"
+html_theme = "furo"
 html_static_path = ["_static"]
