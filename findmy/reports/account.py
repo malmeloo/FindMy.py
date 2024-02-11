@@ -30,8 +30,8 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing_extensions import override
 
+from findmy.errors import InvalidCredentialsError, InvalidStateError, UnhandledProtocolError
 from findmy.util.closable import Closable
-from findmy.util.errors import InvalidCredentialsError, InvalidStateError, UnhandledProtocolError
 from findmy.util.http import HttpSession, decode_plist
 
 from .reports import LocationReport, LocationReportsFetcher
