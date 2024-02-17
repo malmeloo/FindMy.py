@@ -8,6 +8,7 @@ from findmy.reports import (
     LoginState,
     RemoteAnisetteProvider,
     SmsSecondFactorMethod,
+    TrustedDeviceSecondFactorMethod,
 )
 
 # URL to (public or local) anisette server
@@ -34,14 +35,17 @@ def login(account: AppleAccount) -> None:
         methods = account.get_2fa_methods()
 
         # Print the (masked) phone numbers
-        for method in methods:
-            if isinstance(method, SmsSecondFactorMethod):
-                print(method.phone_number)
+        for i, method in enumerate(methods):
+            if isinstance(method, TrustedDeviceSecondFactorMethod):
+                print(f"{i} - Trusted Device")
+            elif isinstance(method, SmsSecondFactorMethod):
+                print(f"{i} - SMS ({method.phone_number})")
 
-        # Just take the first one to keep things simple
-        method = methods[0]
+        ind = int(input("Method? > "))
+
+        method = methods[ind]
         method.request()
-        code = input("Code: ")
+        code = input("Code? > ")
 
         # This automatically finishes the post-2FA login flow
         method.submit(code)
@@ -64,8 +68,9 @@ def fetch_reports(lookup_key: KeyPair) -> None:
     print(f"Logged in as: {acc.account_name} ({acc.first_name} {acc.last_name})")
 
     # It's that simple!
-    reports = acc.fetch_last_reports([lookup_key])
-    print(reports)
+    reports = acc.fetch_last_reports([lookup_key])[lookup_key]
+    for report in sorted(reports):
+        print(report)
 
 
 if __name__ == "__main__":
