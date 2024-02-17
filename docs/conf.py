@@ -17,6 +17,8 @@ release = "0.2.1"
 extensions = [
     "myst_parser",
     "sphinx.ext.duration",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.inheritance_diagram",
     "autoapi.extension"
 ]
 
@@ -30,6 +32,7 @@ autoapi_options = [
     "members",
     "undoc-members",
     "show-inheritance",
+    "show-inheritance-diagram",
     "show-module-summary",
     "special-members",
     "imported-members",
