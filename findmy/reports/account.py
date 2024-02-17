@@ -38,9 +38,11 @@ from .state import LoginState
 from .twofactor import (
     AsyncSecondFactorMethod,
     AsyncSmsSecondFactor,
+    AsyncTrustedDeviceSecondFactor,
     BaseSecondFactorMethod,
     SyncSecondFactorMethod,
     SyncSmsSecondFactor,
+    SyncTrustedDeviceSecondFactor,
 )
 
 if TYPE_CHECKING:
@@ -54,13 +56,17 @@ logging.getLogger(__name__)
 srp.rfc5054_enable()
 srp.no_username_in_x()
 
-_PhoneNumber = TypedDict("_PhoneNumber", {"phoneNumber": str, "2fa": bool})
+
+class _PhoneNumber(TypedDict):
+    phoneNumber: str
+    type: str
 
 
 class _AccountInfo(TypedDict):
     account_name: str
     first_name: str
     last_name: str
+    trusted_device_2fa: bool
     phone_numbers: list[_PhoneNumber]
 
 
@@ -209,6 +215,24 @@ class BaseAppleAccount(Closable, ABC):
     def sms_2fa_submit(self, phone_number_id: int, code: str) -> MaybeCoro[LoginState]:
         """
         Submit a 2FA code that was sent to a specific phone number ID.
+
+        Consider using `BaseSecondFactorMethod.submit` instead.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def td_2fa_request(self) -> MaybeCoro[None]:
+        """
+        Request a 2FA code to be sent to a trusted device.
+
+        Consider using `BaseSecondFactorMethod.request` instead.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def td_2fa_submit(self, code: str) -> MaybeCoro[LoginState]:
+        """
+        Submit a 2FA code that was sent to a trusted device.
 
         Consider using `BaseSecondFactorMethod.submit` instead.
         """
@@ -400,10 +424,16 @@ class AsyncAppleAccount(BaseAppleAccount):
         """See `BaseAppleAccount.get_2fa_methods`."""
         methods: list[AsyncSecondFactorMethod] = []
 
+        if self._account_info is None:
+            return []
+
+        if self._account_info["trusted_device_2fa"]:
+            methods.append(AsyncTrustedDeviceSecondFactor(self))
+
         # TODO(malmeloo): ID may be incorrect! Need to fetch from somewhere!
         # https://github.com/malmeloo/FindMy.py/issues/8
         i = 1
-        for num in (self._account_info or {}).get("phone_numbers", []):
+        for num in self._account_info.get("phone_numbers", []):
             if num.get("type") != "2fa":
                 continue
 
@@ -440,6 +470,35 @@ class AsyncAppleAccount(BaseAppleAccount):
             "POST",
             "https://gsa.apple.com/auth/verify/phone/securitycode",
             data,
+        )
+
+        # REQUIRE_2FA -> AUTHENTICATED
+        new_state = await self._gsa_authenticate()
+        if new_state != LoginState.AUTHENTICATED:
+            msg = f"Unexpected state after submitting 2FA: {new_state}"
+            raise UnhandledProtocolError(msg)
+
+        # AUTHENTICATED -> LOGGED_IN
+        return await self._login_mobileme()
+
+    @require_login_state(LoginState.REQUIRE_2FA)
+    @override
+    async def td_2fa_request(self) -> None:
+        """See `BaseAppleAccount.td_2fa_request`."""
+        await self._sms_2fa_request(
+            "GET",
+            "https://gsa.apple.com/auth/verify/trusteddevice",
+        )
+
+    @require_login_state(LoginState.REQUIRE_2FA)
+    @override
+    async def td_2fa_submit(self, code: str) -> LoginState:
+        """See `BaseAppleAccount.td_2fa_submit`."""
+        headers = {"security-code": code}
+        await self._sms_2fa_request(
+            "GET",
+            "https://gsa.apple.com/grandslam/GsService2/validate",
+            headers=headers,
         )
 
         # REQUIRE_2FA -> AUTHENTICATED
@@ -569,19 +628,20 @@ class AsyncAppleAccount(BaseAppleAccount):
                 "account_name": spd.get("acname"),
                 "first_name": spd.get("fn"),
                 "last_name": spd.get("ln"),
+                "trusted_device_2fa": False,
                 "phoneNumbers": [],
             },
         )
 
-        # TODO(malmeloo): support trusted device auth (need account to test)
-        # https://github.com/malmeloo/FindMy.py/issues/1
         au = r["Status"].get("au")
-        if au in ("secondaryAuth",):
+        if au in ("secondaryAuth", "trustedDeviceSecondaryAuth"):
             logging.info("Detected 2FA requirement: %s", au)
 
-            self._account_info["phone_numbers"] = spd.get("additionalInfo", {}).get(
-                "phoneNumbers",
-                [],
+            self._account_info.update(
+                {
+                    "trusted_device_2fa": au == "trustedDeviceSecondaryAuth",
+                    "phone_numbers": spd.get("additionalInfo", {}).get("phoneNumbers", []),
+                },
             )
 
             return self._set_login_state(
@@ -645,20 +705,24 @@ class AsyncAppleAccount(BaseAppleAccount):
         method: str,
         url: str,
         data: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
     ) -> str:
         adsid = self._login_state_data["adsid"]
         idms_token = self._login_state_data["idms_token"]
         identity_token = base64.b64encode((adsid + ":" + idms_token).encode()).decode()
 
-        headers = {
-            "User-Agent": "Xcode",
-            "Accept-Language": "en-us",
-            "X-Apple-Identity-Token": identity_token,
-            "X-Apple-App-Info": "com.apple.gs.xcode.auth",
-            "X-Xcode-Version": "11.2 (11B41)",
-            "X-Mme-Client-Info": "<MacBookPro18,3> <Mac OS X;13.4.1;22F8>"
-            " <com.apple.AOSKit/282 (com.apple.dt.Xcode/3594.4.19)>",
-        }
+        headers = headers or {}
+        headers.update(
+            {
+                "User-Agent": "Xcode",
+                "Accept-Language": "en-us",
+                "X-Apple-Identity-Token": identity_token,
+                "X-Apple-App-Info": "com.apple.gs.xcode.auth",
+                "X-Xcode-Version": "11.2 (11B41)",
+                "X-Mme-Client-Info": "<MacBookPro18,3> <Mac OS X;13.4.1;22F8>"
+                " <com.apple.AOSKit/282 (com.apple.dt.Xcode/3594.4.19)>",
+            },
+        )
         headers.update(await self.get_anisette_headers())
 
         r = await self._http.request(
@@ -794,6 +858,8 @@ class AppleAccount(BaseAppleAccount):
         for m in methods:
             if isinstance(m, AsyncSmsSecondFactor):
                 res.append(SyncSmsSecondFactor(self, m.phone_number_id, m.phone_number))
+            elif isinstance(m, AsyncTrustedDeviceSecondFactor):
+                res.append(SyncTrustedDeviceSecondFactor(self))
             else:
                 msg = (
                     f"Failed to cast 2FA object to sync alternative: {m}."
@@ -813,6 +879,18 @@ class AppleAccount(BaseAppleAccount):
     def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
         """See `AsyncAppleAccount.sms_2fa_submit`."""
         coro = self._asyncacc.sms_2fa_submit(phone_number_id, code)
+        return self._evt_loop.run_until_complete(coro)
+
+    @override
+    def td_2fa_request(self) -> None:
+        """See `AsyncAppleAccount.td_2fa_request`."""
+        coro = self._asyncacc.td_2fa_request()
+        return self._evt_loop.run_until_complete(coro)
+
+    @override
+    def td_2fa_submit(self, code: str) -> LoginState:
+        """See `AsyncAppleAccount.td_2fa_submit`."""
+        coro = self._asyncacc.td_2fa_submit(code)
         return self._evt_loop.run_until_complete(coro)
 
     @override
