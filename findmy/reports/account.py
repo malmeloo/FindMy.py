@@ -485,16 +485,25 @@ class AsyncAppleAccount(BaseAppleAccount):
     @override
     async def td_2fa_request(self) -> None:
         """See `BaseAppleAccount.td_2fa_request`."""
+        headers = {
+            "Content-Type": "text/x-xml-plist",
+            "Accept": "text/x-xml-plist",
+        }
         await self._sms_2fa_request(
             "GET",
             "https://gsa.apple.com/auth/verify/trusteddevice",
+            headers=headers,
         )
 
     @require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def td_2fa_submit(self, code: str) -> LoginState:
         """See `BaseAppleAccount.td_2fa_submit`."""
-        headers = {"security-code": code}
+        headers = {
+            "security-code": code,
+            "Content-Type": "text/x-xml-plist",
+            "Accept": "text/x-xml-plist",
+        }
         await self._sms_2fa_request(
             "GET",
             "https://gsa.apple.com/grandslam/GsService2/validate",
