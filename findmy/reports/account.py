@@ -737,7 +737,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         r = await self._http.request(
             method,
             url,
-            json=data or {},
+            json=data,
             headers=headers,
         )
         if not r.ok:
