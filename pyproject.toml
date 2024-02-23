@@ -10,6 +10,7 @@ packages = [{ include = "findmy" }]
 python = ">=3.9,<3.13"
 srp = "^1.0.20"
 cryptography = "^42.0.2"
+beautifulsoup4 = "^4.12.2"
 aiohttp = "^3.9.1"
 bleak = "^0.21.1"
 
@@ -41,7 +42,7 @@ select = [
 ignore = [
     "ANN101", # annotations on `self`
     "ANN102", # annotations on `cls`
-    "FIX001", "FIX002", # resolving TODOs
+    "FIX002", # resolving TODOs
 
     "D203", # one blank line before class docstring
     "D212", # multi-line docstring start at first line

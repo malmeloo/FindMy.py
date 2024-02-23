@@ -5,6 +5,7 @@ import asyncio
 import base64
 import hashlib
 import hmac
+import json
 import logging
 import plistlib
 import uuid
@@ -23,6 +24,7 @@ from typing import (
     cast,
 )
 
+import bs4
 import srp._pysrp as srp
 from cryptography.hazmat.primitives import hashes, padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
@@ -57,17 +59,11 @@ srp.rfc5054_enable()
 srp.no_username_in_x()
 
 
-class _PhoneNumber(TypedDict):
-    phoneNumber: str
-    type: str
-
-
 class _AccountInfo(TypedDict):
     account_name: str
     first_name: str
     last_name: str
     trusted_device_2fa: bool
-    phone_numbers: list[_PhoneNumber]
 
 
 _P = ParamSpec("_P")
@@ -124,6 +120,17 @@ def _decrypt_cbc(session_key: bytes, data: bytes) -> bytes:
     # Remove PKCS#7 padding
     padder = padding.PKCS7(128).unpadder()
     return padder.update(data) + padder.finalize()
+
+
+def _extract_phone_numbers(html: str) -> list[dict]:
+    soup = bs4.BeautifulSoup(html, features="html.parser")
+    data_elem = soup.find("script", {"class": "boot_args"})
+    if not data_elem:
+        msg = "Could not find HTML element containing phone numbers"
+        raise RuntimeError(msg)
+
+    data = json.loads(data_elem.text)
+    return data.get("direct", {}).get("phoneNumberVerification", {}).get("trustedPhoneNumbers", [])
 
 
 class BaseAppleAccount(Closable, ABC):
@@ -430,17 +437,20 @@ class AsyncAppleAccount(BaseAppleAccount):
         if self._account_info["trusted_device_2fa"]:
             methods.append(AsyncTrustedDeviceSecondFactor(self))
 
-        # TODO(malmeloo): ID may be incorrect! Need to fetch from somewhere!
-        # https://github.com/malmeloo/FindMy.py/issues/8
-        i = 1
-        for num in self._account_info.get("phone_numbers", []):
-            if num.get("type") != "2fa":
-                continue
-
-            factor = AsyncSmsSecondFactor(self, i, num.get("phoneNumber"))
-            methods.append(factor)
-
-            i += 1
+        # sms
+        auth_page = await self._sms_2fa_request("GET", "https://gsa.apple.com/auth")
+        try:
+            phone_numbers = _extract_phone_numbers(auth_page)
+            methods.extend(
+                AsyncSmsSecondFactor(
+                    self,
+                    number.get("id") or -1,
+                    number.get("numberWithDialCode") or "-",
+                )
+                for number in phone_numbers
+            )
+        except RuntimeError:
+            logging.warning("Unable to extract phone numbers from login page")
 
         return methods
 
@@ -638,7 +648,6 @@ class AsyncAppleAccount(BaseAppleAccount):
                 "first_name": spd.get("fn"),
                 "last_name": spd.get("ln"),
                 "trusted_device_2fa": False,
-                "phoneNumbers": [],
             },
         )
 
@@ -649,7 +658,6 @@ class AsyncAppleAccount(BaseAppleAccount):
             self._account_info.update(
                 {
                     "trusted_device_2fa": au == "trustedDeviceSecondaryAuth",
-                    "phone_numbers": spd.get("additionalInfo", {}).get("phoneNumbers", []),
                 },
             )
 
