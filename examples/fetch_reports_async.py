@@ -9,6 +9,7 @@ from findmy.reports import (
     LoginState,
     RemoteAnisetteProvider,
     SmsSecondFactorMethod,
+    TrustedDeviceSecondFactorMethod,
 )
 
 # URL to (public or local) anisette server
@@ -35,14 +36,17 @@ async def login(account: AsyncAppleAccount) -> None:
         methods = await account.get_2fa_methods()
 
         # Print the (masked) phone numbers
-        for method in methods:
-            if isinstance(method, SmsSecondFactorMethod):
-                print(method.phone_number)
+        for i, method in enumerate(methods):
+            if isinstance(method, TrustedDeviceSecondFactorMethod):
+                print(f"{i} - Trusted Device")
+            elif isinstance(method, SmsSecondFactorMethod):
+                print(f"{i} - SMS ({method.phone_number})")
 
-        # Just take the first one to keep things simple
-        method = methods[0]
+        ind = int(input("Method? > "))
+
+        method = methods[ind]
         await method.request()
-        code = input("Code: ")
+        code = input("Code? > ")
 
         # This automatically finishes the post-2FA login flow
         await method.submit(code)

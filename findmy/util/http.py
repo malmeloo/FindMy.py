@@ -15,7 +15,7 @@ logging.getLogger(__name__)
 
 
 class _HttpRequestOptions(TypedDict, total=False):
-    json: dict[str, Any]
+    json: dict[str, Any] | None
     headers: dict[str, str]
     auth: tuple[str, str] | BasicAuth
     data: bytes

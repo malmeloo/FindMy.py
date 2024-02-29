@@ -122,8 +122,12 @@ class SmsSecondFactorMethod(BaseSecondFactorMethod, ABC):
         raise NotImplementedError
 
 
+class TrustedDeviceSecondFactorMethod(BaseSecondFactorMethod, ABC):
+    """Base class for trusted device-based two-factor authentication."""
+
+
 class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
-    """An async implementation of a second-factor method."""
+    """An async implementation of `SmsSecondFactorMethod`."""
 
     def __init__(
         self,
@@ -164,16 +168,12 @@ class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
 
     @override
     async def submit(self, code: str) -> LoginState:
-        """See `BaseSecondFactorMethod.submit`."""
+        """Submit the 2FA code as received over SMS."""
         return await self.account.sms_2fa_submit(self._phone_number_id, code)
 
 
 class SyncSmsSecondFactor(SyncSecondFactorMethod, SmsSecondFactorMethod):
-    """
-    A sync implementation of `BaseSecondFactorMethod`.
-
-    Uses `AsyncSmsSecondFactor` internally.
-    """
+    """A sync implementation of `SmsSecondFactorMethod`."""
 
     def __init__(
         self,
@@ -208,3 +208,29 @@ class SyncSmsSecondFactor(SyncSecondFactorMethod, SmsSecondFactorMethod):
     def submit(self, code: str) -> LoginState:
         """See `AsyncSmsSecondFactor.submit`."""
         return self.account.sms_2fa_submit(self._phone_number_id, code)
+
+
+class AsyncTrustedDeviceSecondFactor(AsyncSecondFactorMethod, TrustedDeviceSecondFactorMethod):
+    """An async implementation of `TrustedDeviceSecondFactorMethod`."""
+
+    @override
+    async def request(self) -> None:
+        return await self.account.td_2fa_request()
+
+    @override
+    async def submit(self, code: str) -> LoginState:
+        return await self.account.td_2fa_submit(code)
+
+
+class SyncTrustedDeviceSecondFactor(SyncSecondFactorMethod, TrustedDeviceSecondFactorMethod):
+    """A sync implementation of `TrustedDeviceSecondFactorMethod`."""
+
+    @override
+    def request(self) -> None:
+        """See `AsyncTrustedDeviceSecondFactor.request`."""
+        return self.account.td_2fa_request()
+
+    @override
+    def submit(self, code: str) -> LoginState:
+        """See `AsyncTrustedDeviceSecondFactor.submit`."""
+        return self.account.td_2fa_submit(code)
