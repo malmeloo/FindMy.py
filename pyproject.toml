@@ -9,7 +9,7 @@ packages = [{ include = "findmy" }]
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
 srp = "^1.0.20"
-cryptography = "^42.0.2"
+cryptography = "^42.0.5"
 beautifulsoup4 = "^4.12.2"
 aiohttp = "^3.9.1"
 bleak = "^0.21.1"
