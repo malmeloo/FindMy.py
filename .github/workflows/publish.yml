@@ -1,5 +1,7 @@
 name: Upload Python Package
 
+permissions:
+  contents: write
 
 on:
   workflow_dispatch:
