@@ -68,6 +68,13 @@ pre-commit install
 After following the above steps, your code will be linted and formatted automatically
 before committing it.
 
+## Derivative projects
+
+There are several other cool projects based on this library! Some of them have been listed below, make sure to check them out as well.
+
+* [OfflineFindRecovery](https://github.com/hajekj/OfflineFindRecovery) - Set of scripts to be able to precisely locate your lost MacBook via Apple's Offline Find through Bluetooth Low Energy.
+* [SwiftFindMy](https://github.com/airy10/SwiftFindMy) - Swift port of FindMy.py
+
 ## Credits
 
 While I designed the library, the vast majority of actual functionality
