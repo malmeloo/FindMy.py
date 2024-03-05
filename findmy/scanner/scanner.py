@@ -131,7 +131,7 @@ class OfflineFindingScanner:
         You most likely do not want to use this yourself;
         check out `OfflineFindingScanner.create` instead.
         """
-        self._scanner: BleakScanner = BleakScanner(self._scan_callback, cb=dict(use_bdaddr=True))
+        self._scanner: BleakScanner = BleakScanner(self._scan_callback, cb={"use_bdaddr": True})
 
         self._loop = loop
         self._device_fut: asyncio.Future[tuple[BLEDevice, AdvertisementData]] = loop.create_future()
