@@ -5,27 +5,17 @@ import base64
 import hashlib
 import struct
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Sequence, TypedDict, overload
+from typing import TYPE_CHECKING, Sequence, overload
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from typing_extensions import Unpack, override
+from typing_extensions import override
 
 from findmy.keys import KeyPair
-from findmy.util.http import HttpSession
 
 if TYPE_CHECKING:
     from .account import AsyncAppleAccount
-
-_session = HttpSession()
-
-
-class _FetcherConfig(TypedDict):
-    user_id: str
-    device_id: str
-    dsid: str
-    search_party_token: str
 
 
 def _decrypt_payload(payload: bytes, key: KeyPair) -> bytes:
@@ -180,14 +170,6 @@ class LocationReportsFetcher:
         :param account: Apple account.
         """
         self._account: AsyncAppleAccount = account
-
-        self._http: HttpSession = HttpSession()
-
-        self._config: _FetcherConfig | None = None
-
-    def apply_config(self, **conf: Unpack[_FetcherConfig]) -> None:
-        """Configure internal variables necessary to make reports fetching calls."""
-        self._config = conf
 
     @overload
     async def fetch_reports(
