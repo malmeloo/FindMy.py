@@ -49,6 +49,7 @@ ignore = [
     "D105", # docstrings in magic methods
 
     "PLR2004", # "magic" values >.>
+    "FBT",     # boolean "traps"
 ]
 
 line-length = 100

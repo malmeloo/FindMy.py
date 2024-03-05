@@ -1,11 +1,42 @@
 """Pure-python NIST P-224 Elliptic Curve cryptography. Used for some Apple algorithms."""
 
-from cryptography.hazmat.primitives import hashes
+import hashlib
+import hmac
+
+from cryptography.hazmat.primitives import hashes, padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.kdf.x963kdf import X963KDF
 
-ECPoint = tuple[float, float]
-
 P224_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF16A2E0B8F03E13DD29455C5C2A3D
+
+
+def encrypt_password(password: str, salt: bytes, iterations: int) -> bytes:
+    """Encrypt password using PBKDF2-HMAC."""
+    p = hashlib.sha256(password.encode("utf-8")).digest()
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=iterations,
+    )
+    return kdf.derive(p)
+
+
+def decrypt_spd_aes_cbc(session_key: bytes, data: bytes) -> bytes:
+    """Decrypt SPD data using SRP session key."""
+    extra_data_key = hmac.new(session_key, b"extra data key:", hashlib.sha256).digest()
+    extra_data_iv = hmac.new(session_key, b"extra data iv:", hashlib.sha256).digest()
+    # Get only the first 16 bytes of the iv
+    extra_data_iv = extra_data_iv[:16]
+
+    # Decrypt with AES CBC
+    cipher = Cipher(algorithms.AES(extra_data_key), modes.CBC(extra_data_iv))
+    decryptor = cipher.decryptor()
+    data = decryptor.update(data) + decryptor.finalize()
+    # Remove PKCS#7 padding
+    padder = padding.PKCS7(128).unpadder()
+    return padder.update(data) + padder.finalize()
 
 
 def x963_kdf(value: bytes, si: bytes, length: int) -> bytes:
