@@ -121,7 +121,7 @@ class LocationReport:
         Requires a `KeyPair` to decrypt the report's payload.
         """
         timestamp_int = int.from_bytes(payload[0:4], "big") + (60 * 60 * 24 * 11323)
-        timestamp = datetime.fromtimestamp(timestamp_int, tz=timezone.utc)
+        timestamp = datetime.fromtimestamp(timestamp_int, tz=timezone.utc).astimezone()
 
         data = _decrypt_payload(payload, key)
         latitude = struct.unpack(">i", data[0:4])[0] / 10000000
@@ -232,7 +232,7 @@ class LocationReportsFetcher:
             date_published = datetime.fromtimestamp(
                 report.get("datePublished", 0) / 1000,
                 tz=timezone.utc,
-            )
+            ).astimezone()
             description = report.get("description", "")
             payload = base64.b64decode(report["payload"])
 
