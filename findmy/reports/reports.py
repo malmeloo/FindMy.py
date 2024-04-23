@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import struct
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Sequence, overload
@@ -16,6 +17,8 @@ from findmy.keys import KeyPair
 
 if TYPE_CHECKING:
     from .account import AsyncAppleAccount
+
+logging.getLogger(__name__)
 
 
 def _decrypt_payload(payload: bytes, key: KeyPair) -> bytes:
@@ -207,8 +210,12 @@ class LocationReportsFetcher:
         if isinstance(device, KeyPair):
             return await self._fetch_reports(date_from, date_to, [device])
 
-        # sequence of KeyPairs
-        reports = await self._fetch_reports(date_from, date_to, device)
+        # sequence of KeyPairs (fetch 256 max at a time)
+        reports: list[LocationReport] = []
+        for key_offset in range(0, len(device), 256):
+            chunk = device[key_offset : key_offset + 256]
+            reports.extend(await self._fetch_reports(date_from, date_to, chunk))
+
         res: dict[KeyPair, list[LocationReport]] = {key: [] for key in device}
         for report in reports:
             res[report.key].append(report)
@@ -220,6 +227,8 @@ class LocationReportsFetcher:
         date_to: datetime,
         keys: Sequence[KeyPair],
     ) -> list[LocationReport]:
+        logging.debug("Fetching reports for %s keys", len(keys))
+
         start_date = int(date_from.timestamp() * 1000)
         end_date = int(date_to.timestamp() * 1000)
         ids = [key.hashed_adv_key_b64 for key in keys]
