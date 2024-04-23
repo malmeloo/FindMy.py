@@ -173,7 +173,12 @@ class OfflineFindingScanner:
         if not apple_data:
             return None
 
-        additional_data = device.details.get("props", {})
+        try:
+            additional_data = device.details.get("props", {})
+        except AttributeError:
+            # Likely Windows host, where details is a '_RawAdvData' object.
+            # See: https://github.com/malmeloo/FindMy.py/issues/24
+            additional_data = {}
         return OfflineFindingDevice.from_payload(device.address, apple_data, additional_data)
 
     async def scan_for(
