@@ -1,25 +1,15 @@
-import json
 import logging
-from pathlib import Path
+
+from _login import get_account_sync
 
 from findmy import KeyPair
-from findmy.reports import (
-    AppleAccount,
-    LoginState,
-    RemoteAnisetteProvider,
-    SmsSecondFactorMethod,
-    TrustedDeviceSecondFactorMethod,
-)
+from findmy.reports import RemoteAnisetteProvider
 
 # URL to (public or local) anisette server
 ANISETTE_SERVER = "http://localhost:6969"
 
-# Apple account details
-ACCOUNT_EMAIL = "test@test.com"
-ACCOUNT_PASS = ""
-
 # Private base64-encoded key to look up
-KEY_PRIV = ""
+KEY_PRIV = "Vq/RNibhblTitwb7hjPkZZj6gyJcAJSVMQ6Shg=="
 
 # Optional, to verify that advertisement key derivation works for your key
 KEY_ADV = ""
@@ -27,43 +17,9 @@ KEY_ADV = ""
 logging.basicConfig(level=logging.DEBUG)
 
 
-def login(account: AppleAccount) -> None:
-    state = account.login(ACCOUNT_EMAIL, ACCOUNT_PASS)
-
-    if state == LoginState.REQUIRE_2FA:  # Account requires 2FA
-        # This only supports SMS methods for now
-        methods = account.get_2fa_methods()
-
-        # Print the (masked) phone numbers
-        for i, method in enumerate(methods):
-            if isinstance(method, TrustedDeviceSecondFactorMethod):
-                print(f"{i} - Trusted Device")
-            elif isinstance(method, SmsSecondFactorMethod):
-                print(f"{i} - SMS ({method.phone_number})")
-
-        ind = int(input("Method? > "))
-
-        method = methods[ind]
-        method.request()
-        code = input("Code? > ")
-
-        # This automatically finishes the post-2FA login flow
-        method.submit(code)
-
-
 def fetch_reports(lookup_key: KeyPair) -> None:
     anisette = RemoteAnisetteProvider(ANISETTE_SERVER)
-    acc = AppleAccount(anisette)
-
-    # Save / restore account logic
-    acc_store = Path("account.json")
-    try:
-        with acc_store.open() as f:
-            acc.restore(json.load(f))
-    except FileNotFoundError:
-        login(acc)
-        with acc_store.open("w+") as f:
-            json.dump(acc.export(), f)
+    acc = get_account_sync(anisette)
 
     print(f"Logged in as: {acc.account_name} ({acc.first_name} {acc.last_name})")
 
