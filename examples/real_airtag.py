@@ -50,30 +50,18 @@ def main() -> None:
     # Step 0: create an accessory key generator
     airtag = FindMyAccessory(MASTER_KEY, SKN, SKS, PAIRED_AT)
 
-    # Step 1: Generate the accessory's private keys,
-    # starting from 7 days ago until now (12 hour margin)
-    fetch_to = datetime.now(tz=timezone.utc).astimezone() + timedelta(hours=12)
-    fetch_from = fetch_to - timedelta(days=8)
-
-    print(f"Generating keys from {fetch_from} to {fetch_to} ...")
-    lookup_keys = _gen_keys(airtag, fetch_from, fetch_to)
-
-    print(f"Generated {len(lookup_keys)} keys")
-
-    # Step 2: log into an Apple account
+    # Step 1: log into an Apple account
     print("Logging into account")
     anisette = RemoteAnisetteProvider(ANISETTE_SERVER)
     acc = get_account_sync(anisette)
 
-    # step 3: fetch reports!
+    # step 2: fetch reports!
     print("Fetching reports")
-    reports = acc.fetch_reports(list(lookup_keys), fetch_from, fetch_to)
+    reports = acc.fetch_last_reports(airtag)
 
-    # step 4: print 'em
-    # reports are in {key: [report]} format, but we only really care about the reports
+    # step 3: print 'em
     print()
     print("Location reports:")
-    reports = sorted([r for rs in reports.values() for r in rs])
     for report in reports:
         print(f" - {report}")
 

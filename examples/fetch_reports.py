@@ -24,7 +24,7 @@ def fetch_reports(lookup_key: KeyPair) -> None:
     print(f"Logged in as: {acc.account_name} ({acc.first_name} {acc.last_name})")
 
     # It's that simple!
-    reports = acc.fetch_last_reports([lookup_key])[lookup_key]
+    reports = acc.fetch_last_reports(lookup_key)
     for report in sorted(reports):
         print(report)
 

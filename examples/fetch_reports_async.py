@@ -27,8 +27,9 @@ async def fetch_reports(lookup_key: KeyPair) -> None:
         print(f"Logged in as: {acc.account_name} ({acc.first_name} {acc.last_name})")
 
         # It's that simple!
-        reports = await acc.fetch_last_reports([lookup_key])
-        print(reports)
+        reports = await acc.fetch_last_reports(lookup_key)
+        for report in sorted(reports):
+            print(report)
 
     finally:
         await acc.close()

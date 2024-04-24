@@ -5,7 +5,7 @@ import base64
 import hashlib
 import logging
 import struct
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Sequence, overload
 
 from cryptography.hazmat.backends import default_backend
@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from typing_extensions import override
 
+from findmy.accessory import RollingKeyPairSource
 from findmy.keys import KeyPair
 
 if TYPE_CHECKING:
@@ -192,11 +193,20 @@ class LocationReportsFetcher:
     ) -> dict[KeyPair, list[LocationReport]]:
         ...
 
+    @overload
     async def fetch_reports(
         self,
         date_from: datetime,
         date_to: datetime,
-        device: KeyPair | Sequence[KeyPair],
+        device: RollingKeyPairSource,
+    ) -> list[LocationReport]:
+        ...
+
+    async def fetch_reports(
+        self,
+        date_from: datetime,
+        date_to: datetime,
+        device: KeyPair | Sequence[KeyPair] | RollingKeyPairSource,
     ) -> list[LocationReport] | dict[KeyPair, list[LocationReport]]:
         """
         Fetch location reports for a certain device.
@@ -210,13 +220,28 @@ class LocationReportsFetcher:
         if isinstance(device, KeyPair):
             return await self._fetch_reports(date_from, date_to, [device])
 
+        # KeyPair generator
+        #   add 12h margin to the generator
+        if isinstance(device, RollingKeyPairSource):
+            keys = list(
+                device.keys_between(
+                    date_from - timedelta(hours=12),
+                    date_to + timedelta(hours=12),
+                ),
+            )
+        else:
+            keys = device
+
         # sequence of KeyPairs (fetch 256 max at a time)
         reports: list[LocationReport] = []
-        for key_offset in range(0, len(device), 256):
-            chunk = device[key_offset : key_offset + 256]
+        for key_offset in range(0, len(keys), 256):
+            chunk = keys[key_offset : key_offset + 256]
             reports.extend(await self._fetch_reports(date_from, date_to, chunk))
 
-        res: dict[KeyPair, list[LocationReport]] = {key: [] for key in device}
+        if isinstance(device, RollingKeyPairSource):
+            return reports
+
+        res: dict[KeyPair, list[LocationReport]] = {key: [] for key in keys}
         for report in reports:
             res[report.key].append(report)
         return res
