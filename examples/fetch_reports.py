@@ -9,7 +9,7 @@ from findmy.reports import RemoteAnisetteProvider
 ANISETTE_SERVER = "http://localhost:6969"
 
 # Private base64-encoded key to look up
-KEY_PRIV = "Vq/RNibhblTitwb7hjPkZZj6gyJcAJSVMQ6Shg=="
+KEY_PRIV = ""
 
 # Optional, to verify that advertisement key derivation works for your key
 KEY_ADV = ""
