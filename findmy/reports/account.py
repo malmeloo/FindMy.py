@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import hashlib
-import hmac
 import json
 import logging
 import plistlib
@@ -21,16 +19,15 @@ from typing import (
     Sequence,
     TypedDict,
     TypeVar,
+    cast,
 )
 
 import bs4
 import srp._pysrp as srp
-from cryptography.hazmat.primitives import hashes, padding
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from typing_extensions import override
 
 from findmy.errors import InvalidCredentialsError, InvalidStateError, UnhandledProtocolError
+from findmy.util import crypto
 from findmy.util.closable import Closable
 from findmy.util.http import HttpSession, decode_plist
 
@@ -39,9 +36,11 @@ from .state import LoginState
 from .twofactor import (
     AsyncSecondFactorMethod,
     AsyncSmsSecondFactor,
+    AsyncTrustedDeviceSecondFactor,
     BaseSecondFactorMethod,
     SyncSecondFactorMethod,
     SyncSmsSecondFactor,
+    SyncTrustedDeviceSecondFactor,
 )
 
 if TYPE_CHECKING:
@@ -60,6 +59,7 @@ class _AccountInfo(TypedDict):
     account_name: str
     first_name: str
     last_name: str
+    trusted_device_2fa: bool
 
 
 _P = ParamSpec("_P")
@@ -90,32 +90,6 @@ def require_login_state(*states: LoginState) -> Callable[[_F], _F]:
         return wrapper
 
     return decorator
-
-
-def _encrypt_password(password: str, salt: bytes, iterations: int) -> bytes:
-    p = hashlib.sha256(password.encode("utf-8")).digest()
-    kdf = PBKDF2HMAC(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        iterations=iterations,
-    )
-    return kdf.derive(p)
-
-
-def _decrypt_cbc(session_key: bytes, data: bytes) -> bytes:
-    extra_data_key = hmac.new(session_key, b"extra data key:", hashlib.sha256).digest()
-    extra_data_iv = hmac.new(session_key, b"extra data iv:", hashlib.sha256).digest()
-    # Get only the first 16 bytes of the iv
-    extra_data_iv = extra_data_iv[:16]
-
-    # Decrypt with AES CBC
-    cipher = Cipher(algorithms.AES(extra_data_key), modes.CBC(extra_data_iv))
-    decryptor = cipher.decryptor()
-    data = decryptor.update(data) + decryptor.finalize()
-    # Remove PKCS#7 padding
-    padder = padding.PKCS7(128).unpadder()
-    return padder.update(data) + padder.finalize()
 
 
 def _extract_phone_numbers(html: str) -> list[dict]:
@@ -224,6 +198,24 @@ class BaseAppleAccount(Closable, ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def td_2fa_request(self) -> MaybeCoro[None]:
+        """
+        Request a 2FA code to be sent to a trusted device.
+
+        Consider using `BaseSecondFactorMethod.request` instead.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def td_2fa_submit(self, code: str) -> MaybeCoro[LoginState]:
+        """
+        Submit a 2FA code that was sent to a trusted device.
+
+        Consider using `BaseSecondFactorMethod.submit` instead.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def fetch_reports(
         self,
         keys: Sequence[KeyPair],
@@ -251,7 +243,11 @@ class BaseAppleAccount(Closable, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_anisette_headers(self, serial: str = "0") -> MaybeCoro[dict[str, str]]:
+    def get_anisette_headers(
+        self,
+        with_client_info: bool = False,
+        serial: str = "0",
+    ) -> MaybeCoro[dict[str, str]]:
         """
         Retrieve a complete dictionary of Anisette headers.
 
@@ -262,6 +258,20 @@ class BaseAppleAccount(Closable, ABC):
 
 class AsyncAppleAccount(BaseAppleAccount):
     """An async implementation of `BaseAppleAccount`."""
+
+    # auth endpoints
+    _ENDPOINT_GSA = "https://gsa.apple.com/grandslam/GsService2"
+    _ENDPOINT_LOGIN_MOBILEME = "https://setup.icloud.com/setup/iosbuddy/loginDelegates"
+
+    # 2fa auth endpoints
+    _ENDPOINT_2FA_METHODS = "https://gsa.apple.com/auth"
+    _ENDPOINT_2FA_SMS_REQUEST = "https://gsa.apple.com/auth/verify/phone"
+    _ENDPOINT_2FA_SMS_SUBMIT = "https://gsa.apple.com/auth/verify/phone/securitycode"
+    _ENDPOINT_2FA_TD_REQUEST = "https://gsa.apple.com/auth/verify/trusteddevice"
+    _ENDPOINT_2FA_TD_SUBMIT = "https://gsa.apple.com/grandslam/GsService2/validate"
+
+    # reports endpoints
+    _ENDPOINT_REPORTS_FETCH = "https://gateway.icloud.com/acsnservice/fetch"
 
     def __init__(
         self,
@@ -409,8 +419,14 @@ class AsyncAppleAccount(BaseAppleAccount):
         """See `BaseAppleAccount.get_2fa_methods`."""
         methods: list[AsyncSecondFactorMethod] = []
 
+        if self._account_info is None:
+            return []
+
+        if self._account_info["trusted_device_2fa"]:
+            methods.append(AsyncTrustedDeviceSecondFactor(self))
+
         # sms
-        auth_page = await self._sms_2fa_request("GET", "https://gsa.apple.com/auth")
+        auth_page = await self._sms_2fa_request("GET", self._ENDPOINT_2FA_METHODS)
         try:
             phone_numbers = _extract_phone_numbers(auth_page)
             methods.extend(
@@ -434,7 +450,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         await self._sms_2fa_request(
             "PUT",
-            "https://gsa.apple.com/auth/verify/phone",
+            self._ENDPOINT_2FA_SMS_REQUEST,
             data,
         )
 
@@ -450,8 +466,46 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         await self._sms_2fa_request(
             "POST",
-            "https://gsa.apple.com/auth/verify/phone/securitycode",
+            self._ENDPOINT_2FA_SMS_SUBMIT,
             data,
+        )
+
+        # REQUIRE_2FA -> AUTHENTICATED
+        new_state = await self._gsa_authenticate()
+        if new_state != LoginState.AUTHENTICATED:
+            msg = f"Unexpected state after submitting 2FA: {new_state}"
+            raise UnhandledProtocolError(msg)
+
+        # AUTHENTICATED -> LOGGED_IN
+        return await self._login_mobileme()
+
+    @require_login_state(LoginState.REQUIRE_2FA)
+    @override
+    async def td_2fa_request(self) -> None:
+        """See `BaseAppleAccount.td_2fa_request`."""
+        headers = {
+            "Content-Type": "text/x-xml-plist",
+            "Accept": "text/x-xml-plist",
+        }
+        await self._sms_2fa_request(
+            "GET",
+            self._ENDPOINT_2FA_TD_REQUEST,
+            headers=headers,
+        )
+
+    @require_login_state(LoginState.REQUIRE_2FA)
+    @override
+    async def td_2fa_submit(self, code: str) -> LoginState:
+        """See `BaseAppleAccount.td_2fa_submit`."""
+        headers = {
+            "security-code": code,
+            "Content-Type": "text/x-xml-plist",
+            "Accept": "text/x-xml-plist",
+        }
+        await self._sms_2fa_request(
+            "GET",
+            self._ENDPOINT_2FA_TD_SUBMIT,
+            headers=headers,
         )
 
         # REQUIRE_2FA -> AUTHENTICATED
@@ -471,8 +525,9 @@ class AsyncAppleAccount(BaseAppleAccount):
             self._login_state_data["mobileme_data"]["tokens"]["searchPartyToken"],
         )
         data = {"search": [{"startDate": start, "endDate": end, "ids": ids}]}
+
         r = await self._http.post(
-            "https://gateway.icloud.com/acsnservice/fetch",
+            self._ENDPOINT_REPORTS_FETCH,
             auth=auth,
             headers=await self.get_anisette_headers(),
             json=data,
@@ -550,7 +605,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         logging.debug("Attempting password challenge")
 
-        usr.p = _encrypt_password(self._password, r["s"], r["i"])
+        usr.p = crypto.encrypt_password(self._password, r["s"], r["i"])
         m1 = usr.process_challenge(r["s"], r["B"])
         if m1 is None:
             msg = "Failed to process challenge"
@@ -571,37 +626,45 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         logging.debug("Decrypting SPD data in response")
 
-        spd = _decrypt_cbc(usr.get_session_key() or b"", r["spd"])
-        spd = decode_plist(spd)
+        spd = decode_plist(
+            crypto.decrypt_spd_aes_cbc(
+                usr.get_session_key() or b"",
+                r["spd"],
+            ),
+        )
 
         logging.debug("Received account information")
-        self._account_info = {
-            "account_name": spd.get("acname"),
-            "first_name": spd.get("fn"),
-            "last_name": spd.get("ln"),
-        }
+        self._account_info = cast(
+            _AccountInfo,
+            {
+                "account_name": spd.get("acname"),
+                "first_name": spd.get("fn"),
+                "last_name": spd.get("ln"),
+                "trusted_device_2fa": False,
+            },
+        )
 
-        # TODO(malmeloo): support trusted device auth (need account to test)
-        # https://github.com/malmeloo/FindMy.py/issues/1
         au = r["Status"].get("au")
-        if au in ("secondaryAuth",):
+        if au in ("secondaryAuth", "trustedDeviceSecondaryAuth"):
             logging.info("Detected 2FA requirement: %s", au)
+
+            self._account_info["trusted_device_2fa"] = au == "trustedDeviceSecondaryAuth"
 
             return self._set_login_state(
                 LoginState.REQUIRE_2FA,
                 {"adsid": spd["adsid"], "idms_token": spd["GsIdmsToken"]},
             )
-        if au is not None:
-            msg = f"Unknown auth value: {au}"
-            raise UnhandledProtocolError(msg)
+        if au is None:
+            logging.info("GSA authentication successful")
 
-        logging.info("GSA authentication successful")
+            idms_pet = spd.get("t", {}).get("com.apple.gs.idms.pet", {}).get("token", "")
+            return self._set_login_state(
+                LoginState.AUTHENTICATED,
+                {"idms_pet": idms_pet, "adsid": spd["adsid"]},
+            )
 
-        idms_pet = spd.get("t", {}).get("com.apple.gs.idms.pet", {}).get("token", "")
-        return self._set_login_state(
-            LoginState.AUTHENTICATED,
-            {"idms_pet": idms_pet, "adsid": spd["adsid"]},
-        )
+        msg = f"Unknown auth value: {au}"
+        raise UnhandledProtocolError(msg)
 
     @require_login_state(LoginState.AUTHENTICATED)
     async def _login_mobileme(self) -> LoginState:
@@ -624,7 +687,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         headers.update(await self.get_anisette_headers())
 
         resp = await self._http.post(
-            "https://setup.icloud.com/setup/iosbuddy/loginDelegates",
+            self._ENDPOINT_LOGIN_MOBILEME,
             auth=(self._username or "", self._login_state_data["idms_pet"]),
             data=data,
             headers=headers,
@@ -648,26 +711,26 @@ class AsyncAppleAccount(BaseAppleAccount):
         method: str,
         url: str,
         data: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
     ) -> str:
         adsid = self._login_state_data["adsid"]
         idms_token = self._login_state_data["idms_token"]
         identity_token = base64.b64encode((adsid + ":" + idms_token).encode()).decode()
 
-        headers = {
-            "User-Agent": "Xcode",
-            "Accept-Language": "en-us",
-            "X-Apple-Identity-Token": identity_token,
-            "X-Apple-App-Info": "com.apple.gs.xcode.auth",
-            "X-Xcode-Version": "11.2 (11B41)",
-            "X-Mme-Client-Info": "<MacBookPro18,3> <Mac OS X;13.4.1;22F8>"
-            " <com.apple.AOSKit/282 (com.apple.dt.Xcode/3594.4.19)>",
-        }
-        headers.update(await self.get_anisette_headers())
+        headers = headers or {}
+        headers.update(
+            {
+                "User-Agent": "Xcode",
+                "Accept-Language": "en-us",
+                "X-Apple-Identity-Token": identity_token,
+            },
+        )
+        headers.update(await self.get_anisette_headers(with_client_info=True))
 
         r = await self._http.request(
             method,
             url,
-            json=data or {},
+            json=data,
             headers=headers,
         )
         if not r.ok:
@@ -676,34 +739,29 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         return r.text()
 
-    async def _gsa_request(self, params: dict[str, Any]) -> dict[Any, Any]:
-        request_data = {
-            "cpd": {
-                "bootstrap": True,
-                "icscrec": True,
-                "pbe": False,
-                "prkgen": True,
-                "svct": "iCloud",
-            },
-        }
-        request_data["cpd"].update(await self.get_anisette_headers())
-        request_data.update(params)
-
+    async def _gsa_request(self, parameters: dict[str, Any]) -> dict[str, Any]:
         body = {
-            "Header": {"Version": "1.0.1"},
-            "Request": request_data,
+            "Header": {
+                "Version": "1.0.1",
+            },
+            "Request": {
+                "cpd": await self._anisette.get_cpd(
+                    self._uid,
+                    self._devid,
+                ),
+                **parameters,
+            },
         }
 
         headers = {
             "Content-Type": "text/x-xml-plist",
             "Accept": "*/*",
             "User-Agent": "akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0",
-            "X-MMe-Client-Info": "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> "
-            "<com.apple.AOSKit/282 (com.apple.dt.Xcode/3594.4.19)>",
+            "X-MMe-Client-Info": self._anisette.client,
         }
 
         resp = await self._http.post(
-            "https://gsa.apple.com/grandslam/GsService2",
+            self._ENDPOINT_GSA,
             headers=headers,
             data=plistlib.dumps(body),
         )
@@ -713,9 +771,13 @@ class AsyncAppleAccount(BaseAppleAccount):
         return resp.plist()["Response"]
 
     @override
-    async def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
+    async def get_anisette_headers(
+        self,
+        with_client_info: bool = False,
+        serial: str = "0",
+    ) -> dict[str, str]:
         """See `BaseAppleAccount.get_anisette_headers`."""
-        return await self._anisette.get_headers(self._uid, self._devid, serial)
+        return await self._anisette.get_headers(self._uid, self._devid, serial, with_client_info)
 
 
 class AppleAccount(BaseAppleAccount):
@@ -797,6 +859,8 @@ class AppleAccount(BaseAppleAccount):
         for m in methods:
             if isinstance(m, AsyncSmsSecondFactor):
                 res.append(SyncSmsSecondFactor(self, m.phone_number_id, m.phone_number))
+            elif isinstance(m, AsyncTrustedDeviceSecondFactor):
+                res.append(SyncTrustedDeviceSecondFactor(self))
             else:
                 msg = (
                     f"Failed to cast 2FA object to sync alternative: {m}."
@@ -816,6 +880,18 @@ class AppleAccount(BaseAppleAccount):
     def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
         """See `AsyncAppleAccount.sms_2fa_submit`."""
         coro = self._asyncacc.sms_2fa_submit(phone_number_id, code)
+        return self._evt_loop.run_until_complete(coro)
+
+    @override
+    def td_2fa_request(self) -> None:
+        """See `AsyncAppleAccount.td_2fa_request`."""
+        coro = self._asyncacc.td_2fa_request()
+        return self._evt_loop.run_until_complete(coro)
+
+    @override
+    def td_2fa_submit(self, code: str) -> LoginState:
+        """See `AsyncAppleAccount.td_2fa_submit`."""
+        coro = self._asyncacc.td_2fa_submit(code)
         return self._evt_loop.run_until_complete(coro)
 
     @override
@@ -840,7 +916,11 @@ class AppleAccount(BaseAppleAccount):
         return self._evt_loop.run_until_complete(coro)
 
     @override
-    def get_anisette_headers(self, serial: str = "0") -> dict[str, str]:
+    def get_anisette_headers(
+        self,
+        with_client_info: bool = False,
+        serial: str = "0",
+    ) -> dict[str, str]:
         """See `AsyncAppleAccount.get_anisette_headers`."""
-        coro = self._asyncacc.get_anisette_headers(serial)
+        coro = self._asyncacc.get_anisette_headers(with_client_info, serial)
         return self._evt_loop.run_until_complete(coro)

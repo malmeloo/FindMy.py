@@ -131,7 +131,7 @@ class OfflineFindingScanner:
         You most likely do not want to use this yourself;
         check out `OfflineFindingScanner.create` instead.
         """
-        self._scanner: BleakScanner = BleakScanner(self._scan_callback)
+        self._scanner: BleakScanner = BleakScanner(self._scan_callback, cb={"use_bdaddr": True})
 
         self._loop = loop
         self._device_fut: asyncio.Future[tuple[BLEDevice, AdvertisementData]] = loop.create_future()
@@ -173,7 +173,12 @@ class OfflineFindingScanner:
         if not apple_data:
             return None
 
-        additional_data = device.details.get("props", {})
+        try:
+            additional_data = device.details.get("props", {})
+        except AttributeError:
+            # Likely Windows host, where details is a '_RawAdvData' object.
+            # See: https://github.com/malmeloo/FindMy.py/issues/24
+            additional_data = {}
         return OfflineFindingDevice.from_payload(device.address, apple_data, additional_data)
 
     async def scan_for(

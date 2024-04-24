@@ -27,6 +27,7 @@ application wishing to integrate with the Find My network.
 - [x] Fetch location reports
   - [x] Apple acount sign-in
   - [x] SMS 2FA support
+  - [x] Trusted Device 2FA support
 - [x] Scan for nearby FindMy-devices
   - [x] Decode their info, such as public keys and status bytes
 - [x] Import or create your own accessory keys
@@ -34,8 +35,6 @@ application wishing to integrate with the Find My network.
 
 ### Roadmap
 
-- [ ] Trusted device 2FA
-    - Work has been done, but needs testing (I don't own any Apple devices)
 - [ ] Local anisette generation (without server)
     - Can be done using [pyprovision](https://github.com/Dadoum/pyprovision/),
       however I want to wait until Python wheels are available.
@@ -48,7 +47,7 @@ The package can be installed from [PyPi](https://pypi.org/project/findmy/):
 pip install findmy
 ```
 
-For usage examples, see the [examples](examples) directory. Documentation coming soon™.
+For usage examples, see the [examples](examples) directory. Documentation can be found [here](http://docs.mikealmel.ooo/FindMy.py/).
 
 ## Contributing
 
@@ -67,6 +66,13 @@ pre-commit install
 
 After following the above steps, your code will be linted and formatted automatically
 before committing it.
+
+## Derivative projects
+
+There are several other cool projects based on this library! Some of them have been listed below, make sure to check them out as well.
+
+* [OfflineFindRecovery](https://github.com/hajekj/OfflineFindRecovery) - Set of scripts to be able to precisely locate your lost MacBook via Apple's Offline Find through Bluetooth Low Energy.
+* [SwiftFindMy](https://github.com/airy10/SwiftFindMy) - Swift port of FindMy.py
 
 ## Credits
 

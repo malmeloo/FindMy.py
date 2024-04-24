@@ -1,17 +1,20 @@
 """
-Example showing how to retrieve the primary key of your own AirTag, or any other FindMy-accessory.
-
-This key can be used to retrieve the device's location for a single day.
+Example showing how to fetch locations of an AirTag, or any other FindMy accessory.
 """
+from __future__ import annotations
+
 import plistlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from findmy import FindMyAccessory
+from _login import get_account_sync
 
-# PUBLIC key that the accessory is broadcasting or has previously broadcast.
-# For nearby devices, you can use `device_scanner.py` to find it.
-PUBLIC_KEY = ""
+from findmy import FindMyAccessory, KeyPair
+from findmy.reports import RemoteAnisetteProvider
+
+# URL to (public or local) anisette server
+ANISETTE_SERVER = "http://localhost:6969"
+
 # Path to a .plist dumped from the Find My app.
 PLIST_PATH = Path("airtag.plist")
 
@@ -29,34 +32,50 @@ SKN = device_data["sharedSecret"]["key"]["data"]
 # "Secondary" shared secret. 32 bytes.
 SKS = device_data["secondarySharedSecret"]["key"]["data"]
 
+# "Paired at" timestamp (UTC)
+PAIRED_AT = device_data["pairingDate"].replace(tzinfo=timezone.utc)
+
+
+def _gen_keys(airtag: FindMyAccessory, _from: datetime, to: datetime) -> set[KeyPair]:
+    keys = set()
+    while _from < to:
+        keys.update(airtag.keys_at(_from))
+
+        _from += timedelta(minutes=15)
+
+    return keys
+
 
 def main() -> None:
-    paired_at = device_data["pairingDate"].replace(tzinfo=timezone.utc)
-    airtag = FindMyAccessory(MASTER_KEY, SKN, SKS, paired_at)
+    # Step 0: create an accessory key generator
+    airtag = FindMyAccessory(MASTER_KEY, SKN, SKS, PAIRED_AT)
 
-    now = datetime.now(tz=timezone.utc)
-    lookup_time = paired_at.replace(
-        minute=paired_at.minute // 15 * 15,
-        second=0,
-        microsecond=0,
-    ) + timedelta(minutes=15)
+    # Step 1: Generate the accessory's private keys,
+    # starting from 7 days ago until now (12 hour margin)
+    fetch_to = datetime.now(tz=timezone.utc).astimezone() + timedelta(hours=12)
+    fetch_from = fetch_to - timedelta(days=8)
 
-    while lookup_time < now:
-        keys = airtag.keys_at(lookup_time)
-        for key in keys:
-            if key.adv_key_b64 != PUBLIC_KEY:
-                continue
+    print(f"Generating keys from {fetch_from} to {fetch_to} ...")
+    lookup_keys = _gen_keys(airtag, fetch_from, fetch_to)
 
-            print("KEY FOUND!!")
-            print("KEEP THE BELOW KEY SECRET! IT CAN BE USED TO RETRIEVE THE DEVICE'S LOCATION!")
-            print(f"  - Key:           {key.private_key_b64}")
-            print(f"  - Approx. Time:  {lookup_time}")
-            print(f"  - Type:          {key.key_type}")
-            return
+    print(f"Generated {len(lookup_keys)} keys")
 
-        lookup_time += timedelta(minutes=15)
+    # Step 2: log into an Apple account
+    print("Logging into account")
+    anisette = RemoteAnisetteProvider(ANISETTE_SERVER)
+    acc = get_account_sync(anisette)
 
-    print("No match found! :(")
+    # step 3: fetch reports!
+    print("Fetching reports")
+    reports = acc.fetch_reports(list(lookup_keys), fetch_from, fetch_to)
+
+    # step 4: print 'em
+    # reports are in {key: [report]} format, but we only really care about the reports
+    print()
+    print("Location reports:")
+    reports = sorted([r for rs in reports.values() for r in rs])
+    for report in reports:
+        print(f" - {report}")
 
 
 if __name__ == "__main__":

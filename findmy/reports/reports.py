@@ -3,29 +3,22 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import struct
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Sequence, TypedDict, overload
+from typing import TYPE_CHECKING, Sequence, overload
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from typing_extensions import Unpack, override
+from typing_extensions import override
 
 from findmy.keys import KeyPair
-from findmy.util.http import HttpSession
 
 if TYPE_CHECKING:
     from .account import AsyncAppleAccount
 
-_session = HttpSession()
-
-
-class _FetcherConfig(TypedDict):
-    user_id: str
-    device_id: str
-    dsid: str
-    search_party_token: str
+logging.getLogger(__name__)
 
 
 def _decrypt_payload(payload: bytes, key: KeyPair) -> bytes:
@@ -131,7 +124,7 @@ class LocationReport:
         Requires a `KeyPair` to decrypt the report's payload.
         """
         timestamp_int = int.from_bytes(payload[0:4], "big") + (60 * 60 * 24 * 11323)
-        timestamp = datetime.fromtimestamp(timestamp_int, tz=timezone.utc)
+        timestamp = datetime.fromtimestamp(timestamp_int, tz=timezone.utc).astimezone()
 
         data = _decrypt_payload(payload, key)
         latitude = struct.unpack(">i", data[0:4])[0] / 10000000
@@ -181,14 +174,6 @@ class LocationReportsFetcher:
         """
         self._account: AsyncAppleAccount = account
 
-        self._http: HttpSession = HttpSession()
-
-        self._config: _FetcherConfig | None = None
-
-    def apply_config(self, **conf: Unpack[_FetcherConfig]) -> None:
-        """Configure internal variables necessary to make reports fetching calls."""
-        self._config = conf
-
     @overload
     async def fetch_reports(
         self,
@@ -225,8 +210,12 @@ class LocationReportsFetcher:
         if isinstance(device, KeyPair):
             return await self._fetch_reports(date_from, date_to, [device])
 
-        # sequence of KeyPairs
-        reports = await self._fetch_reports(date_from, date_to, device)
+        # sequence of KeyPairs (fetch 256 max at a time)
+        reports: list[LocationReport] = []
+        for key_offset in range(0, len(device), 256):
+            chunk = device[key_offset : key_offset + 256]
+            reports.extend(await self._fetch_reports(date_from, date_to, chunk))
+
         res: dict[KeyPair, list[LocationReport]] = {key: [] for key in device}
         for report in reports:
             res[report.key].append(report)
@@ -238,6 +227,8 @@ class LocationReportsFetcher:
         date_to: datetime,
         keys: Sequence[KeyPair],
     ) -> list[LocationReport]:
+        logging.debug("Fetching reports for %s keys", len(keys))
+
         start_date = int(date_from.timestamp() * 1000)
         end_date = int(date_to.timestamp() * 1000)
         ids = [key.hashed_adv_key_b64 for key in keys]
@@ -250,7 +241,7 @@ class LocationReportsFetcher:
             date_published = datetime.fromtimestamp(
                 report.get("datePublished", 0) / 1000,
                 tz=timezone.utc,
-            )
+            ).astimezone()
             description = report.get("description", "")
             payload = base64.b64decode(report["payload"])
 
