@@ -99,6 +99,11 @@ class FindMyAccessory(RollingKeyPairSource):
     @override
     def keys_at(self, ind: int | datetime) -> set[KeyPair]:
         """Get the potential primary and secondary keys active at a certain time or index."""
+        if isinstance(ind, datetime) and ind < self._paired_at:
+            return set()
+        if isinstance(ind, int) and ind < 0:
+            return set()
+
         secondary_offset = 0
 
         if isinstance(ind, datetime):
