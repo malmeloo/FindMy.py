@@ -3,6 +3,7 @@ Example showing how to fetch locations of an AirTag, or any other FindMy accesso
 """
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from findmy.reports import RemoteAnisetteProvider
 
 # URL to (public or local) anisette server
 ANISETTE_SERVER = "http://localhost:6969"
+
+logging.basicConfig(level=logging.INFO)
 
 
 def main(plist_path: str) -> int:

@@ -9,7 +9,7 @@ from findmy.reports import RemoteAnisetteProvider
 # URL to (public or local) anisette server
 ANISETTE_SERVER = "http://localhost:6969"
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 def fetch_reports(priv_key: str) -> int:
