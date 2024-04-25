@@ -3,6 +3,7 @@ Example showing how to fetch locations of an AirTag, or any other FindMy accesso
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 from _login import get_account_sync
@@ -13,13 +14,10 @@ from findmy.reports import RemoteAnisetteProvider
 # URL to (public or local) anisette server
 ANISETTE_SERVER = "http://localhost:6969"
 
-# Path to a .plist dumped from the Find My app.
-PLIST_PATH = Path("airtag.plist")
 
-
-def main() -> None:
+def main(plist_path: str) -> int:
     # Step 0: create an accessory key generator
-    with PLIST_PATH.open("rb") as f:
+    with Path(plist_path).open("rb") as f:
         airtag = FindMyAccessory.from_plist(f)
 
     # Step 1: log into an Apple account
@@ -37,6 +35,14 @@ def main() -> None:
     for report in reports:
         print(f" - {report}")
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <path to accessory plist>", file=sys.stderr)
+        print(file=sys.stderr)
+        print("The plist file should be dumped from MacOS's FindMy app.", file=sys.stderr)
+        sys.exit(1)
+
+    sys.exit(main(sys.argv[1]))
