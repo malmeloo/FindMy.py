@@ -53,6 +53,8 @@ class FindMyAccessory:
 
         if isinstance(ind, datetime):
             # number of 15-minute slots since pairing time
+            if ind < self._paired_at:
+                ind = self._paired_at
             ind = (
                 int(
                     (ind - self._paired_at).total_seconds() / (15 * 60),
