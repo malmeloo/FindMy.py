@@ -270,6 +270,19 @@ class LocationReportsFetcher:
             description = report.get("description", "")
             payload = base64.b64decode(report["payload"])
 
-            reports.append(LocationReport.from_payload(key, date_published, description, payload))
+            try:
+                loc_report = LocationReport.from_payload(key, date_published, description, payload)
+            except ValueError as e:
+                logging.warning(
+                    "Location report was not decodable. Some payloads have unknown"
+                    " variations leading to this error. Please report this full message"
+                    " at https://github.com/malmeloo/FindMy.py/issues/27. "
+                    "Payload: %s, Original error: %s",
+                    payload.hex(),
+                    e,
+                )
+                continue
+
+            reports.append(loc_report)
 
         return reports
