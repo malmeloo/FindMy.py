@@ -6,8 +6,10 @@ Accessories could be anything ranging from AirTags to iPhones.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
-from typing import Generator, overload
+import plistlib
+from abc import ABC, abstractmethod
+from datetime import datetime, timedelta, timezone
+from typing import IO, Generator, overload
 
 from typing_extensions import override
 
@@ -17,7 +19,49 @@ from .util import crypto
 logging.getLogger(__name__)
 
 
-class FindMyAccessory:
+class RollingKeyPairSource(ABC):
+    """A class that generates rolling `KeyPair`s."""
+
+    @property
+    @abstractmethod
+    def interval(self) -> timedelta:
+        """KeyPair rollover interval."""
+
+    @abstractmethod
+    def keys_at(self, ind: int | datetime) -> set[KeyPair]:
+        """Generate potential key(s) occurring at a certain index or timestamp."""
+        raise NotImplementedError
+
+    @overload
+    def keys_between(self, start: int, end: int) -> set[KeyPair]:
+        pass
+
+    @overload
+    def keys_between(self, start: datetime, end: datetime) -> set[KeyPair]:
+        pass
+
+    def keys_between(self, start: int | datetime, end: int | datetime) -> set[KeyPair]:
+        """Generate potential key(s) occurring between two indices or timestamps."""
+        keys: set[KeyPair] = set()
+
+        if isinstance(start, int) and isinstance(end, int):
+            while start < end:
+                keys.update(self.keys_at(start))
+
+                start += 1
+        elif isinstance(start, datetime) and isinstance(end, datetime):
+            while start < end:
+                keys.update(self.keys_at(start))
+
+                start += self.interval
+        else:
+            msg = "Invalid start/end type"
+            raise TypeError(msg)
+
+        return keys
+
+
+class FindMyAccessory(RollingKeyPairSource):
     """A findable Find My-accessory using official key rollover."""
 
     def __init__(  # noqa: PLR0913
@@ -47,8 +91,20 @@ class FindMyAccessory:
 
         self._name = name
 
+    @property
+    @override
+    def interval(self) -> timedelta:
+        """Official FindMy accessory rollover interval (15 minutes)."""
+        return timedelta(minutes=15)
+
+    @override
     def keys_at(self, ind: int | datetime) -> set[KeyPair]:
         """Get the potential primary and secondary keys active at a certain time or index."""
+        if isinstance(ind, datetime) and ind < self._paired_at:
+            return set()
+        if isinstance(ind, int) and ind < 0:
+            return set()
+
         secondary_offset = 0
 
         if isinstance(ind, datetime):
@@ -87,6 +143,30 @@ class FindMyAccessory:
             possible_keys.add(self._secondary_gen[(ind - secondary_offset) // 96 + 2])
 
         return possible_keys
+
+    @classmethod
+    def from_plist(cls, plist: IO[bytes]) -> FindMyAccessory:
+        """Create a FindMyAccessory from a .plist file dumped from the FindMy app."""
+        device_data = plistlib.load(plist)
+
+        # PRIVATE master key. 28 (?) bytes.
+        master_key = device_data["privateKey"]["key"]["data"][-28:]
+
+        # "Primary" shared secret. 32 bytes.
+        skn = device_data["sharedSecret"]["key"]["data"]
+
+        # "Secondary" shared secret. 32 bytes.
+        if "secondarySharedSecret" in device_data:
+            # AirTag
+            sks = device_data["secondarySharedSecret"]["key"]["data"]
+        else:
+            # iDevice
+            sks = device_data["secureLocationsSharedSecret"]["key"]["data"]
+
+        # "Paired at" timestamp (UTC)
+        paired_at = device_data["pairingDate"].replace(tzinfo=timezone.utc)
+
+        return cls(master_key, skn, sks, paired_at)
 
 
 class AccessoryKeyGenerator(KeyGenerator[KeyPair]):

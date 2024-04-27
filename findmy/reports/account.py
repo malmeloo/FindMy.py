@@ -20,6 +20,7 @@ from typing import (
     TypedDict,
     TypeVar,
     cast,
+    overload,
 )
 
 import bs4
@@ -44,6 +45,7 @@ from .twofactor import (
 )
 
 if TYPE_CHECKING:
+    from findmy.accessory import RollingKeyPairSource
     from findmy.keys import KeyPair
     from findmy.util.types import MaybeCoro
 
@@ -215,6 +217,17 @@ class BaseAppleAccount(Closable, ABC):
         """
         raise NotImplementedError
 
+    @overload
+    @abstractmethod
+    def fetch_reports(
+        self,
+        keys: KeyPair,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> MaybeCoro[list[LocationReport]]:
+        ...
+
+    @overload
     @abstractmethod
     def fetch_reports(
         self,
@@ -222,6 +235,25 @@ class BaseAppleAccount(Closable, ABC):
         date_from: datetime,
         date_to: datetime | None,
     ) -> MaybeCoro[dict[KeyPair, list[LocationReport]]]:
+        ...
+
+    @overload
+    @abstractmethod
+    def fetch_reports(
+        self,
+        keys: RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> MaybeCoro[list[LocationReport]]:
+        ...
+
+    @abstractmethod
+    def fetch_reports(
+        self,
+        keys: KeyPair | Sequence[KeyPair] | RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> MaybeCoro[list[LocationReport] | dict[KeyPair, list[LocationReport]]]:
         """
         Fetch location reports for a sequence of `KeyPair`s between `date_from` and `date_end`.
 
@@ -229,12 +261,39 @@ class BaseAppleAccount(Closable, ABC):
         """
         raise NotImplementedError
 
+    @overload
+    @abstractmethod
+    def fetch_last_reports(
+        self,
+        keys: KeyPair,
+        hours: int = 7 * 24,
+    ) -> MaybeCoro[list[LocationReport]]:
+        ...
+
+    @overload
     @abstractmethod
     def fetch_last_reports(
         self,
         keys: Sequence[KeyPair],
         hours: int = 7 * 24,
     ) -> MaybeCoro[dict[KeyPair, list[LocationReport]]]:
+        ...
+
+    @overload
+    @abstractmethod
+    def fetch_last_reports(
+        self,
+        keys: RollingKeyPairSource,
+        hours: int = 7 * 24,
+    ) -> MaybeCoro[list[LocationReport]]:
+        ...
+
+    @abstractmethod
+    def fetch_last_reports(
+        self,
+        keys: KeyPair | Sequence[KeyPair] | RollingKeyPairSource,
+        hours: int = 7 * 24,
+    ) -> MaybeCoro[list[LocationReport] | dict[KeyPair, list[LocationReport]]]:
         """
         Fetch location reports for a sequence of `KeyPair`s for the last `hours` hours.
 
@@ -539,14 +598,41 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         return resp
 
-    @require_login_state(LoginState.LOGGED_IN)
-    @override
+    @overload
+    async def fetch_reports(
+        self,
+        keys: KeyPair,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport]:
+        ...
+
+    @overload
     async def fetch_reports(
         self,
         keys: Sequence[KeyPair],
         date_from: datetime,
         date_to: datetime | None,
     ) -> dict[KeyPair, list[LocationReport]]:
+        ...
+
+    @overload
+    async def fetch_reports(
+        self,
+        keys: RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport]:
+        ...
+
+    @require_login_state(LoginState.LOGGED_IN)
+    @override
+    async def fetch_reports(
+        self,
+        keys: KeyPair | Sequence[KeyPair] | RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport] | dict[KeyPair, list[LocationReport]]:
         """See `BaseAppleAccount.fetch_reports`."""
         date_to = date_to or datetime.now().astimezone()
 
@@ -556,13 +642,37 @@ class AsyncAppleAccount(BaseAppleAccount):
             keys,
         )
 
-    @require_login_state(LoginState.LOGGED_IN)
-    @override
+    @overload
+    async def fetch_last_reports(
+        self,
+        keys: KeyPair,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport]:
+        ...
+
+    @overload
     async def fetch_last_reports(
         self,
         keys: Sequence[KeyPair],
         hours: int = 7 * 24,
     ) -> dict[KeyPair, list[LocationReport]]:
+        ...
+
+    @overload
+    async def fetch_last_reports(
+        self,
+        keys: RollingKeyPairSource,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport]:
+        ...
+
+    @require_login_state(LoginState.LOGGED_IN)
+    @override
+    async def fetch_last_reports(
+        self,
+        keys: KeyPair | Sequence[KeyPair] | RollingKeyPairSource,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport] | dict[KeyPair, list[LocationReport]]:
         """See `BaseAppleAccount.fetch_last_reports`."""
         end = datetime.now(tz=timezone.utc)
         start = end - timedelta(hours=hours)
@@ -894,23 +1004,74 @@ class AppleAccount(BaseAppleAccount):
         coro = self._asyncacc.td_2fa_submit(code)
         return self._evt_loop.run_until_complete(coro)
 
-    @override
+    @overload
+    def fetch_reports(
+        self,
+        keys: KeyPair,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport]:
+        ...
+
+    @overload
     def fetch_reports(
         self,
         keys: Sequence[KeyPair],
         date_from: datetime,
         date_to: datetime | None,
     ) -> dict[KeyPair, list[LocationReport]]:
+        ...
+
+    @overload
+    def fetch_reports(
+        self,
+        keys: RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport]:
+        ...
+
+    @override
+    def fetch_reports(
+        self,
+        keys: KeyPair | Sequence[KeyPair] | RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport] | dict[KeyPair, list[LocationReport]]:
         """See `AsyncAppleAccount.fetch_reports`."""
         coro = self._asyncacc.fetch_reports(keys, date_from, date_to)
         return self._evt_loop.run_until_complete(coro)
 
-    @override
+    @overload
+    def fetch_last_reports(
+        self,
+        keys: KeyPair,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport]:
+        ...
+
+    @overload
     def fetch_last_reports(
         self,
         keys: Sequence[KeyPair],
         hours: int = 7 * 24,
     ) -> dict[KeyPair, list[LocationReport]]:
+        ...
+
+    @overload
+    def fetch_last_reports(
+        self,
+        keys: RollingKeyPairSource,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport]:
+        ...
+
+    @override
+    def fetch_last_reports(
+        self,
+        keys: KeyPair | Sequence[KeyPair] | RollingKeyPairSource,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport] | dict[KeyPair, list[LocationReport]]:
         """See `AsyncAppleAccount.fetch_last_reports`."""
         coro = self._asyncacc.fetch_last_reports(keys, hours)
         return self._evt_loop.run_until_complete(coro)

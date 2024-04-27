@@ -3,80 +3,49 @@ Example showing how to fetch locations of an AirTag, or any other FindMy accesso
 """
 from __future__ import annotations
 
-import plistlib
-from datetime import datetime, timedelta, timezone
+import logging
+import sys
 from pathlib import Path
 
 from _login import get_account_sync
 
-from findmy import FindMyAccessory, KeyPair
+from findmy import FindMyAccessory
 from findmy.reports import RemoteAnisetteProvider
 
 # URL to (public or local) anisette server
 ANISETTE_SERVER = "http://localhost:6969"
 
-# Path to a .plist dumped from the Find My app.
-PLIST_PATH = Path("airtag.plist")
-
-# == The variables below are auto-filled from the plist!! ==
-
-with PLIST_PATH.open("rb") as f:
-    device_data = plistlib.load(f)
-
-# PRIVATE master key. 28 (?) bytes.
-MASTER_KEY = device_data["privateKey"]["key"]["data"][-28:]
-
-# "Primary" shared secret. 32 bytes.
-SKN = device_data["sharedSecret"]["key"]["data"]
-
-# "Secondary" shared secret. 32 bytes.
-SKS = device_data["secondarySharedSecret"]["key"]["data"]
-
-# "Paired at" timestamp (UTC)
-PAIRED_AT = device_data["pairingDate"].replace(tzinfo=timezone.utc)
+logging.basicConfig(level=logging.INFO)
 
 
-def _gen_keys(airtag: FindMyAccessory, _from: datetime, to: datetime) -> set[KeyPair]:
-    keys = set()
-    while _from < to:
-        keys.update(airtag.keys_at(_from))
-
-        _from += timedelta(minutes=15)
-
-    return keys
-
-
-def main() -> None:
+def main(plist_path: str) -> int:
     # Step 0: create an accessory key generator
-    airtag = FindMyAccessory(MASTER_KEY, SKN, SKS, PAIRED_AT)
+    with Path(plist_path).open("rb") as f:
+        airtag = FindMyAccessory.from_plist(f)
 
-    # Step 1: Generate the accessory's private keys,
-    # starting from 7 days ago until now (12 hour margin)
-    fetch_to = datetime.now(tz=timezone.utc).astimezone() + timedelta(hours=12)
-    fetch_from = fetch_to - timedelta(days=8)
-
-    print(f"Generating keys from {fetch_from} to {fetch_to} ...")
-    lookup_keys = _gen_keys(airtag, fetch_from, fetch_to)
-
-    print(f"Generated {len(lookup_keys)} keys")
-
-    # Step 2: log into an Apple account
+    # Step 1: log into an Apple account
     print("Logging into account")
     anisette = RemoteAnisetteProvider(ANISETTE_SERVER)
     acc = get_account_sync(anisette)
 
-    # step 3: fetch reports!
+    # step 2: fetch reports!
     print("Fetching reports")
-    reports = acc.fetch_reports(list(lookup_keys), fetch_from, fetch_to)
+    reports = acc.fetch_last_reports(airtag)
 
-    # step 4: print 'em
-    # reports are in {key: [report]} format, but we only really care about the reports
+    # step 3: print 'em
     print()
     print("Location reports:")
-    reports = sorted([r for rs in reports.values() for r in rs])
     for report in reports:
         print(f" - {report}")
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <path to accessory plist>", file=sys.stderr)
+        print(file=sys.stderr)
+        print("The plist file should be dumped from MacOS's FindMy app.", file=sys.stderr)
+        sys.exit(1)
+
+    sys.exit(main(sys.argv[1]))
