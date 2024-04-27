@@ -24,8 +24,10 @@ application wishing to integrate with the Find My network.
 ### Features
 
 - [x] Cross-platform: no Mac needed
-- [x] Fetch location reports
-  - [x] Apple acount sign-in
+- [x] Fetch and decrypt location reports
+  - [x] Official accessories (AirTags, iDevices, etc.)
+  - [x] Custom AirTags (OpenHaystack) 
+- [x] Apple account sign-in
   - [x] SMS 2FA support
   - [x] Trusted Device 2FA support
 - [x] Scan for nearby FindMy-devices
@@ -36,8 +38,7 @@ application wishing to integrate with the Find My network.
 ### Roadmap
 
 - [ ] Local anisette generation (without server)
-    - Can be done using [pyprovision](https://github.com/Dadoum/pyprovision/),
-      however I want to wait until Python wheels are available.
+    - More information: [#2](https://github.com/malmeloo/FindMy.py/issues/2)
 
 ## Installation
 
