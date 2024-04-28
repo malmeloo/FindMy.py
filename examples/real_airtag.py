@@ -35,7 +35,7 @@ def main(plist_path: str) -> int:
     # step 3: print 'em
     print()
     print("Location reports:")
-    for report in reports:
+    for report in sorted(reports):
         print(f" - {report}")
 
     return 0
