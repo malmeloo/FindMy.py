@@ -1,6 +1,7 @@
 # FindMy.py
 
 [![](https://img.shields.io/pypi/v/FindMy)](https://pypi.org/project/FindMy/)
+[![](https://img.shields.io/pypi/dm/FindMy)](#)
 [![](https://img.shields.io/github/license/malmeloo/FindMy.py)](LICENSE.md)
 [![](https://img.shields.io/pypi/pyversions/FindMy)](#)
 
