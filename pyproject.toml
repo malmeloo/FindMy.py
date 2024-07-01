@@ -12,7 +12,7 @@ srp = "^1.0.20"
 cryptography = "^42.0.5"
 beautifulsoup4 = "^4.12.2"
 aiohttp = "^3.9.1"
-bleak = "^0.21.1"
+bleak = "^0.22.0"
 
 [tool.poetry.extras]
 scan = ["bleak"]
