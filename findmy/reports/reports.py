@@ -270,6 +270,11 @@ class LocationReportsFetcher:
             description = report.get("description", "")
             payload = base64.b64decode(report["payload"])
 
+            # Fix decryption for new report format via MacOS 14+ and daugher OSes
+            # See: https://github.com/MatthewKuKanich/FindMyFlipper/issues/61#issuecomment-2065003410
+            if len(payload) == 89:
+                payload = payload[0:4] + payload[5:]
+
             try:
                 loc_report = LocationReport.from_payload(key, date_published, description, payload)
             except ValueError as e:
@@ -277,7 +282,8 @@ class LocationReportsFetcher:
                     "Location report was not decodable. Some payloads have unknown"
                     " variations leading to this error. Please report this full message"
                     " at https://github.com/malmeloo/FindMy.py/issues/27. "
-                    "Payload: %s, Original error: %s",
+                    "Payload length: %d Payload: %s, Original error: %s",
+                    len(payload),
                     payload.hex(),
                     e,
                 )
