@@ -614,11 +614,15 @@ class AsyncAppleAccount(BaseAppleAccount):
             msg = "Not authorized to fetch reports."
             raise UnauthorizedError(msg)
 
-        if not r.ok or r.json()["statusCode"] != "200":
-            msg = f"Failed to fetch reports: {r.json()['statusCode']}"
+        try:
+            resp = r.json()
+        except json.JSONDecodeError:
+            resp = {}
+        if not r.ok or resp.get("statusCode") != "200":
+            msg = f"Failed to fetch reports: {resp.get('statusCode')}"
             raise UnhandledProtocolError(msg)
 
-        return r.json()
+        return resp
 
     @overload
     async def fetch_reports(
