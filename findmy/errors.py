@@ -5,6 +5,10 @@ class InvalidCredentialsError(Exception):
     """Raised when credentials are incorrect."""
 
 
+class UnauthorizedError(Exception):
+    """Raised when an authorization error occurs."""
+
+
 class UnhandledProtocolError(RuntimeError):
     """
     Raised when an unexpected error occurs while communicating with Apple servers.
