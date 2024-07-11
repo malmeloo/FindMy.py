@@ -27,10 +27,15 @@ import bs4
 import srp._pysrp as srp
 from typing_extensions import override
 
-from findmy.errors import InvalidCredentialsError, InvalidStateError, UnhandledProtocolError
+from findmy.errors import (
+    InvalidCredentialsError,
+    InvalidStateError,
+    UnauthorizedError,
+    UnhandledProtocolError,
+)
 from findmy.util import crypto
 from findmy.util.closable import Closable
-from findmy.util.http import HttpSession, decode_plist
+from findmy.util.http import HttpResponse, HttpSession, decode_plist
 
 from .reports import LocationReport, LocationReportsFetcher
 from .state import LoginState
@@ -585,18 +590,35 @@ class AsyncAppleAccount(BaseAppleAccount):
         )
         data = {"search": [{"startDate": start, "endDate": end, "ids": ids}]}
 
-        r = await self._http.post(
-            self._ENDPOINT_REPORTS_FETCH,
-            auth=auth,
-            headers=await self.get_anisette_headers(),
-            json=data,
-        )
-        resp = r.json()
-        if not r.ok or resp["statusCode"] != "200":
-            msg = f"Failed to fetch reports: {resp['statusCode']}"
+        async def _do_request() -> HttpResponse:
+            return await self._http.post(
+                self._ENDPOINT_REPORTS_FETCH,
+                auth=auth,
+                headers=await self.get_anisette_headers(),
+                json=data,
+            )
+
+        r = await _do_request()
+        if r.status_code == 401:
+            logging.info("Got 401 while fetching reports, redoing login")
+
+            new_state = await self._gsa_authenticate()
+            if new_state != LoginState.AUTHENTICATED:
+                msg = f"Unexpected login state after reauth: {new_state}. Please log in again."
+                raise UnauthorizedError(msg)
+            await self._login_mobileme()
+
+            r = await _do_request()
+
+        if r.status_code == 401:
+            msg = "Not authorized to fetch reports."
+            raise UnauthorizedError(msg)
+
+        if not r.ok or r.json()["statusCode"] != "200":
+            msg = f"Failed to fetch reports: {r.json()['statusCode']}"
             raise UnhandledProtocolError(msg)
 
-        return resp
+        return r.json()
 
     @overload
     async def fetch_reports(
@@ -679,7 +701,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         return await self.fetch_reports(keys, start, end)
 
-    @require_login_state(LoginState.LOGGED_OUT, LoginState.REQUIRE_2FA)
+    @require_login_state(LoginState.LOGGED_OUT, LoginState.REQUIRE_2FA, LoginState.LOGGED_IN)
     async def _gsa_authenticate(
         self,
         username: str | None = None,
@@ -805,9 +827,9 @@ class AsyncAppleAccount(BaseAppleAccount):
         data = resp.plist()
 
         mobileme_data = data.get("delegates", {}).get("com.apple.mobileme", {})
-        status = mobileme_data.get("status")
+        status = mobileme_data.get("status") or data.get("status")
         if status != 0:
-            status_message = mobileme_data.get("status-message")
+            status_message = mobileme_data.get("status-message") or data.get("status-message")
             msg = f"com.apple.mobileme login failed with status {status}: {status_message}"
             raise UnhandledProtocolError(msg)
 
