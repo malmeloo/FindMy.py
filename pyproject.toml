@@ -8,11 +8,11 @@ packages = [{ include = "findmy" }]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-srp = "^1.0.20"
-cryptography = "^42.0.5"
-beautifulsoup4 = "^4.12.2"
-aiohttp = "^3.9.1"
-bleak = "^0.22.0"
+srp = "^1.0.21"
+cryptography = "^42.0.8"
+beautifulsoup4 = "^4.12.3"
+aiohttp = "^3.9.5"
+bleak = "^0.22.2"
 
 [tool.poetry.extras]
 scan = ["bleak"]
