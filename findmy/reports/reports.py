@@ -279,10 +279,9 @@ class LocationReportsFetcher:
                 loc_report = LocationReport.from_payload(key, date_published, description, payload)
             except ValueError as e:
                 logging.warning(
-                    "Location report was not decodable. Some payloads have unknown"
-                    " variations leading to this error. Please report this full message"
-                    " at https://github.com/malmeloo/FindMy.py/issues/27. "
-                    "Payload length: %d Payload: %s, Original error: %s",
+                    "Location report was not decodable. Please report this full message"
+                    " at https://github.com/malmeloo/FindMy.py/issues/. This report does not"
+                    " reveal your location. Payload length: %d Payload: %s, Original error: %s",
                     len(payload),
                     payload.hex(),
                     e,
