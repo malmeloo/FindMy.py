@@ -102,7 +102,7 @@ class OfflineFindingDevice(ABC):
 
     @override
     def __hash__(self) -> int:
-        return int.from_bytes(self._mac_bytes)
+        return int.from_bytes(self._mac_bytes, "big")
 
 
 class NearbyOfflineFindingDevice(OfflineFindingDevice):
