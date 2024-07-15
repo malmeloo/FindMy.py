@@ -4,7 +4,6 @@ pkgs.mkShell {
   packages = with pkgs; [
     python312
     poetry
-    ruff
   ];
 
   shellHook = ''
