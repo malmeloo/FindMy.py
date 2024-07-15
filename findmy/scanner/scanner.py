@@ -36,10 +36,12 @@ class OfflineFindingDevice(ABC):
     def __init__(
         self,
         mac_bytes: bytes,
+        status_byte: int,
         additional_data: dict[Any, Any] | None = None,
     ) -> None:
         """Instantiate an OfflineFindingDevice."""
         self._mac_bytes: bytes = mac_bytes
+        self._status: int = status_byte
         self._additional_data: dict[Any, Any] = additional_data or {}
 
     @property
@@ -47,6 +49,11 @@ class OfflineFindingDevice(ABC):
         """MAC address of the device in AA:BB:CC:DD:EE:FF format."""
         mac = self._mac_bytes.hex().upper()
         return ":".join(mac[i : i + 2] for i in range(0, len(mac), 2))
+
+    @property
+    def status(self) -> int:
+        """Status value as reported by the device."""
+        return self._status % 255
 
     @property
     def additional_data(self) -> dict[Any, Any]:
@@ -123,15 +130,9 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
         additional_data: dict[Any, Any] | None = None,
     ) -> None:
         """Instantiate a NearbyOfflineFindingDevice."""
-        super().__init__(mac_bytes, additional_data)
+        super().__init__(mac_bytes, status_byte, additional_data)
 
-        self._status_byte: int = status_byte
         self._extra_byte: int = extra_byte
-
-    @property
-    def status(self) -> int:
-        """Status value as reported by the device."""
-        return self._status_byte % 255
 
     @classmethod
     @override
@@ -175,16 +176,10 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
         additional_data: dict[Any, Any] | None = None,
     ) -> None:
         """Initialize a `SeparatedOfflineFindingDevice`."""
-        super().__init__(mac_bytes, additional_data)
+        super().__init__(mac_bytes, status, additional_data)
 
-        self._status: int = status
         self._public_key: bytes = public_key
         self._hint: int = hint
-
-    @property
-    def status(self) -> int:
-        """Status value as reported by the device."""
-        return self._status % 255
 
     @property
     def hint(self) -> int:
