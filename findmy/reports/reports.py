@@ -48,6 +48,16 @@ class LocationReport(HasHashedPublicKey):
         return self._hashed_adv_key
 
     @property
+    def key(self) -> KeyPair:
+        """`KeyPair` using which this report was decrypted."""
+        if not self.is_decrypted:
+            msg = "Full key is unavailable while the report is encrypted."
+            raise RuntimeError(msg)
+        assert self._decrypted_data is not None
+
+        return self._decrypted_data[0]
+
+    @property
     def payload(self) -> bytes:
         """Full (partially encrypted) payload of the report, as retrieved from Apple."""
         return self._payload
