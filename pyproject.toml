@@ -14,9 +14,6 @@ beautifulsoup4 = "^4.12.3"
 aiohttp = "^3.9.5"
 bleak = "^0.22.2"
 
-[tool.poetry.extras]
-scan = ["bleak"]
-
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.6.0"
 sphinx = "^7.2.6"
