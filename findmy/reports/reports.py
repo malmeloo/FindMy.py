@@ -1,4 +1,5 @@
 """Module providing functionality to look up location reports."""
+
 from __future__ import annotations
 
 import base64
@@ -14,7 +15,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from typing_extensions import override
 
 from findmy.accessory import RollingKeyPairSource
-from findmy.keys import KeyPair
+from findmy.keys import HasHashedPublicKey, KeyPair
 
 if TYPE_CHECKING:
     from .account import AsyncAppleAccount
@@ -22,69 +23,83 @@ if TYPE_CHECKING:
 logging.getLogger(__name__)
 
 
-def _decrypt_payload(payload: bytes, key: KeyPair) -> bytes:
-    eph_key = ec.EllipticCurvePublicKey.from_encoded_point(
-        ec.SECP224R1(),
-        payload[5:62],
-    )
-    shared_key = key.dh_exchange(eph_key)
-    symmetric_key = hashlib.sha256(
-        shared_key + b"\x00\x00\x00\x01" + payload[5:62],
-    ).digest()
+class LocationReport(HasHashedPublicKey):
+    """Location report corresponding to a certain `HasHashedPublicKey`."""
 
-    decryption_key = symmetric_key[:16]
-    iv = symmetric_key[16:]
-    enc_data = payload[62:72]
-    tag = payload[72:]
-
-    decryptor = Cipher(
-        algorithms.AES(decryption_key),
-        modes.GCM(iv, tag),
-        default_backend(),
-    ).decryptor()
-    return decryptor.update(enc_data) + decryptor.finalize()
-
-
-class LocationReport:
-    """Location report corresponding to a certain `KeyPair`."""
-
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
-        key: KeyPair,
-        publish_date: datetime,
-        timestamp: datetime,
-        description: str,
-        lat: float,
-        lng: float,
-        confidence: int,
-        status: int,
+        payload: bytes,
+        hashed_adv_key: bytes,
+        published_at: datetime,
+        description: str = "",
     ) -> None:
         """Initialize a `KeyReport`. You should probably use `KeyReport.from_payload` instead."""
-        self._key = key
-        self._publish_date = publish_date
-        self._timestamp = timestamp
-        self._description = description
+        self._payload: bytes = payload
+        self._hashed_adv_key: bytes = hashed_adv_key
+        self._published_at: datetime = published_at
+        self._description: str = description
 
-        self._lat = lat
-        self._lng = lng
-        self._confidence = confidence
-
-        self._status = status
+        self._decrypted_data: tuple[KeyPair, bytes] | None = None
 
     @property
-    def key(self) -> KeyPair:
-        """The `KeyPair` corresponding to this location report."""
-        return self._key
+    @override
+    def hashed_adv_key_bytes(self) -> bytes:
+        """See `HasHashedPublicKey.hashed_adv_key_bytes`."""
+        return self._hashed_adv_key
+
+    @property
+    def payload(self) -> bytes:
+        """Full (partially encrypted) payload of the report, as retrieved from Apple."""
+        return self._payload
+
+    @property
+    def is_decrypted(self) -> bool:
+        """Whether the report is currently decrypted."""
+        return self._decrypted_data is not None
+
+    def decrypt(self, key: KeyPair) -> None:
+        """Decrypt the report using its corresponding `KeyPair`."""
+        if key.hashed_adv_key_bytes != self._hashed_adv_key:
+            msg = "Cannot decrypt with this key!"
+            raise ValueError(msg)
+
+        if self.is_decrypted:
+            return
+
+        encrypted_data = self._payload[4:]
+
+        # Fix decryption for new report format via MacOS 14+
+        # See: https://github.com/MatthewKuKanich/FindMyFlipper/issues/61#issuecomment-2065003410
+        if len(encrypted_data) == 85:
+            encrypted_data = encrypted_data[1:]
+
+        eph_key = ec.EllipticCurvePublicKey.from_encoded_point(
+            ec.SECP224R1(),
+            encrypted_data[1:58],
+        )
+        shared_key = key.dh_exchange(eph_key)
+        symmetric_key = hashlib.sha256(
+            shared_key + b"\x00\x00\x00\x01" + encrypted_data[1:58],
+        ).digest()
+
+        decryption_key = symmetric_key[:16]
+        iv = symmetric_key[16:]
+        enc_data = encrypted_data[58:68]
+        tag = encrypted_data[68:]
+
+        decryptor = Cipher(
+            algorithms.AES(decryption_key),
+            modes.GCM(iv, tag),
+            default_backend(),
+        ).decryptor()
+        decrypted_payload = decryptor.update(enc_data) + decryptor.finalize()
+
+        self._decrypted_data = (key, decrypted_payload)
 
     @property
     def published_at(self) -> datetime:
         """The `datetime` when this report was published by a device."""
-        return self._publish_date
-
-    @property
-    def timestamp(self) -> datetime:
-        """The `datetime` when this report was recorded by a device."""
-        return self._timestamp
+        return self._published_at
 
     @property
     def description(self) -> str:
@@ -92,57 +107,54 @@ class LocationReport:
         return self._description
 
     @property
+    def timestamp(self) -> datetime:
+        """The `datetime` when this report was recorded by a device."""
+        timestamp_int = int.from_bytes(self._payload[0:4], "big") + (60 * 60 * 24 * 11323)
+        return datetime.fromtimestamp(timestamp_int, tz=timezone.utc).astimezone()
+
+    @property
     def latitude(self) -> float:
         """Latitude of the location of this report."""
-        return self._lat
+        if not self.is_decrypted:
+            msg = "Latitude is unavailable while the report is encrypted."
+            raise RuntimeError(msg)
+        assert self._decrypted_data is not None
+
+        lat_bytes = self._decrypted_data[1][:4]
+        return struct.unpack(">i", lat_bytes)[0] / 10000000
 
     @property
     def longitude(self) -> float:
         """Longitude of the location of this report."""
-        return self._lng
+        if not self.is_decrypted:
+            msg = "Longitude is unavailable while the report is encrypted."
+            raise RuntimeError(msg)
+        assert self._decrypted_data is not None
+
+        lon_bytes = self._decrypted_data[1][4:8]
+        return struct.unpack(">i", lon_bytes)[0] / 10000000
 
     @property
     def confidence(self) -> int:
         """Confidence of the location of this report."""
-        return self._confidence
+        if not self.is_decrypted:
+            msg = "Confidence is unavailable while the report is encrypted."
+            raise RuntimeError(msg)
+        assert self._decrypted_data is not None
+
+        conf_bytes = self._decrypted_data[1][8:9]
+        return int.from_bytes(conf_bytes, "big")
 
     @property
     def status(self) -> int:
         """Status byte of the accessory as recorded by a device, as an integer."""
-        return self._status
+        if not self.is_decrypted:
+            msg = "Status byte is unavailable while the report is encrypted."
+            raise RuntimeError(msg)
+        assert self._decrypted_data is not None
 
-    @classmethod
-    def from_payload(
-        cls,
-        key: KeyPair,
-        publish_date: datetime,
-        description: str,
-        payload: bytes,
-    ) -> LocationReport:
-        """
-        Create a `KeyReport` from fields and a payload as reported by Apple.
-
-        Requires a `KeyPair` to decrypt the report's payload.
-        """
-        timestamp_int = int.from_bytes(payload[0:4], "big") + (60 * 60 * 24 * 11323)
-        timestamp = datetime.fromtimestamp(timestamp_int, tz=timezone.utc).astimezone()
-
-        data = _decrypt_payload(payload, key)
-        latitude = struct.unpack(">i", data[0:4])[0] / 10000000
-        longitude = struct.unpack(">i", data[4:8])[0] / 10000000
-        confidence = int.from_bytes(data[8:9], "big")
-        status = int.from_bytes(data[9:10], "big")
-
-        return cls(
-            key,
-            publish_date,
-            timestamp,
-            description,
-            latitude,
-            longitude,
-            confidence,
-            status,
-        )
+        status_bytes = self._decrypted_data[1][9:10]
+        return int.from_bytes(status_bytes, "big")
 
     def __lt__(self, other: LocationReport) -> bool:
         """
@@ -158,10 +170,11 @@ class LocationReport:
     @override
     def __repr__(self) -> str:
         """Human-readable string representation of the location report."""
-        return (
-            f"KeyReport(key={self._key.hashed_adv_key_b64}, timestamp={self._timestamp},"
-            f" lat={self._lat}, lng={self._lng})"
-        )
+        msg = f"KeyReport(hashed_adv_key={self.hashed_adv_key_b64}, timestamp={self.timestamp}"
+        if self.is_decrypted:
+            msg += f", lat={self.latitude}, lon={self.longitude}"
+        msg += ")"
+        return msg
 
 
 class LocationReportsFetcher:
@@ -180,7 +193,7 @@ class LocationReportsFetcher:
         self,
         date_from: datetime,
         date_to: datetime,
-        device: KeyPair,
+        device: HasHashedPublicKey,
     ) -> list[LocationReport]:
         ...
 
@@ -189,8 +202,8 @@ class LocationReportsFetcher:
         self,
         date_from: datetime,
         date_to: datetime,
-        device: Sequence[KeyPair],
-    ) -> dict[KeyPair, list[LocationReport]]:
+        device: Sequence[HasHashedPublicKey],
+    ) -> dict[HasHashedPublicKey, list[LocationReport]]:
         ...
 
     @overload
@@ -206,21 +219,23 @@ class LocationReportsFetcher:
         self,
         date_from: datetime,
         date_to: datetime,
-        device: KeyPair | Sequence[KeyPair] | RollingKeyPairSource,
-    ) -> list[LocationReport] | dict[KeyPair, list[LocationReport]]:
+        device: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
+    ) -> list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]:
         """
         Fetch location reports for a certain device.
 
-        When ``device`` is a single :class:`.KeyPair`, this method will return
-        a list of location reports corresponding to that pair.
-        When ``device`` is a sequence of :class:`.KeyPair`s, it will return a dictionary
-        with the :class:`.KeyPair` as key, and a list of location reports as value.
+        When ``device`` is a single :class:`.HasHashedPublicKey`, this method will return
+        a list of location reports corresponding to that key.
+        When ``device`` is a sequence of :class:`.HasHashedPublicKey`s, it will return a dictionary
+        with the :class:`.HasHashedPublicKey` as key, and a list of location reports as value.
+        When ``device`` is a :class:`.RollingKeyPairSource`, it will return a list of
+        location reports corresponding to that source.
         """
-        # single KeyPair
-        if isinstance(device, KeyPair):
+        # single key
+        if isinstance(device, HasHashedPublicKey):
             return await self._fetch_reports(date_from, date_to, [device])
 
-        # KeyPair generator
+        # key generator
         #   add 12h margin to the generator
         if isinstance(device, RollingKeyPairSource):
             keys = list(
@@ -232,7 +247,7 @@ class LocationReportsFetcher:
         else:
             keys = device
 
-        # sequence of KeyPairs (fetch 256 max at a time)
+        # sequence of keys (fetch 256 max at a time)
         reports: list[LocationReport] = []
         for key_offset in range(0, len(keys), 256):
             chunk = keys[key_offset : key_offset + 256]
@@ -241,16 +256,19 @@ class LocationReportsFetcher:
         if isinstance(device, RollingKeyPairSource):
             return reports
 
-        res: dict[KeyPair, list[LocationReport]] = {key: [] for key in keys}
+        res: dict[HasHashedPublicKey, list[LocationReport]] = {key: [] for key in keys}
         for report in reports:
-            res[report.key].append(report)
+            for key in res:
+                if key.hashed_adv_key_bytes == report.hashed_adv_key_bytes:
+                    res[key].append(report)
+                    break
         return res
 
     async def _fetch_reports(
         self,
         date_from: datetime,
         date_to: datetime,
-        keys: Sequence[KeyPair],
+        keys: Sequence[HasHashedPublicKey],
     ) -> list[LocationReport]:
         logging.debug("Fetching reports for %s keys", len(keys))
 
@@ -259,34 +277,23 @@ class LocationReportsFetcher:
         ids = [key.hashed_adv_key_b64 for key in keys]
         data = await self._account.fetch_raw_reports(start_date, end_date, ids)
 
-        id_to_key: dict[str, KeyPair] = {key.hashed_adv_key_b64: key for key in keys}
+        id_to_key: dict[bytes, HasHashedPublicKey] = {key.hashed_adv_key_bytes: key for key in keys}
         reports: list[LocationReport] = []
         for report in data.get("results", []):
-            key = id_to_key[report["id"]]
+            payload = base64.b64decode(report["payload"])
+            hashed_adv_key = base64.b64decode(report["id"])
             date_published = datetime.fromtimestamp(
                 report.get("datePublished", 0) / 1000,
                 tz=timezone.utc,
             ).astimezone()
             description = report.get("description", "")
-            payload = base64.b64decode(report["payload"])
 
-            # Fix decryption for new report format via MacOS 14+ and daugher OSes
-            # See: https://github.com/MatthewKuKanich/FindMyFlipper/issues/61#issuecomment-2065003410
-            if len(payload) == 89:
-                payload = payload[0:4] + payload[5:]
+            loc_report = LocationReport(payload, hashed_adv_key, date_published, description)
 
-            try:
-                loc_report = LocationReport.from_payload(key, date_published, description, payload)
-            except ValueError as e:
-                logging.warning(
-                    "Location report was not decodable. Please report this full message"
-                    " at https://github.com/malmeloo/FindMy.py/issues/. This report does not"
-                    " reveal your location. Payload length: %d Payload: %s, Original error: %s",
-                    len(payload),
-                    payload.hex(),
-                    e,
-                )
-                continue
+            # pre-decrypt if possible
+            key = id_to_key[hashed_adv_key]
+            if isinstance(key, KeyPair):
+                loc_report.decrypt(key)
 
             reports.append(loc_report)
 
