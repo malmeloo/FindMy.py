@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import locale
 import logging
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
@@ -160,6 +161,8 @@ class BaseAnisetteProvider(Closable, ABC):
 class RemoteAnisetteProvider(BaseAnisetteProvider):
     """Anisette provider. Fetches headers from a remote Anisette server."""
 
+    _ANISETTE_DATA_VALID_FOR = 30
+
     def __init__(self, server_url: str) -> None:
         """Initialize the provider with URL to te remote server."""
         super().__init__()
@@ -169,6 +172,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         self._http = HttpSession()
 
         self._anisette_data: dict[str, str] | None = None
+        self._anisette_data_expires_at: float = 0
 
     @property
     @override
@@ -197,11 +201,12 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         with_client_info: bool = False,
     ) -> dict[str, str]:
         """See `BaseAnisetteProvider.get_headers`_."""
-        if self._anisette_data is None:
+        if self._anisette_data is None or time.time() >= self._anisette_data_expires_at:
             logging.info("Fetching anisette data from %s", self._server_url)
 
             r = await self._http.get(self._server_url)
             self._anisette_data = r.json()
+            self._anisette_data_expires_at = time.time() + self._ANISETTE_DATA_VALID_FOR
 
         return await super().get_headers(user_id, device_id, serial, with_client_info)
 
