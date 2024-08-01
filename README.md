@@ -20,7 +20,7 @@ application wishing to integrate with the Find My network.
 > without prior warning.
 > 
 > You are encouraged to report any issues you can find on the
-> [issue tracker](https://github.com/malmeloo/FindMy.py/)!
+> [issue tracker](https://github.com/malmeloo/FindMy.py/issues/)!
 
 ### Features
 
