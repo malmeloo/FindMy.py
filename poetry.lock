@@ -1248,13 +1248,13 @@ test = ["cython (>=3.0)", "defusedxml (>=0.7.1)", "pytest (>=8.0)", "setuptools 
 
 [[package]]
 name = "sphinx-autoapi"
-version = "3.2.0"
+version = "3.2.1"
 description = "Sphinx API documentation generator"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "sphinx_autoapi-3.2.0-py2.py3-none-any.whl", hash = "sha256:da67902137adc3541e55817d73a827ad51c41b2e68d6c298b9f7c26d3e23e744"},
-    {file = "sphinx_autoapi-3.2.0.tar.gz", hash = "sha256:f80580ff50ec7a8640dc9d0c3c40eaacd3a715bb72c7ab780e4e504c1d0759fb"},
+    {file = "sphinx_autoapi-3.2.1-py2.py3-none-any.whl", hash = "sha256:72fe556abc579528a46494f4fcbeaeaaf3e0b031f6514f7b496f6c36754c5430"},
+    {file = "sphinx_autoapi-3.2.1.tar.gz", hash = "sha256:1f9d56b3a98d5653d1fad5644abeed2c042cec304a126ef72c236dae4af16b90"},
 ]
 
 [package.dependencies]
