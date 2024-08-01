@@ -25,6 +25,9 @@ jobs:
         python -m pip install poetry
         poetry config virtualenvs.in-project true
         poetry install
+
+    - name: Prepare README
+      run: ./scripts/refactor_readme.py README.md
       
     - name: Build package
       run: poetry build
