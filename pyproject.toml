@@ -47,6 +47,7 @@ ignore = [
     "D105", # docstrings in magic methods
 
     "S101",  # assert statements
+    "S603",  # false-positive subprocess call (https://github.com/astral-sh/ruff/issues/4045)
 
     "PLR2004", # "magic" values >.>
     "FBT",     # boolean "traps"
@@ -60,6 +61,10 @@ line-length = 100
     "S101",  # use of "assert"
     "D",  # documentation
     "INP001",  # namespacing
+]
+"scripts/*" = [
+    "T201",  # use of "print"
+    "D",  # documentation
 ]
 
 [build-system]
