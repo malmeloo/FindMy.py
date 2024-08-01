@@ -15,11 +15,11 @@ aiohttp = "^3.9.5"
 bleak = "^0.22.2"
 
 [tool.poetry.group.dev.dependencies]
-pre-commit = "^3.6.0"
+pre-commit = "^3.8.0"
 sphinx = "^7.2.6"
-sphinx-autoapi = "^3.0.0"
-pyright = "^1.1.350"
-ruff = "0.5.2"
+sphinx-autoapi = "^3.2.1"
+pyright = "^1.1.374"
+ruff = "0.5.5"
 
 [tool.pyright]
 venvPath = "."
