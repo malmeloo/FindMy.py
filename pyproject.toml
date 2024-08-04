@@ -19,7 +19,7 @@ pre-commit = "^3.8.0"
 sphinx = "^7.2.6"
 sphinx-autoapi = "^3.2.1"
 pyright = "^1.1.374"
-ruff = "0.5.5"
+ruff = "0.5.6"
 
 [tool.pyright]
 venvPath = "."
