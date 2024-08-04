@@ -166,6 +166,34 @@ class LocationReport(HasHashedPublicKey):
         status_bytes = self._decrypted_data[1][9:10]
         return int.from_bytes(status_bytes, "big")
 
+    @override
+    def __eq__(self, other: object) -> bool:
+        """
+        Compare two report instances.
+
+        Two reports are considered equal iff they correspond to the same key,
+        were reported at the same timestamp and represent the same physical location.
+        """
+        if not isinstance(other, LocationReport):
+            return NotImplemented
+
+        return (
+            super().__eq__(other)
+            and self.timestamp == other.timestamp
+            and self.latitude == other.latitude
+            and self.longitude == other.longitude
+        )
+
+    @override
+    def __hash__(self) -> int:
+        """
+        Get the hash of this instance.
+
+        Two instances will have the same hash iff they correspond to the same key,
+        were reported at the same timestamp and represent the same physical location.
+        """
+        return hash((self.hashed_adv_key_bytes, self.timestamp, self.latitude, self.longitude))
+
     def __lt__(self, other: LocationReport) -> bool:
         """
         Compare against another `KeyReport`.
