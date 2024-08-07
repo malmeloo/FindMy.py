@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "FindMy"
-version = "v0.7.3"
+version = "v0.7.0"
 description = "Everything you need to work with Apple's Find My network!"
 authors = ["Mike Almeloo <git@mikealmel.ooo>"]
 readme = "README.md"
@@ -9,17 +9,17 @@ packages = [{ include = "findmy" }]
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
 srp = "^1.0.21"
-cryptography = ">=42.0.0,<44.0.0"
+cryptography = "^43.0.0"
 beautifulsoup4 = "^4.12.3"
 aiohttp = "^3.9.5"
 bleak = "^0.22.2"
 
 [tool.poetry.group.dev.dependencies]
-pre-commit = "^3.8.0"
+pre-commit = "^3.6.0"
 sphinx = "^7.2.6"
-sphinx-autoapi = "^3.2.1"
-pyright = "^1.1.374"
-ruff = "0.5.6"
+sphinx-autoapi = "^3.0.0"
+pyright = "^1.1.350"
+ruff = "0.5.2"
 
 [tool.pyright]
 venvPath = "."
@@ -47,7 +47,6 @@ ignore = [
     "D105", # docstrings in magic methods
 
     "S101",  # assert statements
-    "S603",  # false-positive subprocess call (https://github.com/astral-sh/ruff/issues/4045)
 
     "PLR2004", # "magic" values >.>
     "FBT",     # boolean "traps"
@@ -61,10 +60,6 @@ line-length = 100
     "S101",  # use of "assert"
     "D",  # documentation
     "INP001",  # namespacing
-]
-"scripts/*" = [
-    "T201",  # use of "print"
-    "D",  # documentation
 ]
 
 [build-system]
