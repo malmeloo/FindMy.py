@@ -736,13 +736,13 @@ class AsyncAppleAccount(BaseAppleAccount):
             msg = "Email verification failed: " + r["Status"].get("em")
             raise InvalidCredentialsError(msg)
         sp = r.get("sp")
-        if sp != "s2k":
-            msg = f"This implementation only supports s2k. Server returned {sp}"
+        if sp not in ["s2k", "s2k_fo"]:
+            msg = f"This implementation only supports s2k and sk2_fo. Server returned {sp}"
             raise UnhandledProtocolError(msg)
 
         logging.debug("Attempting password challenge")
 
-        usr.p = crypto.encrypt_password(self._password, r["s"], r["i"])
+        usr.p = crypto.encrypt_password(self._password, r["s"], r["i"], sp)
         m1 = usr.process_challenge(r["s"], r["B"])
         if m1 is None:
             msg = "Failed to process challenge"
