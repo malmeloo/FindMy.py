@@ -1065,13 +1065,13 @@ pyobjc-framework-Cocoa = ">=10.3.1"
 
 [[package]]
 name = "pyright"
-version = "1.1.374"
+version = "1.1.378"
 description = "Command line wrapper for pyright"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "pyright-1.1.374-py3-none-any.whl", hash = "sha256:55752bcf7a3646d293cd76710a983b71e16f6128aab2d42468e6eb7e46c0a70d"},
-    {file = "pyright-1.1.374.tar.gz", hash = "sha256:d01b2daf864ba5e0362e56b844984865970d7204158e61eb685e2dab7804cb82"},
+    {file = "pyright-1.1.378-py3-none-any.whl", hash = "sha256:8853776138b01bc284da07ac481235be7cc89d3176b073d2dba73636cb95be79"},
+    {file = "pyright-1.1.378.tar.gz", hash = "sha256:78a043be2876d12d0af101d667e92c7734f3ebb9db71dccc2c220e7e7eb89ca2"},
 ]
 
 [package.dependencies]
