@@ -15,7 +15,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    ParamSpec,
     Sequence,
     TypedDict,
     TypeVar,
@@ -25,7 +24,7 @@ from typing import (
 
 import bs4
 import srp._pysrp as srp
-from typing_extensions import Concatenate, override
+from typing_extensions import Concatenate, ParamSpec, override
 
 from findmy.errors import (
     InvalidCredentialsError,
