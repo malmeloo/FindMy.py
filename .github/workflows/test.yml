@@ -23,7 +23,7 @@ jobs:
       run: |
         python -m pip install poetry
         poetry config virtualenvs.in-project true
-        poetry install
+        poetry install --with dev
 
     - id: supported-versions
       name: Get supported versions
@@ -51,7 +51,7 @@ jobs:
           poetry config virtualenvs.in-project true
           
           # Only install main dependencies
-          poetry install --only=test
+          poetry install --with test
 
       - name: Run unit tests
         run: poetry run pytest
