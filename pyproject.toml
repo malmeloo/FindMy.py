@@ -14,12 +14,22 @@ beautifulsoup4 = "^4.12.3"
 aiohttp = "^3.9.5"
 bleak = "^0.22.2"
 
+[tool.poetry.group.dev]
+optional = true
+
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
 sphinx = "^7.2.6"
 sphinx-autoapi = "^3.2.1"
 pyright = "^1.1.374"
 ruff = "0.5.6"
+tomli = "^2.0.1"
+
+[tool.poetry.group.test]
+optional = true
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.2"
 
 [tool.pyright]
 venvPath = "."
@@ -32,6 +42,7 @@ reportImplicitOverride = true
 [tool.ruff]
 exclude = [
     "docs/",
+    "tests/"
 ]
 
 select = [
