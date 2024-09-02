@@ -13,6 +13,7 @@ cryptography = ">=42.0.0,<44.0.0"
 beautifulsoup4 = "^4.12.3"
 aiohttp = "^3.9.5"
 bleak = "^0.22.2"
+typing-extensions = "^4.12.2"
 
 [tool.poetry.group.dev]
 optional = true
