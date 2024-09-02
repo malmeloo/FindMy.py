@@ -1,10 +1,10 @@
-"""Configuration file for Nox."""
+#!/usr/bin/env python3
 
+import json
 from itertools import count
 from pathlib import Path
 from typing import Generator
 
-import nox_poetry
 import tomli
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
@@ -35,7 +35,4 @@ def get_python_versions() -> Generator[str, None, None]:
         return
 
 
-@nox_poetry.session(python=list(get_python_versions()))
-def test(session: nox_poetry.Session) -> None:
-    """Run unit tests."""
-    session.run("pytest")
+print(json.dumps(list(get_python_versions())))
