@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Generator
 
 import nox
-import tomllib
+import tomli
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
@@ -13,7 +13,7 @@ from packaging.version import Version
 def get_python_versions() -> Generator[str, None, None]:
     """Get all python versions this package is compatible with."""
     with Path("pyproject.toml").open("rb") as f:
-        pyproject_data = tomllib.load(f)
+        pyproject_data = tomli.load(f)
 
     specifier = SpecifierSet(pyproject_data["tool"]["poetry"]["dependencies"]["python"])
 
