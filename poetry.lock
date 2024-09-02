@@ -996,6 +996,22 @@ tox-to-nox = ["jinja2", "tox"]
 uv = ["uv (>=0.1.6)"]
 
 [[package]]
+name = "nox-poetry"
+version = "1.0.3"
+description = "nox-poetry"
+optional = false
+python-versions = ">=3.7,<4.0"
+files = [
+    {file = "nox_poetry-1.0.3-py3-none-any.whl", hash = "sha256:a2fffeb70ae81840479e68287afe1c772bf376f70f1e92f99832a20b3c64d064"},
+    {file = "nox_poetry-1.0.3.tar.gz", hash = "sha256:dc7ecbbd812a333a0c0b558f57e5b37f7c12926cddbcecaf2264957fd373824e"},
+]
+
+[package.dependencies]
+nox = ">=2020.8.22"
+packaging = ">=20.9"
+tomlkit = ">=0.7"
+
+[[package]]
 name = "packaging"
 version = "24.1"
 description = "Core utilities for Python packages"
@@ -1516,6 +1532,17 @@ files = [
 ]
 
 [[package]]
+name = "tomlkit"
+version = "0.13.2"
+description = "Style preserving TOML library"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "tomlkit-0.13.2-py3-none-any.whl", hash = "sha256:7a974427f6e119197f670fbbbeae7bef749a6c14e793db934baefc1b5f03efde"},
+    {file = "tomlkit-0.13.2.tar.gz", hash = "sha256:fff5fe59a87295b278abd31bec92c15d9bc4a06885ab12bcea52c71119392e79"},
+]
+
+[[package]]
 name = "typing-extensions"
 version = "4.12.2"
 description = "Backported and Experimental Type Hints for Python 3.8+"
@@ -1902,4 +1929,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "cf83e5ed90b7d2c8a905221b890c914f921ef25340aacb54d8c6a9f042ae9fde"
+content-hash = "27690dec4a15030e8b75dfc752b57b65e496701c5f4cf0864c8b01735948bfad"

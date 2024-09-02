@@ -4,7 +4,7 @@ from itertools import count
 from pathlib import Path
 from typing import Generator
 
-import nox
+import nox_poetry
 import tomli
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
@@ -35,7 +35,7 @@ def get_python_versions() -> Generator[str, None, None]:
         return
 
 
-@nox.session(python=list(get_python_versions()))
-def test(session: nox.Session) -> None:
+@nox_poetry.session(python=list(get_python_versions()))
+def test(session: nox_poetry.Session) -> None:
     """Run unit tests."""
     session.run("pytest")

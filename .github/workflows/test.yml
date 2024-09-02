@@ -25,4 +25,4 @@ jobs:
     - uses: wntrblm/nox@2024.04.15
 
     - name: Run unit tests
-      run: nox
+      run: poetry run nox
