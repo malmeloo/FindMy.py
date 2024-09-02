@@ -20,6 +20,8 @@ sphinx = "^7.2.6"
 sphinx-autoapi = "^3.2.1"
 pyright = "^1.1.374"
 ruff = "0.5.6"
+nox = "^2024.4.15"
+pytest = "^8.3.2"
 
 [tool.pyright]
 venvPath = "."
@@ -32,6 +34,7 @@ reportImplicitOverride = true
 [tool.ruff]
 exclude = [
     "docs/",
+    "tests/"
 ]
 
 select = [
