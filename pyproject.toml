@@ -20,17 +20,23 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
-sphinx = "^7.2.6"
-sphinx-autoapi = "3.3.1"
 pyright = "1.1.378"
 ruff = "0.6.3"
 tomli = "^2.0.1"
+packaging = "^24.1"
 
 [tool.poetry.group.test]
 optional = true
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.2"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+sphinx = "^7.2.6"
+sphinx-autoapi = "3.3.1"
 
 [tool.pyright]
 venvPath = "."
