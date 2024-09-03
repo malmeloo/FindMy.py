@@ -17,12 +17,19 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
+    - name: Get cache key
+      id: cache-key
+      shell: bash
+      run: |
+        key=$(echo "${{ inputs.dependency-groups }}" | sed 's/,/+/')
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+
     - name: Load cached venv
       id: cache-dependencies
       uses: actions/cache@v4
       with:
         path: .venv
-        key: venv-${{ runner.os }}-python-${{ inputs.python-version }}-groups-${{ inputs.dependency-groups }}-lock-${{ hashFiles('**/poetry.lock') }}
+        key: venv-${{ runner.os }}-python-${{ inputs.python-version }}-groups-${{ steps.cache-key.outputs.key }}-${{ hashFiles('**/poetry.lock') }}
 
     - name: Install dependencies
       if: steps.cache-dependencies.outputs.cache-hit != 'true'
