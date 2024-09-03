@@ -1,9 +1,10 @@
 """Module to simplify asynchronous HTTP calls."""
+
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 from typing_extensions import Unpack, override
@@ -14,11 +15,18 @@ from .parsers import decode_plist
 logging.getLogger(__name__)
 
 
-class _HttpRequestOptions(TypedDict, total=False):
+class _RequestOptions(TypedDict, total=False):
     json: dict[str, Any] | None
     headers: dict[str, str]
-    auth: tuple[str, str] | BasicAuth
     data: bytes
+
+
+class _AiohttpRequestOptions(_RequestOptions):
+    auth: BasicAuth
+
+
+class _HttpRequestOptions(_RequestOptions, total=False):
+    auth: BasicAuth | tuple[str, str]
 
 
 class HttpResponse:
@@ -94,15 +102,19 @@ class HttpSession(Closable):
         """
         session = await self._get_session()
 
+        # cast from http options to library supported options
         auth = kwargs.get("auth")
         if isinstance(auth, tuple):
             kwargs["auth"] = BasicAuth(auth[0], auth[1])
+        else:
+            kwargs.pop("auth")
+        options = cast(_AiohttpRequestOptions, kwargs)
 
         async with await session.request(
             method,
             url,
             ssl=False,
-            **kwargs,
+            **options,
         ) as r:
             return HttpResponse(r.status, await r.content.read())
 

@@ -1,4 +1,5 @@
 """Module for Anisette header providers."""
+
 from __future__ import annotations
 
 import base64

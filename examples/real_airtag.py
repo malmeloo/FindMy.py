@@ -1,6 +1,7 @@
 """
 Example showing how to fetch locations of an AirTag, or any other FindMy accessory.
 """
+
 from __future__ import annotations
 
 import logging

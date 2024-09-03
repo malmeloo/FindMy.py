@@ -1,4 +1,5 @@
 """Module to work with private and public keys as used in FindMy accessories."""
+
 from __future__ import annotations
 
 import base64
@@ -156,13 +157,11 @@ class KeyGenerator(ABC, Generic[K]):
 
     @overload
     @abstractmethod
-    def __getitem__(self, val: int) -> K:
-        ...
+    def __getitem__(self, val: int) -> K: ...
 
     @overload
     @abstractmethod
-    def __getitem__(self, val: slice) -> Generator[K, None, None]:
-        ...
+    def __getitem__(self, val: slice) -> Generator[K, None, None]: ...
 
     @abstractmethod
     def __getitem__(self, val: int | slice) -> K | Generator[K, None, None]:

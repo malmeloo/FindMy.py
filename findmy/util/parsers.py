@@ -1,4 +1,5 @@
 """Parsers for various forms of data formats."""
+
 import plistlib
 from typing import Any
 
