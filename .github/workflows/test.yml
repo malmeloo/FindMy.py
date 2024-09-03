@@ -20,7 +20,9 @@ jobs:
 
     - id: supported-versions
       name: Get supported versions
-      run: echo "py-versions=$(poetry run ./scripts/supported_py_versions.py)" >> "$GITHUB_OUTPUT"
+      run: |
+        set -e
+        echo "py-versions=$(poetry run ./scripts/supported_py_versions.py)" >> "$GITHUB_OUTPUT"
 
   test:
     runs-on: ubuntu-latest
