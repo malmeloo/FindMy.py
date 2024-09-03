@@ -5,7 +5,7 @@ on:
   push:
 
 jobs:
-  deploy:
+  check:
     runs-on: ubuntu-latest
 
     steps:
