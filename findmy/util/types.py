@@ -1,7 +1,9 @@
 """Utility types."""
 
-from typing import Coroutine, TypeVar
+from typing import Coroutine, TypeVar, Union
 
 T = TypeVar("T")
 
-MaybeCoro = T | Coroutine[None, None, T]
+# Cannot use `|` operator (PEP 604) in python 3.9,
+# even with __future__ import since it is evaluated directly
+MaybeCoro = Union[T, Coroutine[None, None, T]]

@@ -1,4 +1,5 @@
 """Module containing most of the code necessary to interact with an Apple account."""
+
 from __future__ import annotations
 
 import asyncio
@@ -14,22 +15,26 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Concatenate,
-    ParamSpec,
     Sequence,
     TypedDict,
     TypeVar,
     cast,
+    overload,
 )
 
 import bs4
 import srp._pysrp as srp
-from typing_extensions import override
+from typing_extensions import Concatenate, ParamSpec, override
 
-from findmy.errors import InvalidCredentialsError, InvalidStateError, UnhandledProtocolError
+from findmy.errors import (
+    InvalidCredentialsError,
+    InvalidStateError,
+    UnauthorizedError,
+    UnhandledProtocolError,
+)
 from findmy.util import crypto
 from findmy.util.closable import Closable
-from findmy.util.http import HttpSession, decode_plist
+from findmy.util.http import HttpResponse, HttpSession, decode_plist
 
 from .reports import LocationReport, LocationReportsFetcher
 from .state import LoginState
@@ -44,7 +49,8 @@ from .twofactor import (
 )
 
 if TYPE_CHECKING:
-    from findmy.keys import KeyPair
+    from findmy.accessory import RollingKeyPairSource
+    from findmy.keys import HasHashedPublicKey
     from findmy.util.types import MaybeCoro
 
     from .anisette import BaseAnisetteProvider
@@ -215,28 +221,79 @@ class BaseAppleAccount(Closable, ABC):
         """
         raise NotImplementedError
 
+    @overload
     @abstractmethod
     def fetch_reports(
         self,
-        keys: Sequence[KeyPair],
+        keys: HasHashedPublicKey,
         date_from: datetime,
         date_to: datetime | None,
-    ) -> MaybeCoro[dict[KeyPair, list[LocationReport]]]:
-        """
-        Fetch location reports for a sequence of `KeyPair`s between `date_from` and `date_end`.
+    ) -> MaybeCoro[list[LocationReport]]: ...
 
-        Returns a dictionary mapping `KeyPair`s to a list of their location reports.
+    @overload
+    @abstractmethod
+    def fetch_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey],
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> MaybeCoro[dict[HasHashedPublicKey, list[LocationReport]]]: ...
+
+    @overload
+    @abstractmethod
+    def fetch_reports(
+        self,
+        keys: RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> MaybeCoro[list[LocationReport]]: ...
+
+    @abstractmethod
+    def fetch_reports(
+        self,
+        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> MaybeCoro[list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]]:
+        """
+        Fetch location reports for `HasHashedPublicKey`s between `date_from` and `date_end`.
+
+        Returns a dictionary mapping `HasHashedPublicKey`s to a list of their location reports.
         """
         raise NotImplementedError
+
+    @overload
+    @abstractmethod
+    def fetch_last_reports(
+        self,
+        keys: HasHashedPublicKey,
+        hours: int = 7 * 24,
+    ) -> MaybeCoro[list[LocationReport]]: ...
+
+    @overload
+    @abstractmethod
+    def fetch_last_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey],
+        hours: int = 7 * 24,
+    ) -> MaybeCoro[dict[HasHashedPublicKey, list[LocationReport]]]: ...
+
+    @overload
+    @abstractmethod
+    def fetch_last_reports(
+        self,
+        keys: RollingKeyPairSource,
+        hours: int = 7 * 24,
+    ) -> MaybeCoro[list[LocationReport]]: ...
 
     @abstractmethod
     def fetch_last_reports(
         self,
-        keys: Sequence[KeyPair],
+        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
         hours: int = 7 * 24,
-    ) -> MaybeCoro[dict[KeyPair, list[LocationReport]]]:
+    ) -> MaybeCoro[list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]]:
         """
-        Fetch location reports for a sequence of `KeyPair`s for the last `hours` hours.
+        Fetch location reports for a sequence of `HasHashedPublicKey`s for the last `hours` hours.
 
         Utility method as an alternative to using `BaseAppleAccount.fetch_reports` directly.
         """
@@ -526,27 +583,72 @@ class AsyncAppleAccount(BaseAppleAccount):
         )
         data = {"search": [{"startDate": start, "endDate": end, "ids": ids}]}
 
-        r = await self._http.post(
-            self._ENDPOINT_REPORTS_FETCH,
-            auth=auth,
-            headers=await self.get_anisette_headers(),
-            json=data,
-        )
-        resp = r.json()
-        if not r.ok or resp["statusCode"] != "200":
-            msg = f"Failed to fetch reports: {resp['statusCode']}"
+        async def _do_request() -> HttpResponse:
+            return await self._http.post(
+                self._ENDPOINT_REPORTS_FETCH,
+                auth=auth,
+                headers=await self.get_anisette_headers(),
+                json=data,
+            )
+
+        r = await _do_request()
+        if r.status_code == 401:
+            logging.info("Got 401 while fetching reports, redoing login")
+
+            new_state = await self._gsa_authenticate()
+            if new_state != LoginState.AUTHENTICATED:
+                msg = f"Unexpected login state after reauth: {new_state}. Please log in again."
+                raise UnauthorizedError(msg)
+            await self._login_mobileme()
+
+            r = await _do_request()
+
+        if r.status_code == 401:
+            msg = "Not authorized to fetch reports."
+            raise UnauthorizedError(msg)
+
+        try:
+            resp = r.json()
+        except json.JSONDecodeError:
+            resp = {}
+        if not r.ok or resp.get("statusCode") != "200":
+            msg = f"Failed to fetch reports: {resp.get('statusCode')}"
             raise UnhandledProtocolError(msg)
 
         return resp
+
+    @overload
+    async def fetch_reports(
+        self,
+        keys: HasHashedPublicKey,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport]: ...
+
+    @overload
+    async def fetch_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey],
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
+
+    @overload
+    async def fetch_reports(
+        self,
+        keys: RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport]: ...
 
     @require_login_state(LoginState.LOGGED_IN)
     @override
     async def fetch_reports(
         self,
-        keys: Sequence[KeyPair],
+        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
         date_from: datetime,
         date_to: datetime | None,
-    ) -> dict[KeyPair, list[LocationReport]]:
+    ) -> list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]:
         """See `BaseAppleAccount.fetch_reports`."""
         date_to = date_to or datetime.now().astimezone()
 
@@ -556,20 +658,41 @@ class AsyncAppleAccount(BaseAppleAccount):
             keys,
         )
 
+    @overload
+    async def fetch_last_reports(
+        self,
+        keys: HasHashedPublicKey,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport]: ...
+
+    @overload
+    async def fetch_last_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey],
+        hours: int = 7 * 24,
+    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
+
+    @overload
+    async def fetch_last_reports(
+        self,
+        keys: RollingKeyPairSource,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport]: ...
+
     @require_login_state(LoginState.LOGGED_IN)
     @override
     async def fetch_last_reports(
         self,
-        keys: Sequence[KeyPair],
+        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
         hours: int = 7 * 24,
-    ) -> dict[KeyPair, list[LocationReport]]:
+    ) -> list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]:
         """See `BaseAppleAccount.fetch_last_reports`."""
         end = datetime.now(tz=timezone.utc)
         start = end - timedelta(hours=hours)
 
         return await self.fetch_reports(keys, start, end)
 
-    @require_login_state(LoginState.LOGGED_OUT, LoginState.REQUIRE_2FA)
+    @require_login_state(LoginState.LOGGED_OUT, LoginState.REQUIRE_2FA, LoginState.LOGGED_IN)
     async def _gsa_authenticate(
         self,
         username: str | None = None,
@@ -599,13 +722,13 @@ class AsyncAppleAccount(BaseAppleAccount):
             msg = "Email verification failed: " + r["Status"].get("em")
             raise InvalidCredentialsError(msg)
         sp = r.get("sp")
-        if sp != "s2k":
-            msg = f"This implementation only supports s2k. Server returned {sp}"
+        if not isinstance(sp, str) or sp not in {"s2k", "s2k_fo"}:
+            msg = f"This implementation only supports s2k and sk2_fo. Server returned {sp}"
             raise UnhandledProtocolError(msg)
 
         logging.debug("Attempting password challenge")
 
-        usr.p = crypto.encrypt_password(self._password, r["s"], r["i"])
+        usr.p = crypto.encrypt_password(self._password, r["s"], r["i"], sp)
         m1 = usr.process_challenge(r["s"], r["B"])
         if m1 is None:
             msg = "Failed to process challenge"
@@ -695,9 +818,9 @@ class AsyncAppleAccount(BaseAppleAccount):
         data = resp.plist()
 
         mobileme_data = data.get("delegates", {}).get("com.apple.mobileme", {})
-        status = mobileme_data.get("status")
+        status = mobileme_data.get("status") or data.get("status")
         if status != 0:
-            status_message = mobileme_data.get("status-message")
+            status_message = mobileme_data.get("status-message") or data.get("status-message")
             msg = f"com.apple.mobileme login failed with status {status}: {status_message}"
             raise UnhandledProtocolError(msg)
 
@@ -894,23 +1017,68 @@ class AppleAccount(BaseAppleAccount):
         coro = self._asyncacc.td_2fa_submit(code)
         return self._evt_loop.run_until_complete(coro)
 
+    @overload
+    def fetch_reports(
+        self,
+        keys: HasHashedPublicKey,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport]: ...
+
+    @overload
+    def fetch_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey],
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
+
+    @overload
+    def fetch_reports(
+        self,
+        keys: RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> list[LocationReport]: ...
+
     @override
     def fetch_reports(
         self,
-        keys: Sequence[KeyPair],
+        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
         date_from: datetime,
         date_to: datetime | None,
-    ) -> dict[KeyPair, list[LocationReport]]:
+    ) -> list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]:
         """See `AsyncAppleAccount.fetch_reports`."""
         coro = self._asyncacc.fetch_reports(keys, date_from, date_to)
         return self._evt_loop.run_until_complete(coro)
 
+    @overload
+    def fetch_last_reports(
+        self,
+        keys: HasHashedPublicKey,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport]: ...
+
+    @overload
+    def fetch_last_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey],
+        hours: int = 7 * 24,
+    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
+
+    @overload
+    def fetch_last_reports(
+        self,
+        keys: RollingKeyPairSource,
+        hours: int = 7 * 24,
+    ) -> list[LocationReport]: ...
+
     @override
     def fetch_last_reports(
         self,
-        keys: Sequence[KeyPair],
+        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
         hours: int = 7 * 24,
-    ) -> dict[KeyPair, list[LocationReport]]:
+    ) -> list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]:
         """See `AsyncAppleAccount.fetch_last_reports`."""
         coro = self._asyncacc.fetch_last_reports(keys, hours)
         return self._evt_loop.run_until_complete(coro)

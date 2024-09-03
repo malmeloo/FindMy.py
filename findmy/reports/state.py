@@ -1,4 +1,5 @@
 """Account  login state."""
+
 from enum import Enum
 
 from typing_extensions import override

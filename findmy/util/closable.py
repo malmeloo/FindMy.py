@@ -1,4 +1,5 @@
 """ABC for async classes that need to be cleaned up before exiting."""
+
 from __future__ import annotations
 
 import asyncio
@@ -29,6 +30,9 @@ class Closable(ABC):
         """Attempt to automatically clean up when garbage collected."""
         try:
             loop = self._loop or asyncio.get_running_loop()
-            loop.call_soon_threadsafe(loop.create_task, self.close())
+            if loop.is_running():
+                loop.call_soon_threadsafe(loop.create_task, self.close())
+            else:
+                loop.run_until_complete(self.close())
         except RuntimeError:
             pass

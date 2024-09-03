@@ -11,9 +11,12 @@ from cryptography.hazmat.primitives.kdf.x963kdf import X963KDF
 P224_N = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF16A2E0B8F03E13DD29455C5C2A3D
 
 
-def encrypt_password(password: str, salt: bytes, iterations: int) -> bytes:
+def encrypt_password(password: str, salt: bytes, iterations: int, protocol: str) -> bytes:
     """Encrypt password using PBKDF2-HMAC."""
+    assert protocol in ["s2k", "s2k_fo"]
     p = hashlib.sha256(password.encode("utf-8")).digest()
+    if protocol == "s2k_fo":
+        p = p.hex().encode("utf-8")
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,

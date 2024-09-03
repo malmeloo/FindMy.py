@@ -1,4 +1,5 @@
 """Module to work with private and public keys as used in FindMy accessories."""
+
 from __future__ import annotations
 
 import base64
@@ -22,7 +23,37 @@ class KeyType(Enum):
     SECONDARY = 2
 
 
-class HasPublicKey(ABC):
+class HasHashedPublicKey(ABC):
+    """
+    ABC for anything that has a public, hashed FindMy-key.
+
+    Also called a "hashed advertisement" key or "lookup" key.
+    """
+
+    @property
+    @abstractmethod
+    def hashed_adv_key_bytes(self) -> bytes:
+        """Return the hashed advertised (public) key as bytes."""
+        raise NotImplementedError
+
+    @property
+    def hashed_adv_key_b64(self) -> str:
+        """Return the hashed advertised (public) key as a base64-encoded string."""
+        return base64.b64encode(self.hashed_adv_key_bytes).decode("ascii")
+
+    @override
+    def __hash__(self) -> int:
+        return crypto.bytes_to_int(self.hashed_adv_key_bytes)
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, HasHashedPublicKey):
+            return NotImplemented
+
+        return self.hashed_adv_key_bytes == other.hashed_adv_key_bytes
+
+
+class HasPublicKey(HasHashedPublicKey, ABC):
     """
     ABC for anything that has a public FindMy-key.
 
@@ -41,25 +72,10 @@ class HasPublicKey(ABC):
         return base64.b64encode(self.adv_key_bytes).decode("ascii")
 
     @property
+    @override
     def hashed_adv_key_bytes(self) -> bytes:
-        """Return the hashed advertised (public) key as bytes."""
+        """See `HasHashedPublicKey.hashed_adv_key_bytes`."""
         return hashlib.sha256(self.adv_key_bytes).digest()
-
-    @property
-    def hashed_adv_key_b64(self) -> str:
-        """Return the hashed advertised (public) key as a base64-encoded string."""
-        return base64.b64encode(self.hashed_adv_key_bytes).decode("ascii")
-
-    @override
-    def __hash__(self) -> int:
-        return crypto.bytes_to_int(self.adv_key_bytes)
-
-    @override
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, HasPublicKey):
-            return NotImplemented
-
-        return self.adv_key_bytes == other.adv_key_bytes
 
 
 class KeyPair(HasPublicKey):
@@ -141,13 +157,11 @@ class KeyGenerator(ABC, Generic[K]):
 
     @overload
     @abstractmethod
-    def __getitem__(self, val: int) -> K:
-        ...
+    def __getitem__(self, val: int) -> K: ...
 
     @overload
     @abstractmethod
-    def __getitem__(self, val: slice) -> Generator[K, None, None]:
-        ...
+    def __getitem__(self, val: slice) -> Generator[K, None, None]: ...
 
     @abstractmethod
     def __getitem__(self, val: int | slice) -> K | Generator[K, None, None]:

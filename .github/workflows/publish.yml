@@ -15,16 +15,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
+
+    - uses: './.github/actions/setup-project'
       with:
-        python-version: '3.10'
-      
-    - name: Install dependencies
-      run: |
-        python -m pip install poetry
-        poetry config virtualenvs.in-project true
-        poetry install
+        dependency-groups: 'dev'
+
+    - name: Prepare README
+      run: ./scripts/refactor_readme.py README.md
       
     - name: Build package
       run: poetry build

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "FindMy"
-version = "0.5.0"
+version = "v0.7.3"
 description = "Everything you need to work with Apple's Find My network!"
 authors = ["Mike Almeloo <git@mikealmel.ooo>"]
 readme = "README.md"
@@ -8,20 +8,35 @@ packages = [{ include = "findmy" }]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-srp = "^1.0.20"
-cryptography = "^42.0.5"
-beautifulsoup4 = "^4.12.2"
-aiohttp = "^3.9.1"
-bleak = "^0.21.1"
+srp = "^1.0.21"
+cryptography = ">=42.0.0,<44.0.0"
+beautifulsoup4 = "^4.12.3"
+aiohttp = "^3.9.5"
+bleak = "^0.22.2"
+typing-extensions = "^4.12.2"
 
-[tool.poetry.extras]
-scan = ["bleak"]
+[tool.poetry.group.dev]
+optional = true
 
 [tool.poetry.group.dev.dependencies]
-pre-commit = "^3.6.0"
+pre-commit = "^3.8.0"
+pyright = "1.1.378"
+ruff = "0.6.3"
+tomli = "^2.0.1"
+packaging = "^24.1"
+
+[tool.poetry.group.test]
+optional = true
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.2"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
 sphinx = "^7.2.6"
-sphinx-autoapi = "^3.0.0"
-pyright = "^1.1.350"
+sphinx-autoapi = "3.3.1"
 furo = "^2024.1.29"
 myst-parser = "^2.0.0"
 
@@ -33,11 +48,20 @@ venv = ".venv"
 typeCheckingMode = "standard"
 reportImplicitOverride = true
 
-[tool.ruff]
-exclude = [
-    "docs/",
+# examples should be run from their own directory
+executionEnvironments = [
+  { root = "examples/" }
 ]
 
+[tool.ruff]
+line-length = 100
+
+exclude = [
+    "docs/",
+    "tests/"
+]
+
+[tool.ruff.lint]
 select = [
     "ALL",
 ]
@@ -50,11 +74,12 @@ ignore = [
     "D212", # multi-line docstring start at first line
     "D105", # docstrings in magic methods
 
+    "S101",  # assert statements
+    "S603",  # false-positive subprocess call (https://github.com/astral-sh/ruff/issues/4045)
+
     "PLR2004", # "magic" values >.>
     "FBT",     # boolean "traps"
 ]
-
-line-length = 100
 
 [tool.ruff.lint.per-file-ignores]
 "examples/*" = [
@@ -62,6 +87,10 @@ line-length = 100
     "S101",  # use of "assert"
     "D",  # documentation
     "INP001",  # namespacing
+]
+"scripts/*" = [
+    "T201",  # use of "print"
+    "D",  # documentation
 ]
 
 [build-system]

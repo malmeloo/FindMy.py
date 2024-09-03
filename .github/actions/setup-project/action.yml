@@ -1,0 +1,43 @@
+name: Common Python + Poetry Setup
+
+inputs:
+  dependency-groups:
+    description: 'A comma-separated list of dependency groups to install'
+    default: 'main'
+  python-version:
+    description: 'The Python version to use'
+    default: '3.10'
+
+runs:
+  using: 'composite'
+
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install poetry
+      shell: bash
+      run: |
+        python -m pip install poetry
+        poetry config virtualenvs.in-project true
+
+    - name: Get cache key
+      id: cache-key
+      shell: bash
+      run: |
+        key=$(echo "${{ inputs.dependency-groups }}" | sed 's/,/+/')
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+
+    - name: Load cached venv
+      id: cache-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-python-${{ inputs.python-version }}-groups-${{ steps.cache-key.outputs.key }}-${{ hashFiles('**/poetry.lock') }}
+
+    - name: Install dependencies
+      if: steps.cache-dependencies.outputs.cache-hit != 'true'
+      shell: bash
+      run: poetry install --with ${{ inputs.dependency-groups }}
