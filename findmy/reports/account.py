@@ -734,7 +734,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             msg = "Email verification failed: " + r["Status"].get("em")
             raise InvalidCredentialsError(msg)
         sp = r.get("sp")
-        if sp not in ["s2k", "s2k_fo"]:
+        if not isinstance(sp, str) or sp not in {"s2k", "s2k_fo"}:
             msg = f"This implementation only supports s2k and sk2_fo. Server returned {sp}"
             raise UnhandledProtocolError(msg)
 
