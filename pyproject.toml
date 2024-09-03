@@ -41,11 +41,14 @@ typeCheckingMode = "standard"
 reportImplicitOverride = true
 
 [tool.ruff]
+line-length = 100
+
 exclude = [
     "docs/",
     "tests/"
 ]
 
+[tool.ruff.lint]
 select = [
     "ALL",
 ]
@@ -64,8 +67,6 @@ ignore = [
     "PLR2004", # "magic" values >.>
     "FBT",     # boolean "traps"
 ]
-
-line-length = 100
 
 [tool.ruff.lint.per-file-ignores]
 "examples/*" = [
