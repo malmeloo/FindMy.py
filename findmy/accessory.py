@@ -3,6 +3,7 @@ Module to interact with accessories that implement Find My.
 
 Accessories could be anything ranging from AirTags to iPhones.
 """
+
 from __future__ import annotations
 
 import logging
@@ -64,7 +65,7 @@ class RollingKeyPairSource(ABC):
 class FindMyAccessory(RollingKeyPairSource):
     """A findable Find My-accessory using official key rollover."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         master_key: bytes,
         skn: bytes,
@@ -235,12 +236,10 @@ class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
         return self._get_keypair(self._iter_ind)
 
     @overload
-    def __getitem__(self, val: int) -> KeyPair:
-        ...
+    def __getitem__(self, val: int) -> KeyPair: ...
 
     @overload
-    def __getitem__(self, val: slice) -> Generator[KeyPair, None, None]:
-        ...
+    def __getitem__(self, val: slice) -> Generator[KeyPair, None, None]: ...
 
     @override
     def __getitem__(self, val: int | slice) -> KeyPair | Generator[KeyPair, None, None]:

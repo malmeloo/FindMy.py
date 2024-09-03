@@ -1,3 +1,5 @@
+# ruff: noqa: ASYNC230
+
 import json
 from pathlib import Path
 

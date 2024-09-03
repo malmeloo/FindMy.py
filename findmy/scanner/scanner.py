@@ -139,7 +139,7 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
         """Length of OfflineFinding data payload in bytes."""
         return 0x02  # 2
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         mac_bytes: bytes,
         status_byte: int,

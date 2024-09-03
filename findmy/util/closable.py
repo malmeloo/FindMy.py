@@ -1,4 +1,5 @@
 """ABC for async classes that need to be cleaned up before exiting."""
+
 from __future__ import annotations
 
 import asyncio

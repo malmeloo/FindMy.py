@@ -1,4 +1,5 @@
 """Public classes related to handling two-factor authentication."""
+
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Generic, TypeVar
 

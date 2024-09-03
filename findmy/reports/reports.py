@@ -232,8 +232,7 @@ class LocationReportsFetcher:
         date_from: datetime,
         date_to: datetime,
         device: HasHashedPublicKey,
-    ) -> list[LocationReport]:
-        ...
+    ) -> list[LocationReport]: ...
 
     @overload
     async def fetch_reports(
@@ -241,8 +240,7 @@ class LocationReportsFetcher:
         date_from: datetime,
         date_to: datetime,
         device: Sequence[HasHashedPublicKey],
-    ) -> dict[HasHashedPublicKey, list[LocationReport]]:
-        ...
+    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
 
     @overload
     async def fetch_reports(
@@ -250,8 +248,7 @@ class LocationReportsFetcher:
         date_from: datetime,
         date_to: datetime,
         device: RollingKeyPairSource,
-    ) -> list[LocationReport]:
-        ...
+    ) -> list[LocationReport]: ...
 
     async def fetch_reports(
         self,
