@@ -40,6 +40,11 @@ venv = ".venv"
 typeCheckingMode = "standard"
 reportImplicitOverride = true
 
+# examples should be run from their own directory
+executionEnvironments = [
+  { root = "examples/" }
+]
+
 [tool.ruff]
 line-length = 100
 
