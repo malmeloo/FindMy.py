@@ -107,7 +107,8 @@ class HttpSession(Closable):
         if isinstance(auth, tuple):
             kwargs["auth"] = BasicAuth(auth[0], auth[1])
         else:
-            kwargs.pop("auth")
+            if auth:
+                kwargs.pop("auth")
         options = cast(_AiohttpRequestOptions, kwargs)
 
         async with await session.request(
