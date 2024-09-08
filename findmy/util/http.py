@@ -103,11 +103,9 @@ class HttpSession(Closable):
         session = await self._get_session()
 
         # cast from http options to library supported options
-        auth = kwargs.get("auth")
+        auth = kwargs.pop("auth", None)
         if isinstance(auth, tuple):
             kwargs["auth"] = BasicAuth(auth[0], auth[1])
-        else:
-            kwargs.pop("auth")
         options = cast(_AiohttpRequestOptions, kwargs)
 
         async with await session.request(
