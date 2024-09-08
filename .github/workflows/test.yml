@@ -3,6 +3,7 @@ name: Run unit tests
 on:
   workflow_dispatch:
   push:
+  pull_request:
 
 jobs:
   versions:
