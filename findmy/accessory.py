@@ -97,6 +97,26 @@ class FindMyAccessory(RollingKeyPairSource):
         self._identifier = identifier
 
     @property
+    def paired_at(self) -> datetime:
+        """Date and time at which this accessory was paired with an Apple account."""
+        return self._paired_at
+
+    @property
+    def name(self) -> str | None:
+        """Name of this accessory."""
+        return self._name
+
+    @property
+    def model(self) -> str | None:
+        """Model string of this accessory, as provided by the manufacturer."""
+        return self._model
+
+    @property
+    def identifier(self) -> str | None:
+        """Internal identifier of this accessory."""
+        return self._identifier
+
+    @property
     @override
     def interval(self) -> timedelta:
         """Official FindMy accessory rollover interval (15 minutes)."""
