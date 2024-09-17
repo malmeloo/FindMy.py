@@ -65,6 +65,7 @@ class RollingKeyPairSource(ABC):
 class FindMyAccessory(RollingKeyPairSource):
     """A findable Find My-accessory using official key rollover."""
 
+    # pylint: disable=too-many-arguments
     def __init__(
         self,
         master_key: bytes,
@@ -72,6 +73,8 @@ class FindMyAccessory(RollingKeyPairSource):
         sks: bytes,
         paired_at: datetime,
         name: str | None = None,
+        model: str | None = None,
+        identifier: str | None = None,
     ) -> None:
         """
         Initialize a FindMyAccessory. These values are usually obtained during pairing.
@@ -91,6 +94,8 @@ class FindMyAccessory(RollingKeyPairSource):
             )
 
         self._name = name
+        self._model = model
+        self._identifier = identifier
 
     @property
     @override
@@ -167,7 +172,10 @@ class FindMyAccessory(RollingKeyPairSource):
         # "Paired at" timestamp (UTC)
         paired_at = device_data["pairingDate"].replace(tzinfo=timezone.utc)
 
-        return cls(master_key, skn, sks, paired_at)
+        model = device_data["model"]
+        identifier = device_data["identifier"]
+
+        return cls(master_key, skn, sks, paired_at, None, model, identifier)
 
 
 class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
