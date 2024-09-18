@@ -106,6 +106,10 @@ class FindMyAccessory(RollingKeyPairSource):
         """Name of this accessory."""
         return self._name
 
+    @name.setter
+    def name(self, name: str | None) -> None:
+        self._name = name
+
     @property
     def model(self) -> str | None:
         """Model string of this accessory, as provided by the manufacturer."""

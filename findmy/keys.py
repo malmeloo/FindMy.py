@@ -81,7 +81,12 @@ class HasPublicKey(HasHashedPublicKey, ABC):
 class KeyPair(HasPublicKey):
     """A private-public keypair for a trackable FindMy accessory."""
 
-    def __init__(self, private_key: bytes, key_type: KeyType = KeyType.UNKNOWN) -> None:
+    def __init__(
+        self,
+        private_key: bytes,
+        key_type: KeyType = KeyType.UNKNOWN,
+        name: str | None = None,
+    ) -> None:
         """Initialize the `KeyPair` with the private key bytes."""
         priv_int = crypto.bytes_to_int(private_key)
         self._priv_key = ec.derive_private_key(
@@ -90,11 +95,21 @@ class KeyPair(HasPublicKey):
         )
 
         self._key_type = key_type
+        self._name = name
 
     @property
     def key_type(self) -> KeyType:
         """Type of this key."""
         return self._key_type
+
+    @property
+    def name(self) -> str | None:
+        """Name of this KeyPair."""
+        return self._name
+
+    @name.setter
+    def name(self, name: str | None) -> None:
+        self._name = name
 
     @classmethod
     def new(cls) -> KeyPair:
@@ -138,7 +153,7 @@ class KeyPair(HasPublicKey):
 
     @override
     def __repr__(self) -> str:
-        return f'KeyPair(public_key="{self.adv_key_b64}", type={self.key_type})'
+        return f'KeyPair(name="{self.name}", public_key="{self.adv_key_b64}", type={self.key_type})'
 
 
 K = TypeVar("K")
