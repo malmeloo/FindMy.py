@@ -65,13 +65,15 @@ class RollingKeyPairSource(ABC):
 class FindMyAccessory(RollingKeyPairSource):
     """A findable Find My-accessory using official key rollover."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         master_key: bytes,
         skn: bytes,
         sks: bytes,
         paired_at: datetime,
         name: str | None = None,
+        model: str | None = None,
+        identifier: str | None = None,
     ) -> None:
         """
         Initialize a FindMyAccessory. These values are usually obtained during pairing.
@@ -91,6 +93,28 @@ class FindMyAccessory(RollingKeyPairSource):
             )
 
         self._name = name
+        self._model = model
+        self._identifier = identifier
+
+    @property
+    def paired_at(self) -> datetime:
+        """Date and time at which this accessory was paired with an Apple account."""
+        return self._paired_at
+
+    @property
+    def name(self) -> str | None:
+        """Name of this accessory."""
+        return self._name
+
+    @property
+    def model(self) -> str | None:
+        """Model string of this accessory, as provided by the manufacturer."""
+        return self._model
+
+    @property
+    def identifier(self) -> str | None:
+        """Internal identifier of this accessory."""
+        return self._identifier
 
     @property
     @override
@@ -167,7 +191,10 @@ class FindMyAccessory(RollingKeyPairSource):
         # "Paired at" timestamp (UTC)
         paired_at = device_data["pairingDate"].replace(tzinfo=timezone.utc)
 
-        return cls(master_key, skn, sks, paired_at)
+        model = device_data["model"]
+        identifier = device_data["identifier"]
+
+        return cls(master_key, skn, sks, paired_at, None, model, identifier)
 
 
 class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
