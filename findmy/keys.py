@@ -12,7 +12,7 @@ from typing import Generator, Generic, TypeVar, overload
 from cryptography.hazmat.primitives.asymmetric import ec
 from typing_extensions import override
 
-from .util import crypto
+from .util import crypto, parsers
 
 
 class KeyType(Enum):
@@ -70,6 +70,12 @@ class HasPublicKey(HasHashedPublicKey, ABC):
     def adv_key_b64(self) -> str:
         """Return the advertised (public) key as a base64-encoded string."""
         return base64.b64encode(self.adv_key_bytes).decode("ascii")
+
+    @property
+    def mac_address(self) -> str:
+        """Get the mac address from the public key."""
+        first_byte = (self.adv_key_bytes[0] | 0b11000000).to_bytes(1)
+        return ":".join([parsers.format_hex_byte(x) for x in first_byte + self.adv_key_bytes[1:6]])
 
     @property
     @override
