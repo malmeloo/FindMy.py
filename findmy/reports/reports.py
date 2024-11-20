@@ -121,6 +121,14 @@ class LocationReport(HasHashedPublicKey):
         """The `datetime` when this report was recorded by a device."""
         timestamp_int = int.from_bytes(self._payload[0:4], "big") + (60 * 60 * 24 * 11323)
         return datetime.fromtimestamp(timestamp_int, tz=timezone.utc).astimezone()
+    
+    @property
+    def confidence(self) -> int:
+        """Confidence of the location of this report. Int between 1 and 3"""
+        # If the payload length is 88, the confidence is the 5th byte, otherwise it's the 6th byte
+        if (len(self._payload) == 88):
+            return self.payload[4]
+        return self.payload[5]
 
     @property
     def latitude(self) -> float:
@@ -145,10 +153,10 @@ class LocationReport(HasHashedPublicKey):
         return struct.unpack(">i", lon_bytes)[0] / 10000000
 
     @property
-    def confidence(self) -> int:
-        """Confidence of the location of this report."""
+    def horizontal_accuracy(self) -> int:
+        """Horizontal accuracy of the location of this report."""
         if not self.is_decrypted:
-            msg = "Confidence is unavailable while the report is encrypted."
+            msg = "Horizontal accuracy is unavailable while the report is encrypted."
             raise RuntimeError(msg)
         assert self._decrypted_data is not None
 
