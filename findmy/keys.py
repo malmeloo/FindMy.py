@@ -74,12 +74,8 @@ class HasPublicKey(HasHashedPublicKey, ABC):
     @property
     def mac_address(self) -> str:
         """Get the mac address from the public key."""
-        first_hex = self.adv_key_bytes[0] | 0b11000000
-        return (
-            parsers.format_hex_byte(first_hex)
-            + ":"
-            + ":".join([parsers.format_hex_byte(x) for x in self.adv_key_bytes[1:6]])
-        )
+        first_byte = (self.adv_key_bytes[0] | 0b11000000).to_bytes(1)
+        return ":".join([parsers.format_hex_byte(x) for x in first_byte + self.adv_key_bytes[1:6]])
 
     @property
     @override

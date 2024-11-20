@@ -127,8 +127,8 @@ class LocationReport(HasHashedPublicKey):
         """Confidence of the location of this report. Int between 1 and 3."""
         # If the payload length is 88, the confidence is the 5th byte, otherwise it's the 6th byte
         if len(self._payload) == 88:
-            return self.payload[4]
-        return self.payload[5]
+            return self._payload[4]
+        return self._payload[5]
 
     @property
     def latitude(self) -> float:
