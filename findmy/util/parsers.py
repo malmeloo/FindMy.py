@@ -16,5 +16,6 @@ def decode_plist(data: bytes) -> Any:  # noqa: ANN401
 
     return plistlib.loads(data)
 
+
 def format_hex_byte(byte):
-    return f'{byte:02x}'.upper()
+    return f"{byte:02x}".upper()

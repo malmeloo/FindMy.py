@@ -70,12 +70,16 @@ class HasPublicKey(HasHashedPublicKey, ABC):
     def adv_key_b64(self) -> str:
         """Return the advertised (public) key as a base64-encoded string."""
         return base64.b64encode(self.adv_key_bytes).decode("ascii")
-    
+
     @property
     def mac_address(self) -> str:
         """Get the mac address from the public key."""
         first_hex = self.adv_key_bytes[0] | 0b11000000
-        return parsers.format_hex_byte(first_hex) + ":" + ":".join([parsers.format_hex_byte(x) for x in self.adv_key_bytes[1:6]])
+        return (
+            parsers.format_hex_byte(first_hex)
+            + ":"
+            + ":".join([parsers.format_hex_byte(x) for x in self.adv_key_bytes[1:6]])
+        )
 
     @property
     @override
