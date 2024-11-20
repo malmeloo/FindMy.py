@@ -35,7 +35,7 @@ pytest = "^8.3.2"
 optional = true
 
 [tool.poetry.group.docs.dependencies]
-sphinx = "^7.2.6"
+sphinx = "^8.0.0"
 sphinx-autoapi = "3.3.3"
 
 [tool.pyright]
