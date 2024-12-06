@@ -393,7 +393,8 @@ class OfflineFindingScanner:
                     yield device
 
                 time_left = stop_at - time.time()
-        except (asyncio.CancelledError, asyncio.TimeoutError):  # timeout reached
+        except asyncio.TimeoutError:  # timeout reached
+            self._device_fut = self._loop.create_future()
             return
         finally:
             await self._stop_scan()
