@@ -5,6 +5,11 @@
 [![](https://img.shields.io/github/license/malmeloo/FindMy.py)](LICENSE.md)
 [![](https://img.shields.io/pypi/pyversions/FindMy)](#)
 
+<details>
+  <summary>Star History</summary>
+  <a href="https://news.ycombinator.com/item?id=42479233"><img src="https://api.star-history.com/svg?repos=malmeloo/FindMy.py&type=Date" /></a>
+</details>
+
 The all-in-one library that provides everything you need
 to query Apple's FindMy network!
 
