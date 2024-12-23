@@ -7,7 +7,7 @@ import hashlib
 import logging
 import struct
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Sequence, overload
+from typing import TYPE_CHECKING, overload
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -18,6 +18,8 @@ from findmy.accessory import RollingKeyPairSource
 from findmy.keys import HasHashedPublicKey, KeyPair
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from .account import AsyncAppleAccount
 
 logging.getLogger(__name__)
@@ -315,8 +317,12 @@ class LocationReportsFetcher:
     ) -> list[LocationReport]:
         logging.debug("Fetching reports for %s keys", len(keys))
 
-        start_date = int(date_from.timestamp() * 1000)
-        end_date = int(date_to.timestamp() * 1000)
+        # lock requested time range to the past 7 days, +- 12 hours, then filter the response.
+        # this is due to an Apple backend bug where the time range is not respected.
+        # More info: https://github.com/biemster/FindMy/issues/7
+        now = datetime.now().astimezone()
+        start_date = int((now - timedelta(days=7, hours=12)).timestamp() * 1000)
+        end_date = int((now + timedelta(hours=12)).timestamp() * 1000)
         ids = [key.hashed_adv_key_b64 for key in keys]
         data = await self._account.fetch_raw_reports(start_date, end_date, ids)
 
@@ -337,6 +343,9 @@ class LocationReportsFetcher:
             key = id_to_key[hashed_adv_key]
             if isinstance(key, KeyPair):
                 loc_report.decrypt(key)
+
+            if loc_report.timestamp < date_from or loc_report.timestamp > date_to:
+                continue
 
             reports.append(loc_report)
 
