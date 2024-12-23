@@ -6,7 +6,7 @@ import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from bleak import BleakScanner
@@ -240,7 +240,12 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
         if isinstance(other_device, HasPublicKey):
             return self.adv_key_bytes == other_device.adv_key_bytes
         if isinstance(other_device, RollingKeyPairSource):
-            return any(self.is_from(key) for key in other_device.keys_at(self.detected_at))
+            # 12 hour margin around the detected time
+            potential_keys = other_device.keys_between(
+                self.detected_at - timedelta(hours=12),
+                self.detected_at + timedelta(hours=12),
+            )
+            return any(self.is_from(key) for key in potential_keys)
 
         msg = f"Cannot compare against {type(other_device)}"
         raise ValueError(msg)
