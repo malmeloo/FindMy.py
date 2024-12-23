@@ -9,7 +9,7 @@ packages = [{ include = "findmy" }]
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
 srp = "^1.0.21"
-cryptography = ">=42.0.0,<44.0.0"
+cryptography = ">=42.0.0,<45.0.0"
 beautifulsoup4 = "^4.12.3"
 aiohttp = "^3.9.5"
 bleak = "^0.22.2"
@@ -20,8 +20,8 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
-pyright = "1.1.389"
-ruff = "0.7.4"
+pyright = "^1.1.391"
+ruff = "^0.8.4"
 tomli = "^2.0.1"
 packaging = "^24.1"
 
