@@ -7,7 +7,7 @@ readme = "README.md"
 packages = [{ include = "findmy" }]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
+python = ">=3.9,<3.14"
 srp = "^1.0.21"
 cryptography = ">=42.0.0,<45.0.0"
 beautifulsoup4 = "^4.12.3"
