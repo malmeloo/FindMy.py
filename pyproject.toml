@@ -36,7 +36,7 @@ optional = true
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^7.2.6"
-sphinx-autoapi = "3.3.3"
+sphinx-autoapi = "3.4.0"
 
 [tool.pyright]
 venvPath = "."
