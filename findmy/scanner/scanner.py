@@ -164,7 +164,7 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
                 self.detected_at + timedelta(hours=1),
             )
             return any(self.is_from(key) for key in potential_keys)
-        
+
         msg = f"Cannot compare against {type(other_device)}"
         raise ValueError(msg)
 
