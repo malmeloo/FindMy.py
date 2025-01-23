@@ -158,7 +158,12 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
         if isinstance(other_device, HasPublicKey):
             return other_device.adv_key_bytes.startswith(self._first_adv_key_bytes)
         if isinstance(other_device, RollingKeyPairSource):
-            return any(self.is_from(key) for key in other_device.keys_at(self.detected_at))
+            # 1 hour margin around the detected time
+            potential_keys = other_device.keys_between(
+                self.detected_at - timedelta(hours=1),
+                self.detected_at + timedelta(hours=1),
+            )
+            return any(self.is_from(key) for key in potential_keys)
 
         msg = f"Cannot compare against {type(other_device)}"
         raise ValueError(msg)
