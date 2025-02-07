@@ -80,6 +80,7 @@ There are several other cool projects based on this library! Some of them have b
 
 * [OfflineFindRecovery](https://github.com/hajekj/OfflineFindRecovery) - Set of scripts to be able to precisely locate your lost MacBook via Apple's Offline Find through Bluetooth Low Energy.
 * [SwiftFindMy](https://github.com/airy10/SwiftFindMy) - Swift port of FindMy.py
+* [FindMy Home Assistant Integration](github.com/krmax44/homeassistant-findmy)
 
 ## Credits
 
