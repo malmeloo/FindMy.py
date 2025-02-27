@@ -53,8 +53,6 @@ select = [
     "ALL",
 ]
 ignore = [
-    "ANN101", # annotations on `self`
-    "ANN102", # annotations on `cls`
     "FIX002", # resolving TODOs
 
     "D203", # one blank line before class docstring

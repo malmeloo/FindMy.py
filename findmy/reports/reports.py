@@ -303,9 +303,9 @@ class LocationReportsFetcher:
 
         res: dict[HasHashedPublicKey, list[LocationReport]] = {key: [] for key in keys}
         for report in reports:
-            for key in res:
+            for key, reports in res.items():
                 if key.hashed_adv_key_bytes == report.hashed_adv_key_bytes:
-                    res[key].append(report)
+                    reports.append(report)
                     break
         return res
 

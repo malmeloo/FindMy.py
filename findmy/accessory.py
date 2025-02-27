@@ -9,14 +9,16 @@ from __future__ import annotations
 import logging
 import plistlib
 from abc import ABC, abstractmethod
-from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
-from typing import IO, overload
+from typing import IO, TYPE_CHECKING, overload
 
 from typing_extensions import override
 
 from .keys import KeyGenerator, KeyPair, KeyType
 from .util import crypto
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 logging.getLogger(__name__)
 

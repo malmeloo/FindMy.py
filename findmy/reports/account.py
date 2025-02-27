@@ -9,7 +9,6 @@ import logging
 import plistlib
 import uuid
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import (
@@ -49,6 +48,8 @@ from .twofactor import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from findmy.accessory import RollingKeyPairSource
     from findmy.keys import HasHashedPublicKey
     from findmy.util.types import MaybeCoro

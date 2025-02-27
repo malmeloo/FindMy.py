@@ -8,8 +8,8 @@ from .twofactor import SmsSecondFactorMethod, TrustedDeviceSecondFactorMethod
 __all__ = (
     "AppleAccount",
     "AsyncAppleAccount",
-    "LoginState",
     "BaseAnisetteProvider",
+    "LoginState",
     "RemoteAnisetteProvider",
     "SmsSecondFactorMethod",
     "TrustedDeviceSecondFactorMethod",
