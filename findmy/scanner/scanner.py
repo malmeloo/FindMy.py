@@ -6,8 +6,9 @@ import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
+from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any
 
 from bleak import BleakScanner
 from typing_extensions import override

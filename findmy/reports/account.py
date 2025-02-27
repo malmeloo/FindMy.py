@@ -9,13 +9,13 @@ import logging
 import plistlib
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Sequence,
     TypedDict,
     TypeVar,
     cast,

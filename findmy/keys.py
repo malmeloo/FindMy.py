@@ -6,8 +6,9 @@ import base64
 import hashlib
 import secrets
 from abc import ABC, abstractmethod
+from collections.abc import Generator
 from enum import Enum
-from typing import Generator, Generic, TypeVar, overload
+from typing import Generic, TypeVar, overload
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from typing_extensions import override

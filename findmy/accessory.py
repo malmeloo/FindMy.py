@@ -9,8 +9,9 @@ from __future__ import annotations
 import logging
 import plistlib
 from abc import ABC, abstractmethod
+from collections.abc import Generator
 from datetime import datetime, timedelta, timezone
-from typing import IO, Generator, overload
+from typing import IO, overload
 
 from typing_extensions import override
 
