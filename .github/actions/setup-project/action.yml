@@ -22,4 +22,4 @@ runs:
 
     - name: Install dependencies
       shell: bash
-      run: uv sync --all-extras --dev
+      run: uv sync --all-extras --all-groups
