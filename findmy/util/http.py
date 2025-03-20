@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any, TypedDict, cast
 
+import aiohttp
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 from typing_extensions import Unpack, override
 
@@ -18,6 +20,7 @@ logging.getLogger(__name__)
 class _RequestOptions(TypedDict, total=False):
     json: dict[str, Any] | None
     headers: dict[str, str]
+    auto_retry: bool
     data: bytes
 
 
@@ -108,13 +111,32 @@ class HttpSession(Closable):
             kwargs["auth"] = BasicAuth(auth[0], auth[1])
         options = cast(_AiohttpRequestOptions, kwargs)
 
-        async with await session.request(
-            method,
-            url,
-            ssl=False,
-            **options,
-        ) as r:
-            return HttpResponse(r.status, await r.content.read())
+        auto_retry = kwargs.pop("auto_retry", False)
+
+        retry_count = 1
+        while True:  # if auto_retry is set, raise for status and retry on error
+            try:
+                async with await session.request(
+                    method,
+                    url,
+                    ssl=False,
+                    raise_for_status=auto_retry,
+                    **options,
+                ) as r:
+                    return HttpResponse(r.status, await r.content.read())
+            except aiohttp.ClientError as e:  # noqa: PERF203
+                if not auto_retry or retry_count > 3:
+                    raise e from None
+
+                retry_after = 5 * retry_count
+                logging.warning(
+                    "Error while making HTTP request; retrying after %i seconds. %s",
+                    retry_after,
+                    e,
+                )
+                await asyncio.sleep(retry_after)
+
+                retry_count += 1
 
     async def get(self, url: str, **kwargs: Unpack[_HttpRequestOptions]) -> HttpResponse:
         """Alias for `HttpSession.request("GET", ...)`."""
