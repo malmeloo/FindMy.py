@@ -83,6 +83,25 @@ class HasPublicKey(HasHashedPublicKey, ABC):
         """See `HasHashedPublicKey.hashed_adv_key_bytes`."""
         return hashlib.sha256(self.adv_key_bytes).digest()
 
+    def ble_advertisement(self, status: int = 0, hint: int = 0) -> bytes:
+        """Return BLE advertisement data that represents this key."""
+        return bytes(
+            [
+                # apple company id
+                0x4C,
+                0x00,
+                # offline finding
+                0x12,
+                # offline finding data length
+                25,
+                status,
+                # remaining public key bytes
+                *self.adv_key_bytes[6:],
+                self.adv_key_bytes[0] >> 6,
+                hint,
+            ],
+        )
+
 
 class KeyPair(HasPublicKey):
     """A private-public keypair for a trackable FindMy accessory."""
