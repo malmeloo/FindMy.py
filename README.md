@@ -78,9 +78,11 @@ before committing it.
 
 There are several other cool projects based on this library! Some of them have been listed below, make sure to check them out as well.
 
-* [OfflineFindRecovery](https://github.com/hajekj/OfflineFindRecovery) - Set of scripts to be able to precisely locate your lost MacBook via Apple's Offline Find through Bluetooth Low Energy.
-* [SwiftFindMy](https://github.com/airy10/SwiftFindMy) - Swift port of FindMy.py
-* [FindMy Home Assistant Integration](github.com/krmax44/homeassistant-findmy)
+* [OfflineFindRecovery](https://github.com/hajekj/OfflineFindRecovery) - Set of scripts to precisely locate your lost MacBook.
+* [SwiftFindMy](https://github.com/airy10/SwiftFindMy) - Swift port of FindMy.py.
+* [FindMy Home Assistant (1)](https://github.com/malmeloo/hass-FindMy) - Home Assistant integration made by the author of FindMy.py.
+* [FindMy Home Assistant (2)](github.com/krmax44/homeassistant-findmy) - Home Assistant integration made by [krmax44](https://github.com/krmax44).
+* [OpenTagViewer](https://github.com/parawanderer/OpenTagViewer) - Android App to locate your AirTags.
 
 ## Credits
 
