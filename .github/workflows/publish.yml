@@ -17,19 +17,16 @@ jobs:
     - uses: actions/checkout@v4
 
     - uses: './.github/actions/setup-project'
-      with:
-        dependency-groups: 'dev'
 
     - name: Prepare README
       run: ./scripts/refactor_readme.py README.md
       
     - name: Build package
-      run: poetry build
+      run: uv build
     
     - name: Publish package
       run: |
-        poetry config pypi-token.pypi ${{ secrets.PYPI_API_TOKEN }}
-        poetry publish
+        uv publish --token ${{ secrets.PYPI_API_TOKEN }}
 
     - name: Create release
       uses: softprops/action-gh-release@v2

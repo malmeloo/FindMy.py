@@ -15,7 +15,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Sequence,
     TypedDict,
     TypeVar,
     cast,
@@ -49,6 +48,8 @@ from .twofactor import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from findmy.accessory import RollingKeyPairSource
     from findmy.keys import HasHashedPublicKey
     from findmy.util.types import MaybeCoro

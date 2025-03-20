@@ -1,9 +1,12 @@
 { pkgs ? import <nixpkgs> {} }:
 
+let
+  unstable = import (fetchTarball https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz) { };
+in
 pkgs.mkShell {
   packages = with pkgs; [
     python312
-    poetry
+    unstable.uv
   ];
 
   shellHook = ''

@@ -17,14 +17,12 @@ jobs:
     - uses: actions/checkout@v4
 
     - uses: './.github/actions/setup-project'
-      with:
-        dependency-groups: 'dev'
 
     - id: supported-versions
       name: Get supported versions
       run: |
         set -e
-        echo "py-versions=$(poetry run ./scripts/supported_py_versions.py)" >> "$GITHUB_OUTPUT"
+        echo "py-versions=$(uv run ./scripts/supported_py_versions.py)" >> "$GITHUB_OUTPUT"
 
   test:
     runs-on: ubuntu-latest
@@ -40,10 +38,9 @@ jobs:
       - uses: './.github/actions/setup-project'
         with:
           python-version: ${{ matrix.py-version }}
-          dependency-groups: 'test'
 
       - name: Run unit tests
-        run: poetry run pytest
+        run: uv run pytest
 
   results:
     runs-on: ubuntu-latest

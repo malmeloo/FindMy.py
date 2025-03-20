@@ -7,7 +7,7 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any
 
 from bleak import BleakScanner
 from typing_extensions import override
@@ -16,6 +16,8 @@ from findmy.accessory import RollingKeyPairSource
 from findmy.keys import HasPublicKey
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from bleak.backends.device import BLEDevice
     from bleak.backends.scanner import AdvertisementData
 

@@ -5,10 +5,10 @@ from .accessory import FindMyAccessory
 from .keys import KeyPair
 
 __all__ = (
+    "FindMyAccessory",
+    "KeyPair",
+    "errors",
     "keys",
     "reports",
     "scanner",
-    "errors",
-    "FindMyAccessory",
-    "KeyPair",
 )

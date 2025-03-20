@@ -1,6 +1,7 @@
 """Utility types."""
 
-from typing import Coroutine, TypeVar, Union
+from collections.abc import Coroutine
+from typing import TypeVar, Union
 
 T = TypeVar("T")
 

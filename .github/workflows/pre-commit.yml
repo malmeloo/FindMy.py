@@ -14,8 +14,6 @@ jobs:
     - uses: actions/checkout@v4
 
     - uses: './.github/actions/setup-project'
-      with:
-        dependency-groups: 'dev,test'
     
     - uses: pre-commit/action@v3.0.1
     

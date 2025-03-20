@@ -7,7 +7,7 @@ from .scanner import (
 )
 
 __all__ = (
-    "OfflineFindingScanner",
     "NearbyOfflineFindingDevice",
+    "OfflineFindingScanner",
     "SeparatedOfflineFindingDevice",
 )

@@ -66,8 +66,8 @@ Before opening a pull request, please ensure that your code adheres to these rul
 There are pre-commit hooks included to help you with this, which you can set up as follows:
 
 ```shell
-pip install poetry
-poetry install --with dev  # this installs pre-commit into your environment
+pip install uv
+uv sync  # this installs ruff & pre-commit into your environment
 pre-commit install
 ```
 
