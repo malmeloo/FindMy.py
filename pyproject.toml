@@ -21,7 +21,7 @@ optional = true
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
 pyright = "^1.1.391"
-ruff = "^0.8.4"
+ruff = "^0.11.0"
 tomli = "^2.0.1"
 packaging = "^24.1"
 
