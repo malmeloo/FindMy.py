@@ -7,12 +7,15 @@ import hashlib
 import secrets
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Generator, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Generic, TypeVar, overload
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from typing_extensions import override
 
 from .util import crypto, parsers
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 class KeyType(Enum):
