@@ -205,7 +205,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         if self._anisette_data is None or time.time() >= self._anisette_data_expires_at:
             logging.info("Fetching anisette data from %s", self._server_url)
 
-            r = await self._http.get(self._server_url)
+            r = await self._http.get(self._server_url, auto_retry=True)
             self._anisette_data = r.json()
             self._anisette_data_expires_at = time.time() + self._ANISETTE_DATA_VALID_FOR
 
