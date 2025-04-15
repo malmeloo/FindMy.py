@@ -100,9 +100,7 @@ class FindMyAccessory(RollingKeyPairSource):
         self._name = name
         self._model = model
         self._identifier = identifier
-        self._alignment_date = (
-            alignment_date if alignment_date is not None else paired_at
-        )
+        self._alignment_date = alignment_date if alignment_date is not None else paired_at
         self._alignment_index = alignment_index if alignment_index is not None else 0
         if self._alignment_date.tzinfo is None:
             self._alignment_date = self._alignment_date.astimezone()
@@ -168,9 +166,7 @@ class FindMyAccessory(RollingKeyPairSource):
                 second=0,
                 microsecond=0,
             )
-            if (
-                first_rollover < self._alignment_date
-            ):  # we rolled backwards, so increment the day
+            if first_rollover < self._alignment_date:  # we rolled backwards, so increment the day
                 first_rollover += timedelta(days=1)
             secondary_offset = (
                 int(
@@ -194,7 +190,9 @@ class FindMyAccessory(RollingKeyPairSource):
 
     @classmethod
     def from_plist(
-        cls, plist: IO[bytes], key_alignment_plist: IO[bytes] | None = None
+        cls,
+        plist: IO[bytes],
+        key_alignment_plist: IO[bytes] | None = None,
     ) -> FindMyAccessory:
         """Create a FindMyAccessory from a .plist file dumped from the FindMy app."""
         device_data = plistlib.load(plist)
