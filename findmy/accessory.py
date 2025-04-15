@@ -77,6 +77,8 @@ class FindMyAccessory(RollingKeyPairSource):
         name: str | None = None,
         model: str | None = None,
         identifier: str | None = None,
+        alignment_date: datetime | None = None,
+        alignment_index: int | None = None,
     ) -> None:
         """
         Initialize a FindMyAccessory. These values are usually obtained during pairing.
@@ -98,6 +100,16 @@ class FindMyAccessory(RollingKeyPairSource):
         self._name = name
         self._model = model
         self._identifier = identifier
+        self._alignment_date = (
+            alignment_date if alignment_date is not None else paired_at
+        )
+        self._alignment_index = alignment_index if alignment_index is not None else 0
+        if self._alignment_date.tzinfo is None:
+            self._alignment_date = self._alignment_date.astimezone()
+            logging.warning(
+                "Alignment datetime is timezone-naive. Assuming system tz: %s.",
+                self._alignment_date.tzname(),
+            )
 
     @property
     def paired_at(self) -> datetime:
@@ -140,25 +152,29 @@ class FindMyAccessory(RollingKeyPairSource):
         secondary_offset = 0
 
         if isinstance(ind, datetime):
-            # number of 15-minute slots since pairing time
-            ind = (
+            # number of 15-minute slots since alignment
+            slots_since_alignment = (
                 int(
-                    (ind - self._paired_at).total_seconds() / (15 * 60),
+                    (ind - self._alignment_date).total_seconds() / (15 * 60),
                 )
                 + 1
             )
+            ind = self._alignment_index + slots_since_alignment
+
             # number of slots until first 4 am
-            first_rollover = self._paired_at.astimezone().replace(
+            first_rollover = self._alignment_date.astimezone().replace(
                 hour=4,
                 minute=0,
                 second=0,
                 microsecond=0,
             )
-            if first_rollover < self._paired_at:  # we rolled backwards, so increment the day
+            if (
+                first_rollover < self._alignment_date
+            ):  # we rolled backwards, so increment the day
                 first_rollover += timedelta(days=1)
             secondary_offset = (
                 int(
-                    (first_rollover - self._paired_at).total_seconds() / (15 * 60),
+                    (first_rollover - self._alignment_date).total_seconds() / (15 * 60),
                 )
                 + 1
             )
@@ -177,7 +193,9 @@ class FindMyAccessory(RollingKeyPairSource):
         return possible_keys
 
     @classmethod
-    def from_plist(cls, plist: IO[bytes]) -> FindMyAccessory:
+    def from_plist(
+        cls, plist: IO[bytes], key_alignment_plist: IO[bytes] | None = None
+    ) -> FindMyAccessory:
         """Create a FindMyAccessory from a .plist file dumped from the FindMy app."""
         device_data = plistlib.load(plist)
 
@@ -201,7 +219,27 @@ class FindMyAccessory(RollingKeyPairSource):
         model = device_data["model"]
         identifier = device_data["identifier"]
 
-        return cls(master_key, skn, sks, paired_at, None, model, identifier)
+        alignment_date = None
+        index = None
+        if key_alignment_plist:
+            alignment_data = plistlib.load(key_alignment_plist)
+
+            alignment_date = alignment_data["lastIndexObservationDate"].replace(
+                tzinfo=timezone.utc,
+            )
+            index = alignment_data["lastIndexObserved"]
+
+        return cls(
+            master_key,
+            skn,
+            sks,
+            paired_at,
+            None,
+            model,
+            identifier,
+            alignment_date,
+            index,
+        )
 
 
 class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
