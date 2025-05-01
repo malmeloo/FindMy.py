@@ -29,7 +29,7 @@ test = [
 ]
 docs = [
     "sphinx>=7.2.6,<8.0.0",
-    "sphinx-autoapi==3.4.0",
+    "sphinx-autoapi==3.6.0",
 ]
 
 [tool.pyright]
