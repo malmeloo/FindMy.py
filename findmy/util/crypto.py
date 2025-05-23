@@ -42,6 +42,13 @@ def decrypt_spd_aes_cbc(session_key: bytes, data: bytes) -> bytes:
     return padder.update(data) + padder.finalize()
 
 
+def decrypt_gcm(*, key: bytes, tag: bytes, ciphertext: bytes, nonce: bytes) -> bytes:
+    """Decrypt data using AES GCM."""
+    cipher = Cipher(algorithms.AES(key), modes.GCM(nonce, tag))
+    decryptor = cipher.decryptor()
+    return decryptor.update(ciphertext) + decryptor.finalize()
+
+
 def x963_kdf(value: bytes, si: bytes, length: int) -> bytes:
     """Single pass of X9.63 KDF with SHA1."""
     return X963KDF(
