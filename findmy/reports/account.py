@@ -11,6 +11,7 @@ import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -48,7 +49,7 @@ from .twofactor import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from findmy.accessory import RollingKeyPairSource
     from findmy.keys import HasHashedPublicKey
@@ -151,12 +152,14 @@ class BaseAppleAccount(Closable, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def export(self) -> dict:
+    def to_json(self, path: str | Path | None = None) -> dict:
         """
-        Export a representation of the current state of the account as a dictionary.
+        Export the current state of the account as a JSON-serializable dictionary.
+
+        If `path` is provided, the output will also be written to that file.
 
         The output of this method is guaranteed to be JSON-serializable, and passing
-        the return value of this function as an argument to `BaseAppleAccount.restore`
+        the return value of this function as an argument to `BaseAppleAccount.from_json`
         will always result in an exact copy of the internal state as it was when exported.
 
         This method is especially useful to avoid having to keep going through the login flow.
@@ -164,11 +167,14 @@ class BaseAppleAccount(Closable, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def restore(self, data: dict) -> None:
+    def from_json(self, json_: str | Path | Mapping, /) -> None:
         """
-        Restore a previous export of the internal state of the account.
+        Restore the state from a previous `BaseAppleAccount.to_json` export.
 
-        See `BaseAppleAccount.export` for more information.
+        If given a str or Path, it must point to a json file from `BaseAppleAccount.to_json`.
+        Otherwise it should be the Mapping itself.
+
+        See `BaseAppleAccount.to_json` for more information.
         """
         raise NotImplementedError
 
@@ -363,6 +369,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
     def __init__(
         self,
+        *,
         anisette: BaseAnisetteProvider,
         user_id: str | None = None,
         device_id: str | None = None,
@@ -447,9 +454,8 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._account_info["last_name"] if self._account_info else None
 
     @override
-    def export(self) -> dict:
-        """See `BaseAppleAccount.export`."""
-        return {
+    def to_json(self, path: str | Path | None = None) -> dict:
+        result = {
             "ids": {"uid": self._uid, "devid": self._devid},
             "account": {
                 "username": self._username,
@@ -461,10 +467,13 @@ class AsyncAppleAccount(BaseAppleAccount):
                 "data": self._login_state_data,
             },
         }
+        if path is not None:
+            Path(path).write_text(json.dumps(result, indent=4))
+        return result
 
     @override
-    def restore(self, data: dict) -> None:
-        """See `BaseAppleAccount.restore`."""
+    def from_json(self, json_: str | Path | Mapping, /) -> None:
+        data = json.loads(Path(json_).read_text()) if isinstance(json_, (str, Path)) else json_
         try:
             self._uid = data["ids"]["uid"]
             self._devid = data["ids"]["devid"]
@@ -972,12 +981,13 @@ class AppleAccount(BaseAppleAccount):
 
     def __init__(
         self,
+        *,
         anisette: BaseAnisetteProvider,
         user_id: str | None = None,
         device_id: str | None = None,
     ) -> None:
         """See `AsyncAppleAccount.__init__`."""
-        self._asyncacc = AsyncAppleAccount(anisette, user_id, device_id)
+        self._asyncacc = AsyncAppleAccount(anisette=anisette, user_id=user_id, device_id=device_id)
 
         try:
             self._evt_loop = asyncio.get_running_loop()
@@ -1017,14 +1027,12 @@ class AppleAccount(BaseAppleAccount):
         return self._asyncacc.last_name
 
     @override
-    def export(self) -> dict:
-        """See `AsyncAppleAccount.export`."""
-        return self._asyncacc.export()
+    def to_json(self, path: str | Path | None = None) -> dict:
+        return self._asyncacc.to_json(path)
 
     @override
-    def restore(self, data: dict) -> None:
-        """See `AsyncAppleAccount.restore`."""
-        return self._asyncacc.restore(data)
+    def from_json(self, json_: str | Path | Mapping, /) -> None:
+        return self._asyncacc.from_json(json_)
 
     @override
     def login(self, username: str, password: str) -> LoginState:
