@@ -14,6 +14,8 @@ from typing_extensions import override
 from findmy.util.closable import Closable
 from findmy.util.http import HttpSession
 
+logger = logging.getLogger(__name__)
+
 
 class BaseAnisetteProvider(Closable, ABC):
     """
@@ -181,7 +183,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         """See `BaseAnisetteProvider.otp`_."""
         otp = (self._anisette_data or {}).get("X-Apple-I-MD")
         if otp is None:
-            logging.warning("X-Apple-I-MD header not found! Returning fallback...")
+            logger.warning("X-Apple-I-MD header not found! Returning fallback...")
         return otp or ""
 
     @property
@@ -190,7 +192,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         """See `BaseAnisetteProvider.machine`_."""
         machine = (self._anisette_data or {}).get("X-Apple-I-MD-M")
         if machine is None:
-            logging.warning("X-Apple-I-MD-M header not found! Returning fallback...")
+            logger.warning("X-Apple-I-MD-M header not found! Returning fallback...")
         return machine or ""
 
     @override
@@ -203,7 +205,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
     ) -> dict[str, str]:
         """See `BaseAnisetteProvider.get_headers`_."""
         if self._anisette_data is None or time.time() >= self._anisette_data_expires_at:
-            logging.info("Fetching anisette data from %s", self._server_url)
+            logger.info("Fetching anisette data from %s", self._server_url)
 
             r = await self._http.get(self._server_url, auto_retry=True)
             self._anisette_data = r.json()

@@ -14,7 +14,7 @@ from typing_extensions import Unpack, override
 from .closable import Closable
 from .parsers import decode_plist
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class _RequestOptions(TypedDict, total=False):
@@ -80,7 +80,7 @@ class HttpSession(Closable):
         if self._session is not None:
             return self._session
 
-        logging.debug("Creating aiohttp session")
+        logger.debug("Creating aiohttp session")
         self._session = ClientSession(timeout=ClientTimeout(total=5))
         return self._session
 
@@ -88,7 +88,7 @@ class HttpSession(Closable):
     async def close(self) -> None:
         """Close the underlying session. Should be called when session will no longer be used."""
         if self._session is not None:
-            logging.debug("Closing aiohttp session")
+            logger.debug("Closing aiohttp session")
             await self._session.close()
             self._session = None
 
@@ -109,7 +109,7 @@ class HttpSession(Closable):
         auth = kwargs.pop("auth", None)
         if isinstance(auth, tuple):
             kwargs["auth"] = BasicAuth(auth[0], auth[1])
-        options = cast(_AiohttpRequestOptions, kwargs)
+        options = cast("_AiohttpRequestOptions", kwargs)
 
         auto_retry = kwargs.pop("auto_retry", False)
 
@@ -129,7 +129,7 @@ class HttpSession(Closable):
                     raise e from None
 
                 retry_after = 5 * retry_count
-                logging.warning(
+                logger.warning(
                     "Error while making HTTP request; retrying after %i seconds. %s",
                     retry_after,
                     e,
