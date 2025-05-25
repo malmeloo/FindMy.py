@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 from importlib.metadata import version
 from pathlib import Path
@@ -19,7 +20,8 @@ def main() -> None:  # noqa: D103
         version=version("FindMy"),
     )
     parser.add_argument(
-        "-log-level",
+        "--log-level",
+        type=str,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         default="INFO",
         help="Set the logging level (default: INFO)",
@@ -29,13 +31,13 @@ def main() -> None:  # noqa: D103
 
     decrypt_parser = subparsers.add_parser(
         "decrypt",
-        help="Decrypt all the local FindMy accessories to JSON files.",
+        help="Decrypt all the local FindMy accessories to JSON. This will print the JSON to stdout.",  # noqa: E501
     )
     decrypt_parser.add_argument(
         "--out-dir",
         type=Path,
-        default=Path("accessories/"),
-        help="Output directory for decrypted files (default: accessories/)",
+        default=None,
+        help="Output directory for decrypted files. If not specified, files will not be saved to disk.",  # noqa: E501
     )
 
     args = parser.parse_args()
@@ -50,17 +52,21 @@ def main() -> None:  # noqa: D103
         parser.exit(1)
 
 
-def decrypt_all(out_dir: str | Path) -> None:
+def decrypt_all(out_dir: str | Path | None = None) -> None:
     """Decrypt all accessories and save them to the specified directory as JSON files."""
-    out_dir = Path(out_dir)
-    out_dir = out_dir.resolve().absolute()
-    out_dir.mkdir(parents=True, exist_ok=True)
+
+    def get_path(d, acc) -> Path | None:  # noqa: ANN001
+        if out_dir is None:
+            return None
+        d = Path(d)
+        d = d.resolve().absolute()
+        d.mkdir(parents=True, exist_ok=True)
+        return d / f"{acc.identifier}.json"
+
     key = get_key()
     accs = list_accessories(key=key)
-    for acc in accs:
-        out_path = out_dir / f"{acc.identifier}.json"
-        acc.to_json(out_path)
-        print(f"Decrypted accessory: {acc.name} ({acc.identifier})")  # noqa: T201
+    jsons = [acc.to_json(get_path(out_dir, acc)) for acc in accs]
+    print(json.dumps(jsons, indent=2, ensure_ascii=False))  # noqa: T201
 
 
 if __name__ == "__main__":
