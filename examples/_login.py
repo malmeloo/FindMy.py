@@ -1,8 +1,5 @@
 # ruff: noqa: ASYNC230
 
-import json
-from pathlib import Path
-
 from findmy.reports import (
     AppleAccount,
     AsyncAppleAccount,
@@ -71,33 +68,25 @@ async def _login_async(account: AsyncAppleAccount) -> None:
 
 def get_account_sync(anisette: BaseAnisetteProvider) -> AppleAccount:
     """Tries to restore a saved Apple account, or prompts the user for login otherwise. (sync)"""
-    acc = AppleAccount(anisette)
-
-    # Save / restore account logic
-    acc_store = Path("account.json")
+    acc = AppleAccount(anisette=anisette)
+    acc_store = "account.json"
     try:
-        with acc_store.open() as f:
-            acc.restore(json.load(f))
+        acc.from_json(acc_store)
     except FileNotFoundError:
         _login_sync(acc)
-        with acc_store.open("w+") as f:
-            json.dump(acc.export(), f)
+        acc.to_json(acc_store)
 
     return acc
 
 
 async def get_account_async(anisette: BaseAnisetteProvider) -> AsyncAppleAccount:
     """Tries to restore a saved Apple account, or prompts the user for login otherwise. (async)"""
-    acc = AsyncAppleAccount(anisette)
-
-    # Save / restore account logic
-    acc_store = Path("account.json")
+    acc = AsyncAppleAccount(anisette=anisette)
+    acc_store = "account.json"
     try:
-        with acc_store.open() as f:
-            acc.restore(json.load(f))
+        acc.from_json(acc_store)
     except FileNotFoundError:
         await _login_async(acc)
-        with acc_store.open("w+") as f:
-            json.dump(acc.export(), f)
+        acc.to_json(acc_store)
 
     return acc
