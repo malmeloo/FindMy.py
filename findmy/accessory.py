@@ -20,7 +20,7 @@ from .util import crypto
 if TYPE_CHECKING:
     from collections.abc import Generator
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class RollingKeyPairSource(ABC):
@@ -90,7 +90,7 @@ class FindMyAccessory(RollingKeyPairSource):
         self._paired_at: datetime = paired_at
         if self._paired_at.tzinfo is None:
             self._paired_at = self._paired_at.astimezone()
-            logging.warning(
+            logger.warning(
                 "Pairing datetime is timezone-naive. Assuming system tz: %s.",
                 self._paired_at.tzname(),
             )

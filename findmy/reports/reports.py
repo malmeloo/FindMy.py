@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
     from .account import AsyncAppleAccount
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class LocationReport(HasHashedPublicKey):
@@ -301,12 +301,12 @@ class LocationReportsFetcher:
             key_devs = {device: device}
         elif isinstance(device, list) and all(isinstance(x, HasHashedPublicKey) for x in device):
             # multiple static keys
-            device = cast(list[HasHashedPublicKey], device)
+            device = cast("list[HasHashedPublicKey]", device)
             key_devs = {key: key for key in device}
         elif isinstance(device, RollingKeyPairSource):
             # key generator
             #   add 12h margin to the generator
-            key_devs = {
+            key_devs = {  # noqa: C420
                 key: device
                 for key in device.keys_between(
                     date_from - timedelta(hours=12),
@@ -316,7 +316,7 @@ class LocationReportsFetcher:
         elif isinstance(device, list) and all(isinstance(x, RollingKeyPairSource) for x in device):
             # multiple key generators
             #   add 12h margin to each generator
-            device = cast(list[RollingKeyPairSource], device)
+            device = cast("list[RollingKeyPairSource]", device)
             key_devs = {
                 key: dev
                 for dev in device
@@ -357,7 +357,7 @@ class LocationReportsFetcher:
         date_to: datetime,
         keys: Sequence[HasHashedPublicKey],
     ) -> dict[HasHashedPublicKey, list[LocationReport]]:
-        logging.debug("Fetching reports for %s keys", len(keys))
+        logger.debug("Fetching reports for %s keys", len(keys))
 
         # lock requested time range to the past 7 days, +- 12 hours, then filter the response.
         # this is due to an Apple backend bug where the time range is not respected.

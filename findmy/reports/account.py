@@ -56,7 +56,7 @@ if TYPE_CHECKING:
 
     from .anisette import BaseAnisetteProvider
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 srp.rfc5054_enable()
 srp.no_username_in_x()
@@ -398,10 +398,10 @@ class AsyncAppleAccount(BaseAppleAccount):
     ) -> LoginState:
         # clear account info if downgrading state (e.g. LOGGED_IN -> LOGGED_OUT)
         if state < self._login_state:
-            logging.debug("Clearing cached account information")
+            logger.debug("Clearing cached account information")
             self._account_info = None
 
-        logging.info("Transitioning login state: %s -> %s", self._login_state, state)
+        logger.info("Transitioning login state: %s -> %s", self._login_state, state)
         self._login_state = state
         self._login_state_data = data or {}
 
@@ -526,7 +526,7 @@ class AsyncAppleAccount(BaseAppleAccount):
                 for number in phone_numbers
             )
         except RuntimeError:
-            logging.warning("Unable to extract phone numbers from login page")
+            logger.warning("Unable to extract phone numbers from login page")
 
         return methods
 
@@ -624,7 +624,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         r = await _do_request()
         if r.status_code == 401:
-            logging.info("Got 401 while fetching reports, redoing login")
+            logger.info("Got 401 while fetching reports, redoing login")
 
             new_state = await self._gsa_authenticate()
             if new_state != LoginState.AUTHENTICATED:
@@ -762,13 +762,13 @@ class AsyncAppleAccount(BaseAppleAccount):
         self._username = username or self._username
         self._password = password or self._password
 
-        logging.info("Attempting authentication for user %s", self._username)
+        logger.info("Attempting authentication for user %s", self._username)
 
         if not self._username or not self._password:
             msg = "No username or password specified"
             raise ValueError(msg)
 
-        logging.debug("Starting authentication with username")
+        logger.debug("Starting authentication with username")
 
         usr = srp.User(self._username, b"", hash_alg=srp.SHA256, ng_type=srp.NG_2048)
         _, a2k = usr.start_authentication()
@@ -776,7 +776,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             {"A2k": a2k, "u": self._username, "ps": ["s2k", "s2k_fo"], "o": "init"},
         )
 
-        logging.debug("Verifying response to auth request")
+        logger.debug("Verifying response to auth request")
 
         if r["Status"].get("ec") != 0:
             msg = "Email verification failed: " + r["Status"].get("em")
@@ -786,7 +786,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             msg = f"This implementation only supports s2k and sk2_fo. Server returned {sp}"
             raise UnhandledProtocolError(msg)
 
-        logging.debug("Attempting password challenge")
+        logger.debug("Attempting password challenge")
 
         usr.p = crypto.encrypt_password(self._password, r["s"], r["i"], sp)
         m1 = usr.process_challenge(r["s"], r["B"])
@@ -797,7 +797,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             {"c": r["c"], "M1": m1, "u": self._username, "o": "complete"},
         )
 
-        logging.debug("Verifying password challenge response")
+        logger.debug("Verifying password challenge response")
 
         if r["Status"].get("ec") != 0:
             msg = "Password authentication failed: " + r["Status"].get("em")
@@ -807,7 +807,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             msg = "Failed to verify session"
             raise UnhandledProtocolError(msg)
 
-        logging.debug("Decrypting SPD data in response")
+        logger.debug("Decrypting SPD data in response")
 
         spd = decode_plist(
             crypto.decrypt_spd_aes_cbc(
@@ -816,9 +816,9 @@ class AsyncAppleAccount(BaseAppleAccount):
             ),
         )
 
-        logging.debug("Received account information")
+        logger.debug("Received account information")
         self._account_info = cast(
-            _AccountInfo,
+            "_AccountInfo",
             {
                 "account_name": spd.get("acname"),
                 "first_name": spd.get("fn"),
@@ -829,7 +829,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         au = r["Status"].get("au")
         if au in ("secondaryAuth", "trustedDeviceSecondaryAuth"):
-            logging.info("Detected 2FA requirement: %s", au)
+            logger.info("Detected 2FA requirement: %s", au)
 
             self._account_info["trusted_device_2fa"] = au == "trustedDeviceSecondaryAuth"
 
@@ -838,7 +838,7 @@ class AsyncAppleAccount(BaseAppleAccount):
                 {"adsid": spd["adsid"], "idms_token": spd["GsIdmsToken"]},
             )
         if au is None:
-            logging.info("GSA authentication successful")
+            logger.info("GSA authentication successful")
 
             idms_pet = spd.get("t", {}).get("com.apple.gs.idms.pet", {}).get("token", "")
             return self._set_login_state(
@@ -851,7 +851,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
     @require_login_state(LoginState.AUTHENTICATED)
     async def _login_mobileme(self) -> LoginState:
-        logging.info("Logging into com.apple.mobileme")
+        logger.info("Logging into com.apple.mobileme")
         data = plistlib.dumps(
             {
                 "apple-id": self._username,
