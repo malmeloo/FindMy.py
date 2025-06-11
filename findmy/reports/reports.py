@@ -250,14 +250,6 @@ class LocationReportsFetcher:
         self,
         date_from: datetime,
         date_to: datetime,
-        device: Sequence[HasHashedPublicKey],
-    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
-
-    @overload
-    async def fetch_reports(
-        self,
-        date_from: datetime,
-        date_to: datetime,
         device: RollingKeyPairSource,
     ) -> list[LocationReport]: ...
 
@@ -266,43 +258,34 @@ class LocationReportsFetcher:
         self,
         date_from: datetime,
         date_to: datetime,
-        device: Sequence[RollingKeyPairSource],
-    ) -> dict[RollingKeyPairSource, list[LocationReport]]: ...
+        device: Sequence[HasHashedPublicKey | RollingKeyPairSource],
+    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
 
     async def fetch_reports(
         self,
         date_from: datetime,
         date_to: datetime,
         device: HasHashedPublicKey
-        | Sequence[HasHashedPublicKey]
         | RollingKeyPairSource
-        | Sequence[RollingKeyPairSource],
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource],
     ) -> (
-        list[LocationReport]
-        | dict[HasHashedPublicKey, list[LocationReport]]
-        | dict[RollingKeyPairSource, list[LocationReport]]
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
         """
         Fetch location reports for a certain device.
 
         When ``device`` is a single :class:`.HasHashedPublicKey`, this method will return
         a list of location reports corresponding to that key.
-        When ``device`` is a sequence of :class:`.HasHashedPublicKey`s, it will return a dictionary
-        with the :class:`.HasHashedPublicKey` as key, and a list of location reports as value.
         When ``device`` is a :class:`.RollingKeyPairSource`, it will return a list of
         location reports corresponding to that source.
+        When ``device`` is a sequence of :class:`.HasHashedPublicKey`s or RollingKeyPairSource's,
+        it will return a dictionary with the :class:`.HasHashedPublicKey` or `.RollingKeyPairSource`
+        as key, and a list of location reports as value.
         """
-        key_devs: (
-            dict[HasHashedPublicKey, HasHashedPublicKey]
-            | dict[HasHashedPublicKey, RollingKeyPairSource]
-        ) = {}
+        key_devs: dict[HasHashedPublicKey, HasHashedPublicKey | RollingKeyPairSource] = {}
         if isinstance(device, HasHashedPublicKey):
             # single key
             key_devs = {device: device}
-        elif isinstance(device, list) and all(isinstance(x, HasHashedPublicKey) for x in device):
-            # multiple static keys
-            device = cast("list[HasHashedPublicKey]", device)
-            key_devs = {key: key for key in device}
         elif isinstance(device, RollingKeyPairSource):
             # key generator
             #   add 12h margin to the generator
@@ -313,13 +296,17 @@ class LocationReportsFetcher:
                     date_to + timedelta(hours=12),
                 )
             }
-        elif isinstance(device, list) and all(isinstance(x, RollingKeyPairSource) for x in device):
+
+        elif isinstance(device, list) and all(
+            isinstance(x, HasHashedPublicKey | RollingKeyPairSource) for x in device
+        ):
             # multiple key generators
             #   add 12h margin to each generator
-            device = cast("list[RollingKeyPairSource]", device)
-            key_devs = {
+            device = cast("list[HasHashedPublicKey | RollingKeyPairSource]", device)
+            key_devs = {key: key for key in device if isinstance(key, HasHashedPublicKey)} | {
                 key: dev
                 for dev in device
+                if isinstance(dev, RollingKeyPairSource)
                 for key in dev.keys_between(
                     date_from - timedelta(hours=12),
                     date_to + timedelta(hours=12),
