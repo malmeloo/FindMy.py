@@ -7,6 +7,7 @@ pkgs.mkShell {
   packages = with pkgs; [
     python312
     unstable.uv
+    gh
   ];
 
   shellHook = ''
