@@ -54,7 +54,9 @@ The package can be installed from [PyPi](https://pypi.org/project/findmy/):
 pip install findmy
 ```
 
-For usage examples, see the [examples](examples) directory. Documentation can be found [here](http://docs.mikealmel.ooo/FindMy.py/).
+For usage examples, see the [examples](examples) directory.
+We are also building out a CLI. Try `python -m findmy` to see the current state of it.
+Documentation can be found [here](http://docs.mikealmel.ooo/FindMy.py/).
 
 ## Contributing
 
