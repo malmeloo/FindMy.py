@@ -534,7 +534,7 @@ wheels = [
 
 [[package]]
 name = "findmy"
-version = "0.7.6"
+version = "0.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -566,7 +566,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.9.5,<4.0.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5.0.0" },
     { name = "bleak", specifier = ">=0.22.2,<1.0.0" },
-    { name = "cryptography", specifier = ">=42.0.0" },
+    { name = "cryptography", specifier = ">=42.0.0,<46.0.0" },
     { name = "srp", specifier = ">=1.0.21,<2.0.0" },
     { name = "typing-extensions", specifier = ">=4.12.2,<5.0.0" },
 ]
