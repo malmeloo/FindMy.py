@@ -3,10 +3,8 @@ import os
 import re
 import sys
 import plistlib
-#import folium
 from Crypto.Cipher import AES
 from _login import get_account_sync
-#from coordTransform import coordTransform
 from findmy import FindMyAccessory
 from findmy.reports import RemoteAnisetteProvider
 
@@ -18,12 +16,10 @@ OUTPUT_PATH = os.path.join(os.getenv('HOME'), "plist_decrypt_output")
 #start in your own docker
 ANISETTE_SERVER = "http://localhost:6969"
 
-
 def decrypt_plist(in_file_path: str, key: bytearray) -> dict:
     """
     Given an encrypted plist file at path in_file_path, decrypt it using key and AES-GCM 
     and return the decrypted plist dict
-    
     :param in_file_path: Source path of the encrypted plist file.
         Generally something like 
         /Users/<username>/Library/com.apple.icloud.searchpartyd/OwnedBeacons/<UUID>.record
@@ -57,7 +53,6 @@ def dump_plist(plist: dict, out_file_path: str) -> None:
     """
     Given a parsed plist dict, dump the decrypted plist file contents (this is xml) 
     at out_file_path. This function will try to create missing folders.
-    
     :param plist: Decrypted plist, created using any means.
     :param out_file_path: The output file name to create the decrypted & parsed 
         plist xml file at.
@@ -70,7 +65,6 @@ def make_output_path(output_root: str, input_file_path: str, input_root_folder: 
     """
     Transforms input_file_path into a dumping output_file_path along the lines of this idea 
     (but it works generically for any level of nesting).
-    
     Given:
     - input_file_path = /Users/<user>/Library/com.apple.icloud.searchpartyd/
         SomeFolder/.../<UUID>.record
@@ -90,8 +84,7 @@ def decrypt_folder(input_root_folder: str, output_root: str, key: bytearray):
                     if file_name.endswith('.record'):
                         input_file_path = os.path.join(dir_path, file_name)
                         output_file_path = make_output_path(
-                            output_root, input_file_path, input_root_folder
-                        )
+                            output_root, input_file_path, input_root_folder)
                         decrypted_plist = decrypt_plist(input_file_path, key)
                         dump_plist(decrypted_plist, output_file_path)
 
@@ -121,6 +114,7 @@ def analyse_plist(plist_path: str) -> int:
     print(text_reports)
     locations = extract_locations_from_file(text_reports)
     '''
+    if you need this,please import folium,coordTransform
     if not locations:
         raise ValueError("未找到有效坐标")
     try:
@@ -139,8 +133,8 @@ def analyse_plist(plist_path: str) -> int:
         输出locations到文件
     '''
     with open("locations.txt", "w", encoding="utf-8") as f:
-    for loc in locations:
-        f.write(f"{loc[0]},{loc[1]}\n")
+        for loc in locations:
+            f.write(f"{loc[0]},{loc[1]}\n")
     print("已将locations写入 locations.txt")
     return 0
 
