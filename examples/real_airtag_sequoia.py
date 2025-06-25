@@ -1,5 +1,7 @@
 import logging
-import os,re,sys
+import os
+import re
+import sys
 import plistlib
 #import folium
 from Crypto.Cipher import AES
@@ -19,13 +21,15 @@ ANISETTE_SERVER = "http://localhost:6969"
 
 def decrypt_plist(in_file_path: str, key: bytearray) -> dict:
     """
-    Given an encrypted plist file at path in_file_path, decrypt it using key and AES-GCM and return the decrypted plist dict
+    Given an encrypted plist file at path in_file_path, decrypt it using key and AES-GCM 
+    and return the decrypted plist dict
+    
     :param in_file_path: Source path of the encrypted plist file.
-    Generally something like /Users/<username>/Library/com.apple.icloud.searchpartyd/OwnedBeacons/<UUID>.record
+        Generally something like 
+        /Users/<username>/Library/com.apple.icloud.searchpartyd/OwnedBeacons/<UUID>.record
     :param key: Raw key to decrypt plist file with.
-    Get it from the system shell command:
-    security find-generic-password -l '<LABEL>' -w
-    See: get_key(label: str)
+        Get it from the system shell command:
+        security find-generic-password -l '<LABEL>' -w
     :returns: The decoded plist dict
     :rtype: dict
     :raises Exception: On failure to decrypt the encrypted plist
@@ -51,11 +55,12 @@ def decrypt_plist(in_file_path: str, key: bytearray) -> dict:
 
 def dump_plist(plist: dict, out_file_path: str) -> None:
     """
-    Given a parsed plist dict, dump the decrypted plist file contents (this is xml) at out_file_path.
-    This function will try to create missing folders.
+    Given a parsed plist dict, dump the decrypted plist file contents (this is xml) 
+    at out_file_path. This function will try to create missing folders.
+    
     :param plist: Decrypted plist, created using any means.
-    See also: decrypt_plist(in_file_path: str, key: bytearray) -> dict
-    :param out_file_path: The output file name to create the decrypted & parsed plist xml file at.
+    :param out_file_path: The output file name to create the decrypted & parsed 
+        plist xml file at.
     """
     os.makedirs(os.path.dirname(out_file_path), exist_ok=True)
     with open(out_file_path, 'wb') as out_f:
@@ -63,9 +68,12 @@ def dump_plist(plist: dict, out_file_path: str) -> None:
 
 def make_output_path(output_root: str, input_file_path: str, input_root_folder: str) -> str:
     """
-    Transforms input_file_path into a dumping output_file_path along the lines of this idea (but it works generically for any level of nesting):
+    Transforms input_file_path into a dumping output_file_path along the lines of this idea 
+    (but it works generically for any level of nesting).
+    
     Given:
-    - input_file_path = /Users/<user>/Library/com.apple.icloud.searchpartyd/SomeFolder/.../<UUID>.record
+    - input_file_path = /Users/<user>/Library/com.apple.icloud.searchpartyd/
+        SomeFolder/.../<UUID>.record
     - output_root = /Users/<user>/my-target-folder
     - input_root_folder = /Users/<user>/Library/com.apple.icloud.searchpartyd
     """
@@ -81,7 +89,9 @@ def decrypt_folder(input_root_folder: str, output_root: str, key: bytearray):
                 for file_name in os.listdir(dir_path):
                     if file_name.endswith('.record'):
                         input_file_path = os.path.join(dir_path, file_name)
-                        output_file_path = make_output_path(output_root, input_file_path, input_root_folder)
+                        output_file_path = make_output_path(
+                            output_root, input_file_path, input_root_folder
+                        )
                         decrypted_plist = decrypt_plist(input_file_path, key)
                         dump_plist(decrypted_plist, output_file_path)
 
@@ -91,7 +101,9 @@ def extract_locations_from_file(content):
     for lat, lon in matches:
         lat = float(lat)
         lon = float(lon)
-        #gcj_lon, gcj_lat = coordTransform.wgs84_to_gcj02(lon, lat)
+        '''
+        gcj_lon, gcj_lat = coordTransform.wgs84_to_gcj02(lon, lat)
+        '''
         locations.append((lat, lon))
     return locations
 
@@ -108,22 +120,24 @@ def analyse_plist(plist_path: str) -> int:
     text_reports = "\n".join(str(i) for i in sorted(reports))
     print(text_reports)
     locations = extract_locations_from_file(text_reports)
-    #if not locations:
-        #raise ValueError("未找到有效坐标")
-    #try:
-      #m = folium.Map(location=locations[0], zoom_start=10)
-      #  folium.TileLayer(
-      #      tiles='http://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
-      #      max_zoom=18,
-      #      subdomains=['1', '2', '3', '4'],
-      #      attr='高德地图'
-      #  ).add_to(m)
-      #  for loc in locations:
-      #      folium.Marker(loc).add_to(m)
-      #  m.save("map.html")
-    #except Exception as e:
-        #print(f"绘制地图失败: {e}")
-        # 输出locations到文件
+    '''
+    if not locations:
+        raise ValueError("未找到有效坐标")
+    try:
+      m = folium.Map(location=locations[0], zoom_start=10)
+       folium.TileLayer(
+           tiles='http://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}',
+           max_zoom=18,
+           subdomains=['1', '2', '3', '4'],
+           attr='高德地图'
+       ).add_to(m)
+       for loc in locations:
+           folium.Marker(loc).add_to(m)
+       m.save("map.html")
+    except Exception as e:
+        print(f"绘制地图失败: {e}")
+        输出locations到文件
+    '''
     with open("locations.txt", "w", encoding="utf-8") as f:
     for loc in locations:
         f.write(f"{loc[0]},{loc[1]}\n")
