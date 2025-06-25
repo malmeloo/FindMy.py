@@ -126,7 +126,7 @@ def analyse_plist(plist_path: str) -> int:
         # 输出locations到文件
     with open("locations.txt", "w", encoding="utf-8") as f:
     for loc in locations:
-      f.write(f"{loc[0]},{loc[1]}\n")
+        f.write(f"{loc[0]},{loc[1]}\n")
     print("已将locations写入 locations.txt")
     return 0
 
