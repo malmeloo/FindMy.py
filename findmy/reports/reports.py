@@ -33,14 +33,10 @@ class LocationReport(HasHashedPublicKey):
         self,
         payload: bytes,
         hashed_adv_key: bytes,
-        published_at: datetime,
-        description: str = "",
     ) -> None:
         """Initialize a `KeyReport`. You should probably use `KeyReport.from_payload` instead."""
         self._payload: bytes = payload
         self._hashed_adv_key: bytes = hashed_adv_key
-        self._published_at: datetime = published_at
-        self._description: str = description
 
         self._decrypted_data: tuple[KeyPair, bytes] | None = None
 
@@ -108,16 +104,6 @@ class LocationReport(HasHashedPublicKey):
         decrypted_payload = decryptor.update(enc_data) + decryptor.finalize()
 
         self._decrypted_data = (key, decrypted_payload)
-
-    @property
-    def published_at(self) -> datetime:
-        """The `datetime` when this report was published by a device."""
-        return self._published_at
-
-    @property
-    def description(self) -> str:
-        """Description of the location report as published by Apple."""
-        return self._description
 
     @property
     def timestamp(self) -> datetime:
@@ -357,25 +343,21 @@ class LocationReportsFetcher:
 
         id_to_key: dict[bytes, HasHashedPublicKey] = {key.hashed_adv_key_bytes: key for key in keys}
         reports: dict[HasHashedPublicKey, list[LocationReport]] = defaultdict(list)
-        for report in data.get("results", []):
-            payload = base64.b64decode(report["payload"])
-            hashed_adv_key = base64.b64decode(report["id"])
-            date_published = datetime.fromtimestamp(
-                report.get("datePublished", 0) / 1000,
-                tz=timezone.utc,
-            ).astimezone()
-            description = report.get("description", "")
+        for key_reports in data.get("locationPayload", []):
+            hashed_adv_key_bytes = base64.b64decode(key_reports["id"])
+            key = id_to_key[hashed_adv_key_bytes]
 
-            loc_report = LocationReport(payload, hashed_adv_key, date_published, description)
+            for report in key_reports.get("locationInfo", []):
+                payload = base64.b64decode(report)
+                loc_report = LocationReport(payload, hashed_adv_key_bytes)
 
-            # pre-decrypt if possible
-            key = id_to_key[hashed_adv_key]
-            if isinstance(key, KeyPair):
-                loc_report.decrypt(key)
+                if loc_report.timestamp < date_from or loc_report.timestamp > date_to:
+                    continue
 
-            if loc_report.timestamp < date_from or loc_report.timestamp > date_to:
-                continue
+                # pre-decrypt if possible
+                if isinstance(key, KeyPair):
+                    loc_report.decrypt(key)
 
-            reports[key].append(loc_report)
+                reports[key].append(loc_report)
 
         return reports
