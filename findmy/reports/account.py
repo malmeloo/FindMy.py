@@ -593,12 +593,19 @@ class AsyncAppleAccount(BaseAppleAccount):
         return await self._login_mobileme()
 
     @require_login_state(LoginState.LOGGED_IN)
-    async def fetch_raw_reports(self, start: int, end: int, ids: list[str]) -> dict[str, Any]:
+    async def fetch_raw_reports(
+        self,
+        start: datetime,
+        end: datetime,
+        devices: list[list[str]],
+    ) -> dict[str, Any]:
         """Make a request for location reports, returning raw data."""
         auth = (
             self._login_state_data["dsid"],
             self._login_state_data["mobileme_data"]["tokens"]["searchPartyToken"],
         )
+        start_ts = int(start.timestamp() * 1000)
+        end_ts = int(end.timestamp() * 1000)
         data = {
             "clientContext": {
                 "clientBundleIdentifier": "com.apple.icloud.searchpartyuseragent",
@@ -606,13 +613,15 @@ class AsyncAppleAccount(BaseAppleAccount):
             },
             "fetch": [
                 {
-                    "startDateSecondary": start,
                     "ownedDeviceIds": [],
                     "keyType": 1,
-                    "startDate": start,
-                    "endDate": end,
-                    "primaryIds": ids,
-                },
+                    "startDate": start_ts,
+                    "startDateSecondary": start_ts,
+                    "endDate": end_ts,
+                    # passing all keys as primary seems to work fine
+                    "primaryIds": device_keys,
+                }
+                for device_keys in devices
             ],
         }
 
