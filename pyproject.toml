@@ -6,6 +6,7 @@ readme = "README.md"
 authors = [
     {name = "Mike Almeloo", email = "git@mikealmel.ooo"},
 ]
+license-files = ["LICENSE.md"]
 requires-python = ">=3.9,<3.14"
 dependencies = [
     "srp>=1.0.21,<2.0.0",
@@ -14,6 +15,7 @@ dependencies = [
     "aiohttp>=3.9.5,<4.0.0",
     "bleak>=0.22.2,<1.0.0",
     "typing-extensions>=4.12.2,<5.0.0",
+    "anisette>=1.2.1",
 ]
 
 [dependency-groups]
@@ -77,9 +79,6 @@ ignore = [
     "T201",  # use of "print"
     "D",  # documentation
 ]
-
-[tool.setuptools]
-license-files = []
 
 [build-system]
 requires = ["setuptools", "setuptools-scm"]

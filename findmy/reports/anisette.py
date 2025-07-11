@@ -8,16 +8,20 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
+from io import BytesIO
+from pathlib import Path
+from typing import BinaryIO
 
+from anisette import Anisette, AnisetteHeaders
 from typing_extensions import override
 
-from findmy.util.closable import Closable
+from findmy.util.abc import Closable, Serializable
 from findmy.util.http import HttpSession
 
 logger = logging.getLogger(__name__)
 
 
-class BaseAnisetteProvider(Closable, ABC):
+class BaseAnisetteProvider(Closable, Serializable, ABC):
     """
     Abstract base class for Anisette providers.
 
@@ -27,22 +31,13 @@ class BaseAnisetteProvider(Closable, ABC):
     @property
     @abstractmethod
     def otp(self) -> str:
-        """
-        A seemingly random base64 string containing 28 bytes.
-
-        TODO: Figure out how to generate this.
-        """
+        """A seemingly random base64 string containing 28 bytes."""
         raise NotImplementedError
 
     @property
     @abstractmethod
     def machine(self) -> str:
-        """
-        A base64 encoded string of 60 'random' bytes.
-
-        We're not sure how this is generated, we have to rely on the server.
-        TODO: Figure out how to generate this.
-        """
+        """A base64 encoded string of 60 'random' bytes."""
         raise NotImplementedError
 
     @property
@@ -177,6 +172,24 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         self._anisette_data: dict[str, str] | None = None
         self._anisette_data_expires_at: float = 0
 
+    @override
+    def serialize(self) -> dict:
+        """See `BaseAnisetteProvider.serialize`."""
+        return {
+            "type": "aniRemote",
+            "url": self._server_url,
+        }
+
+    @classmethod
+    @override
+    def deserialize(cls, data: dict) -> RemoteAnisetteProvider:
+        """See `BaseAnisetteProvider.deserialize`."""
+        assert data["type"] == "aniRemote"
+
+        server_url = data["url"]
+
+        return cls(server_url)
+
     @property
     @override
     def otp(self) -> str:
@@ -219,22 +232,101 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         await self._http.close()
 
 
-# TODO(malmeloo): implement using pyprovision
-# https://github.com/malmeloo/FindMy.py/issues/2
 class LocalAnisetteProvider(BaseAnisetteProvider):
-    """Anisette provider. Generates headers without a remote server using pyprovision."""
+    """Anisette provider. Generates headers without a remote server using the `anisette` library."""
+
+    def __init__(
+        self,
+        *,
+        state_blob: BinaryIO | None = None,
+        libs_path: str | Path | None = None,
+    ) -> None:
+        """Initialize the provider."""
+        super().__init__()
+
+        if isinstance(libs_path, str):
+            libs_path = Path(libs_path)
+
+        if libs_path is None or not libs_path.is_file():
+            logger.info(
+                "The Anisette engine will download libraries required for operation, "
+                "this may take a few seconds...",
+            )
+            logger.info(
+                "To speed up future local Anisette initializations, "
+                "provide a filesystem path to load the libraries from.",
+            )
+
+        files: list[BinaryIO | Path] = []
+        if state_blob is not None:
+            files.append(state_blob)
+        if libs_path is not None and libs_path.exists():
+            files.append(libs_path)
+
+        self._ani = Anisette.load(*files)
+        self._ani_data: AnisetteHeaders | None = None
+        self._libs_path: Path | None = libs_path
+
+        if libs_path is not None:
+            self._ani.save_libs(libs_path)
+        if state_blob is not None and not self._ani.is_provisioned:
+            logger.warning(
+                "The Anisette state that was loaded has not yet been provisioned. "
+                "Was the previous session saved properly?",
+            )
+
+    @override
+    def serialize(self) -> dict:
+        """See `BaseAnisetteProvider.serialize`."""
+        with BytesIO() as buf:
+            self._ani.save_provisioning(buf)
+            prov_data = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+        return {
+            "type": "aniLocal",
+            "prov_data": prov_data,
+        }
+
+    @classmethod
+    @override
+    def deserialize(cls, data: dict, libs_path: str | Path | None = None) -> LocalAnisetteProvider:
+        """See `BaseAnisetteProvider.deserialize`."""
+        assert data["type"] == "aniLocal"
+
+        state_blob = BytesIO(base64.b64decode(data["prov_data"]))
+
+        return cls(state_blob=state_blob, libs_path=libs_path)
+
+    @override
+    async def get_headers(
+        self,
+        user_id: str,
+        device_id: str,
+        serial: str = "0",
+        with_client_info: bool = False,
+    ) -> dict[str, str]:
+        """See `BaseAnisetteProvider.get_headers`_."""
+        self._ani_data = self._ani.get_data()
+
+        return await super().get_headers(user_id, device_id, serial, with_client_info)
 
     @property
     @override
     def otp(self) -> str:
         """See `BaseAnisetteProvider.otp`_."""
-        raise NotImplementedError
+        machine = (self._ani_data or {}).get("X-Apple-I-MD")
+        if machine is None:
+            logger.warning("X-Apple-I-MD header not found! Returning fallback...")
+        return machine or ""
 
     @property
     @override
     def machine(self) -> str:
         """See `BaseAnisetteProvider.machine`_."""
-        raise NotImplementedError
+        machine = (self._ani_data or {}).get("X-Apple-I-MD-M")
+        if machine is None:
+            logger.warning("X-Apple-I-MD-M header not found! Returning fallback...")
+        return machine or ""
 
     @override
     async def close(self) -> None:

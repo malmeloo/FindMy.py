@@ -11,7 +11,7 @@ import aiohttp
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 from typing_extensions import Unpack, override
 
-from .closable import Closable
+from .abc import Closable
 from .parsers import decode_plist
 
 logger = logging.getLogger(__name__)

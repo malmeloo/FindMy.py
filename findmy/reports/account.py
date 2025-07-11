@@ -33,7 +33,7 @@ from findmy.errors import (
     UnhandledProtocolError,
 )
 from findmy.util import crypto
-from findmy.util.closable import Closable
+from findmy.util.abc import Closable
 from findmy.util.http import HttpResponse, HttpSession, decode_plist
 
 from .reports import LocationReport, LocationReportsFetcher
