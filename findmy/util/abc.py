@@ -1,4 +1,4 @@
-"""ABC for async classes that need to be cleaned up before exiting."""
+"""Various utility ABCs for internal and external classes."""
 
 from __future__ import annotations
 
@@ -36,3 +36,18 @@ class Closable(ABC):
                 loop.run_until_complete(self.close())
         except RuntimeError:
             pass
+
+
+class Serializable(ABC):
+    """ABC for serializable classes."""
+
+    @abstractmethod
+    def serialize(self) -> dict:
+        """Serialize the object to a JSON-serializable dictionary."""
+        raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def deserialize(cls, data: dict) -> Serializable:
+        """Deserialize the object from a JSON-serializable dictionary."""
+        raise NotImplementedError
