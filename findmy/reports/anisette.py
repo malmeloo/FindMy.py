@@ -10,15 +10,47 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO
+from typing import BinaryIO, Literal, TypedDict, Union
 
 from anisette import Anisette, AnisetteHeaders
 from typing_extensions import override
 
 from findmy.util.abc import Closable, Serializable
+from findmy.util.files import read_data_json, save_and_return_json
 from findmy.util.http import HttpSession
 
 logger = logging.getLogger(__name__)
+
+
+class RemoteAnisetteMapping(TypedDict):
+    """JSON mapping representing state of a remote Anisette provider."""
+
+    type: Literal["aniRemote"]
+    url: str
+
+
+class LocalAnisetteMapping(TypedDict):
+    """JSON mapping representing state of a local Anisette provider."""
+
+    type: Literal["aniLocal"]
+    prov_data: str
+
+
+AnisetteMapping = Union[RemoteAnisetteMapping, LocalAnisetteMapping]
+
+
+def get_provider_from_mapping(
+    mapping: AnisetteMapping,
+    *,
+    libs_path: str | Path | None = None,
+) -> RemoteAnisetteProvider | LocalAnisetteProvider:
+    """Get the correct Anisette provider instance from saved JSON data."""
+    if mapping["type"] == "aniRemote":
+        return RemoteAnisetteProvider.from_json(mapping)
+    if mapping["type"] == "aniLocal":
+        return LocalAnisetteProvider.from_json(mapping, libs_path=libs_path)
+    msg = f"Unknown anisette type: {mapping['type']}"
+    raise ValueError(msg)
 
 
 class BaseAnisetteProvider(Closable, Serializable, ABC):
@@ -173,20 +205,25 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         self._anisette_data_expires_at: float = 0
 
     @override
-    def serialize(self) -> dict:
+    def to_json(self, dst: str | Path | None = None, /) -> RemoteAnisetteMapping:
         """See `BaseAnisetteProvider.serialize`."""
-        return {
-            "type": "aniRemote",
-            "url": self._server_url,
-        }
+        return save_and_return_json(
+            {
+                "type": "aniRemote",
+                "url": self._server_url,
+            },
+            dst,
+        )
 
     @classmethod
     @override
-    def deserialize(cls, data: dict) -> RemoteAnisetteProvider:
+    def from_json(cls, val: str | Path | RemoteAnisetteMapping) -> RemoteAnisetteProvider:
         """See `BaseAnisetteProvider.deserialize`."""
-        assert data["type"] == "aniRemote"
+        val = read_data_json(val)
 
-        server_url = data["url"]
+        assert val["type"] == "aniRemote"
+
+        server_url = val["url"]
 
         return cls(server_url)
 
@@ -276,24 +313,34 @@ class LocalAnisetteProvider(BaseAnisetteProvider):
             )
 
     @override
-    def serialize(self) -> dict:
+    def to_json(self, dst: str | Path | None = None, /) -> LocalAnisetteMapping:
         """See `BaseAnisetteProvider.serialize`."""
         with BytesIO() as buf:
             self._ani.save_provisioning(buf)
             prov_data = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-        return {
-            "type": "aniLocal",
-            "prov_data": prov_data,
-        }
+        return save_and_return_json(
+            {
+                "type": "aniLocal",
+                "prov_data": prov_data,
+            },
+            dst,
+        )
 
     @classmethod
     @override
-    def deserialize(cls, data: dict, libs_path: str | Path | None = None) -> LocalAnisetteProvider:
+    def from_json(
+        cls,
+        val: str | Path | LocalAnisetteMapping,
+        *,
+        libs_path: str | Path | None = None,
+    ) -> LocalAnisetteProvider:
         """See `BaseAnisetteProvider.deserialize`."""
-        assert data["type"] == "aniLocal"
+        val = read_data_json(val)
 
-        state_blob = BytesIO(base64.b64decode(data["prov_data"]))
+        assert val["type"] == "aniLocal"
+
+        state_blob = BytesIO(base64.b64decode(val["prov_data"]))
 
         return cls(state_blob=state_blob, libs_path=libs_path)
 

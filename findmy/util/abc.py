@@ -5,6 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Generic, Self, TypeVar
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 logging.getLogger(__name__)
 
@@ -38,16 +42,37 @@ class Closable(ABC):
             pass
 
 
-class Serializable(ABC):
+T = TypeVar("T", bound=dict)
+
+
+class Serializable(Generic[T], ABC):
     """ABC for serializable classes."""
 
     @abstractmethod
-    def serialize(self) -> dict:
-        """Serialize the object to a JSON-serializable dictionary."""
+    def to_json(self, dst: str | Path | None = None, /) -> T:
+        """
+        Export the current state of the object as a JSON-serializable dictionary.
+
+        If an argument is provided, the output will also be written to that file.
+
+        The output of this method is guaranteed to be JSON-serializable, and passing
+        the return value of this function as an argument to `Serializable.from_json`
+        will always result in an exact copy of the internal state as it was when exported.
+
+        You are encouraged to save and load object states to and from disk whenever possible,
+        to prevent unnecessary API calls or otherwise unexpected behavior.
+        """
         raise NotImplementedError
 
     @classmethod
     @abstractmethod
-    def deserialize(cls, data: dict) -> Serializable:
-        """Deserialize the object from a JSON-serializable dictionary."""
+    def from_json(cls, val: str | Path | T, /) -> Self:
+        """
+        Restore state from a previous `Closable.to_json` export.
+
+        If given a str or Path, it must point to a json file from `Serializable.to_json`.
+        Otherwise, it should be the Mapping itself.
+
+        See `Serializable.to_json` for more information.
+        """
         raise NotImplementedError
