@@ -453,10 +453,16 @@ class AsyncAppleAccount(BaseAppleAccount):
 
     @classmethod
     @override
-    def from_json(cls, val: str | Path | AccountStateMapping, /) -> AsyncAppleAccount:
+    def from_json(
+        cls,
+        val: str | Path | AccountStateMapping,
+        /,
+        *,
+        anisette_libs_path: str | Path | None = None,
+    ) -> AsyncAppleAccount:
         val = read_data_json(val)
         try:
-            ani_provider = get_provider_from_mapping(val["anisette"])
+            ani_provider = get_provider_from_mapping(val["anisette"], libs_path=anisette_libs_path)
             return cls(ani_provider, state_info=val)
         except KeyError as e:
             msg = f"Failed to restore account data: {e}"
@@ -984,10 +990,16 @@ class AppleAccount(BaseAppleAccount):
 
     @classmethod
     @override
-    def from_json(cls, val: str | Path | AccountStateMapping, /) -> AppleAccount:
+    def from_json(
+        cls,
+        val: str | Path | AccountStateMapping,
+        /,
+        *,
+        anisette_libs_path: str | Path | None = None,
+    ) -> AppleAccount:
         val = read_data_json(val)
         try:
-            ani_provider = get_provider_from_mapping(val["anisette"])
+            ani_provider = get_provider_from_mapping(val["anisette"], libs_path=anisette_libs_path)
             return cls(ani_provider, state_info=val)
         except KeyError as e:
             msg = f"Failed to restore account data: {e}"

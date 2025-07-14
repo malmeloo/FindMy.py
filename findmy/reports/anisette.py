@@ -289,6 +289,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider):
                 "The Anisette engine will download libraries required for operation, "
                 "this may take a few seconds...",
             )
+        if libs_path is None:
             logger.info(
                 "To speed up future local Anisette initializations, "
                 "provide a filesystem path to load the libraries from.",
