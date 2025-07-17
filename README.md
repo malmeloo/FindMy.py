@@ -12,18 +12,13 @@
         Docs
       </a>
       <span> | </span>
-        <a href="examples/">
-          Examples
-        </a>
-      <span> | </span>
-        <a href="https://pypi.org/project/FindMy/">
-          PyPI
-        </a>
-      <span> | </span>
-      <a href="issues/">
-        Issue Tracker
+      <a href="examples/">
+        Examples
       </a>
-  </h5>
+      <span> | </span>
+      <a href="https://pypi.org/project/FindMy/">
+        PyPI
+      </a>
 </div>
 
 ## 🚀 Overview
