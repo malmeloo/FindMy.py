@@ -80,6 +80,9 @@ ignore = [
     "D",  # documentation
 ]
 
+[tool.setuptools]
+py-modules = ["findmy"]
+
 [build-system]
 requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
