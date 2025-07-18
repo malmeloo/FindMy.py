@@ -343,7 +343,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     _ENDPOINT_2FA_TD_SUBMIT = "https://gsa.apple.com/grandslam/GsService2/validate"
 
     # reports endpoints
-    _ENDPOINT_REPORTS_FETCH = "https://gateway.icloud.com/acsnservice/fetch"
+    _ENDPOINT_REPORTS_FETCH = "https://gateway.icloud.com/findmyservice/v2/fetch"
 
     def __init__(
         self,
@@ -593,13 +593,37 @@ class AsyncAppleAccount(BaseAppleAccount):
         return await self._login_mobileme()
 
     @require_login_state(LoginState.LOGGED_IN)
-    async def fetch_raw_reports(self, start: int, end: int, ids: list[str]) -> dict[str, Any]:
+    async def fetch_raw_reports(
+        self,
+        start: datetime,
+        end: datetime,
+        devices: list[list[str]],
+    ) -> dict[str, Any]:
         """Make a request for location reports, returning raw data."""
         auth = (
             self._login_state_data["dsid"],
             self._login_state_data["mobileme_data"]["tokens"]["searchPartyToken"],
         )
-        data = {"search": [{"startDate": start, "endDate": end, "ids": ids}]}
+        start_ts = int(start.timestamp() * 1000)
+        end_ts = int(end.timestamp() * 1000)
+        data = {
+            "clientContext": {
+                "clientBundleIdentifier": "com.apple.icloud.searchpartyuseragent",
+                "policy": "foregroundClient",
+            },
+            "fetch": [
+                {
+                    "ownedDeviceIds": [],
+                    "keyType": 1,
+                    "startDate": start_ts,
+                    "startDateSecondary": start_ts,
+                    "endDate": end_ts,
+                    # passing all keys as primary seems to work fine
+                    "primaryIds": device_keys,
+                }
+                for device_keys in devices
+            ],
+        }
 
         async def _do_request() -> HttpResponse:
             return await self._http.post(
@@ -629,11 +653,11 @@ class AsyncAppleAccount(BaseAppleAccount):
             resp = r.json()
         except json.JSONDecodeError:
             resp = {}
-        if not r.ok or resp.get("statusCode") != "200":
+        if not r.ok or resp.get("acsnLocations", {}).get("statusCode") != "200":
             msg = f"Failed to fetch reports: {resp.get('statusCode')}"
             raise UnhandledProtocolError(msg)
 
-        return resp
+        return resp["acsnLocations"]
 
     @overload
     async def fetch_reports(
