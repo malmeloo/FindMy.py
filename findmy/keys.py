@@ -7,12 +7,15 @@ import hashlib
 import secrets
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Generator, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Generic, TypeVar, overload
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from typing_extensions import override
 
 from .util import crypto, parsers
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 class KeyType(Enum):
@@ -72,24 +75,31 @@ class HasPublicKey(HasHashedPublicKey, ABC):
         return base64.b64encode(self.adv_key_bytes).decode("ascii")
 
     @property
-    def mac_address(self) -> str:
-        """Get the mac address from the public key."""
-        first_byte = (self.adv_key_bytes[0] | 0b11000000).to_bytes(1)
-        return ":".join([parsers.format_hex_byte(x) for x in first_byte + self.adv_key_bytes[1:6]])
-
-    @property
     @override
     def hashed_adv_key_bytes(self) -> bytes:
         """See `HasHashedPublicKey.hashed_adv_key_bytes`."""
         return hashlib.sha256(self.adv_key_bytes).digest()
 
-    def ble_advertisement(self, status: int = 0, hint: int = 0) -> bytes:
-        """Return BLE advertisement data that represents this key."""
+    @property
+    def mac_address(self) -> str:
+        """Get the mac address from the public key."""
+        first_byte = (self.adv_key_bytes[0] | 0b11000000).to_bytes(1)
+        return ":".join([parsers.format_hex_byte(x) for x in first_byte + self.adv_key_bytes[1:6]])
+
+    def adv_data(self, status: int = 0, hint: int = 0) -> bytes:
+        """Get the BLE advertisement data that should be broadcast to advertise this key."""
         return bytes(
             [
                 # apple company id
                 0x4C,
                 0x00,
+            ],
+        ) + self.of_data(status, hint)
+
+    def of_data(self, status: int = 0, hint: int = 0) -> bytes:
+        """Get the Offline Finding data that should be broadcast to advertise this key."""
+        return bytes(
+            [
                 # offline finding
                 0x12,
                 # offline finding data length
