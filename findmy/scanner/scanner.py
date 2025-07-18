@@ -30,13 +30,6 @@ class OfflineFindingDevice(ABC):
     OF_HEADER_SIZE = 2
     OF_TYPE = 0x12
 
-    @classmethod
-    @property
-    @abstractmethod
-    def payload_len(cls) -> int:
-        """Length of OfflineFinding data payload in bytes."""
-        raise NotImplementedError
-
     def __init__(
         self,
         mac_bytes: bytes,
@@ -105,7 +98,11 @@ class OfflineFindingDevice(ABC):
             return None
 
         device_type = next(
-            (dev for dev in cls.__subclasses__() if dev.payload_len == ble_payload[1]),
+            (
+                dev
+                for dev in _DEVICE_TYPES
+                if getattr(dev, "OF_PAYLOAD_LEN", None) == ble_payload[1]
+            ),
             None,
         )
         if device_type is None:
@@ -134,12 +131,7 @@ class OfflineFindingDevice(ABC):
 class NearbyOfflineFindingDevice(OfflineFindingDevice):
     """Offline-Finding device in nearby state."""
 
-    @classmethod
-    @property
-    @override
-    def payload_len(cls) -> int:
-        """Length of OfflineFinding data payload in bytes."""
-        return 0x02  # 2
+    OF_PAYLOAD_LEN = 0x02  # 2
 
     def __init__(
         self,
@@ -180,7 +172,7 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
         additional_data: dict[Any, Any] | None = None,
     ) -> NearbyOfflineFindingDevice | None:
         """Get a NearbyOfflineFindingDevice object from an OF message payload."""
-        if len(payload) != cls.payload_len:
+        if len(payload) != cls.OF_PAYLOAD_LEN:
             logger.error(
                 "Invalid OF data length: %s instead of %s",
                 len(payload),
@@ -208,12 +200,7 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
 class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
     """Offline-Finding device in separated state."""
 
-    @classmethod
-    @property
-    @override
-    def payload_len(cls) -> int:
-        """Length of OfflineFinding data in bytes."""
-        return 0x19  # 25
+    OF_PAYLOAD_LEN = 0x19  # 25
 
     def __init__(  # noqa: PLR0913
         self,
@@ -267,7 +254,7 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
         additional_data: dict[Any, Any] | None = None,
     ) -> SeparatedOfflineFindingDevice | None:
         """Get a SeparatedOfflineFindingDevice object from an OF message payload."""
-        if len(payload) != cls.payload_len:
+        if len(payload) != cls.OF_PAYLOAD_LEN:
             logger.error(
                 "Invalid OF data length: %s instead of %s",
                 len(payload),
@@ -304,6 +291,12 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
             f"OfflineFindingDevice({self.mac_address}, pubkey={self.adv_key_b64},"
             f" status={self.status}, hint={self.hint})"
         )
+
+
+_DEVICE_TYPES = {
+    NearbyOfflineFindingDevice,
+    SeparatedOfflineFindingDevice,
+}
 
 
 class OfflineFindingScanner:
