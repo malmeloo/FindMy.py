@@ -15,6 +15,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Literal,
     TypedDict,
     TypeVar,
     cast,
@@ -90,6 +91,8 @@ class _AccountStateMappingLoginState(TypedDict):
 
 class AccountStateMapping(TypedDict):
     """JSON mapping representing state of an Apple account instance."""
+
+    type: Literal["account"]
 
     ids: _AccountStateMappingIds
     account: _AccountStateMappingAccount
@@ -436,6 +439,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     @override
     def to_json(self, path: str | Path | None = None, /) -> AccountStateMapping:
         res: AccountStateMapping = {
+            "type": "account",
             "ids": {"uid": self._uid, "devid": self._devid},
             "account": {
                 "username": self._username,
@@ -461,6 +465,8 @@ class AsyncAppleAccount(BaseAppleAccount):
         anisette_libs_path: str | Path | None = None,
     ) -> AsyncAppleAccount:
         val = read_data_json(val)
+        assert val["type"] == "account"
+
         try:
             ani_provider = get_provider_from_mapping(val["anisette"], libs_path=anisette_libs_path)
             return cls(ani_provider, state_info=val)
