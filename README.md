@@ -1,18 +1,27 @@
-# FindMy.py
+<div align="center">
+  <img alt="FindMy.py Logo" src="assets/icon.png" width="500">
+  <h1>FindMy.py</h1>
+</div>
 
-[![](https://img.shields.io/pypi/v/FindMy)](https://pypi.org/project/FindMy/)
-[![](https://img.shields.io/pypi/dm/FindMy)](#)
-[![](https://img.shields.io/github/license/malmeloo/FindMy.py)](LICENSE.md)
-[![](https://img.shields.io/pypi/pyversions/FindMy)](#)
+<div align="center">
 
-<details>
-  <summary>Star History</summary>
-  <a href="https://news.ycombinator.com/item?id=42479233"><img src="https://api.star-history.com/svg?repos=malmeloo/FindMy.py&type=Date" /></a>
-</details>
+  _Query Apple's FindMy network with Python!_
 
-The all-in-one library that provides everything you need
-to query Apple's FindMy network!
+  <h5>
+      <a href="https://docs.mikealmel.ooo/FindMy.py">
+        Docs
+      </a>
+      <span> | </span>
+      <a href="examples/">
+        Examples
+      </a>
+      <span> | </span>
+      <a href="https://pypi.org/project/FindMy/">
+        PyPI
+      </a>
+</div>
 
+## 🚀 Overview
 The current "Find My-scene" is quite fragmented, with code
 being all over the place across multiple repositories,
 written by [several authors](#Credits). This project aims to
@@ -27,7 +36,7 @@ application wishing to integrate with the Find My network.
 > You are encouraged to report any issues you can find on the
 > [issue tracker](https://github.com/malmeloo/FindMy.py/issues/)!
 
-### Features
+## 🧪 Features
 
 - [x] Cross-platform: no Mac needed
 - [x] Fetch and decrypt location reports
@@ -41,12 +50,7 @@ application wishing to integrate with the Find My network.
 - [x] Import or create your own accessory keys
 - [x] Both async and sync APIs
 
-### Roadmap
-
-- [ ] Local anisette generation (without server)
-    - More information: [#2](https://github.com/malmeloo/FindMy.py/issues/2)
-
-## Installation
+## 📥 Installation
 
 The package can be installed from [PyPi](https://pypi.org/project/findmy/):
 
@@ -58,7 +62,7 @@ For usage examples, see the [examples](examples) directory.
 We are also building out a CLI. Try `python -m findmy` to see the current state of it.
 Documentation can be found [here](http://docs.mikealmel.ooo/FindMy.py/).
 
-## Contributing
+## 🤝 Contributing
 
 Want to contribute code? That's great! For new features, please open an
 [issue](https://github.com/malmeloo/FindMy.py/issues) first so we can discuss.
@@ -76,7 +80,7 @@ pre-commit install
 After following the above steps, your code will be linted and formatted automatically
 before committing it.
 
-## Derivative projects
+## 🧠 Derivative projects
 
 There are several other cool projects based on this library! Some of them have been listed below, make sure to check them out as well.
 
@@ -87,7 +91,7 @@ There are several other cool projects based on this library! Some of them have b
 * [OpenTagViewer](https://github.com/parawanderer/OpenTagViewer) - Android App to locate your AirTags.
 * [Find My Dad](https://github.com/NickCrews/findmydad) - Geofencing application for AirTags using Google Sheets and SMS.
 
-## Credits
+## 🏅 Credits
 
 While I designed the library, the vast majority of actual functionality
 is made possible by the following wonderful people and organizations:

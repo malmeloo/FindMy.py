@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import asyncio
 import logging
+import sys
 
 from findmy import KeyPair
 from findmy.scanner import (
@@ -9,11 +12,6 @@ from findmy.scanner import (
 )
 
 logging.basicConfig(level=logging.INFO)
-
-# Set if you want to check whether a specific key (or accessory!) is in the scan results.
-# Make sure to enter its private key!
-# Leave empty (= None) to not check.
-CHECK_KEY = KeyPair.from_b64("")
 
 
 def _print_nearby(device: NearbyOfflineFindingDevice) -> None:
@@ -37,7 +35,7 @@ def _print_separated(device: SeparatedOfflineFindingDevice) -> None:
     print()
 
 
-async def scan() -> None:
+async def scan(check_key: KeyPair | None = None) -> None:
     scanner = await OfflineFindingScanner.create()
 
     print("Scanning for FindMy-devices...")
@@ -55,14 +53,18 @@ async def scan() -> None:
             print()
             continue
 
-        if CHECK_KEY and device.is_from(CHECK_KEY):
+        if check_key and device.is_from(check_key):
             scan_device = device
 
     if scan_device:
         print("Key or accessory was found in scan results! :D")
-    elif CHECK_KEY:
+    elif check_key:
         print("Selected key or accessory was not found in scan results... :c")
 
 
 if __name__ == "__main__":
-    asyncio.run(scan())
+    key = None
+    if len(sys.argv) >= 2:
+        key = KeyPair.from_b64(sys.argv[1])
+
+    asyncio.run(scan(key))
