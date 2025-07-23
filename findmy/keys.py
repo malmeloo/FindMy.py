@@ -7,15 +7,19 @@ import hashlib
 import secrets
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Generic, Literal, TypedDict, TypeVar, overload
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from typing_extensions import override
+
+from findmy.util.abc import Serializable
+from findmy.util.files import read_data_json, save_and_return_json
 
 from .util import crypto, parsers
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from pathlib import Path
 
 
 class KeyType(Enum):
@@ -24,6 +28,16 @@ class KeyType(Enum):
     UNKNOWN = 0
     PRIMARY = 1
     SECONDARY = 2
+
+
+class KeyPairMapping(TypedDict):
+    """JSON mapping representing a KeyPair."""
+
+    type: Literal["keypair"]
+
+    private_key: str
+    key_type: int
+    name: str | None
 
 
 class HasHashedPublicKey(ABC):
@@ -113,7 +127,7 @@ class HasPublicKey(HasHashedPublicKey, ABC):
         )
 
 
-class KeyPair(HasPublicKey):
+class KeyPair(HasPublicKey, Serializable):
     """A private-public keypair for a trackable FindMy accessory."""
 
     def __init__(
@@ -181,6 +195,34 @@ class KeyPair(HasPublicKey):
         """Return the advertised (public) key as bytes."""
         key_bytes = self._priv_key.public_key().public_numbers().x
         return int.to_bytes(key_bytes, 28, "big")
+
+    @override
+    def to_json(self, dst: str | Path | None = None, /) -> KeyPairMapping:
+        return save_and_return_json(
+            {
+                "type": "keypair",
+                "private_key": base64.b64encode(self.private_key_bytes).decode("ascii"),
+                "key_type": self._key_type.value,
+                "name": self.name,
+            },
+            dst,
+        )
+
+    @classmethod
+    @override
+    def from_json(cls, val: str | Path | KeyPairMapping, /) -> KeyPair:
+        val = read_data_json(val)
+        assert val["type"] == "keypair"
+
+        try:
+            return cls(
+                private_key=base64.b64decode(val["private_key"]),
+                key_type=KeyType(val["key_type"]),
+                name=val["name"],
+            )
+        except KeyError as e:
+            msg = f"Failed to restore KeyPair data: {e}"
+            raise ValueError(msg) from None
 
     def dh_exchange(self, other_pub_key: ec.EllipticCurvePublicKey) -> bytes:
         """Do a Diffie-Hellman key exchange using another EC public key."""
