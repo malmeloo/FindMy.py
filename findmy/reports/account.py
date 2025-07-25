@@ -375,6 +375,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         self._http: HttpSession = HttpSession()
         self._reports: LocationReportsFetcher = LocationReportsFetcher(self)
+        self._closed: bool = False
 
     def _set_login_state(
         self,
@@ -473,8 +474,21 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         Should be called when the object will no longer be used.
         """
-        await self._anisette.close()
-        await self._http.close()
+        if self._closed:
+            return  # Already closed, make it idempotent
+
+        self._closed = True
+
+        # Close in proper order: anisette first, then HTTP session
+        try:
+            await self._anisette.close()
+        except (RuntimeError, OSError, ConnectionError) as e:
+            logger.warning("Error closing anisette provider: %s", e)
+
+        try:
+            await self._http.close()
+        except (RuntimeError, OSError, ConnectionError) as e:
+            logger.warning("Error closing HTTP session: %s", e)
 
     @require_login_state(LoginState.LOGGED_OUT)
     @override

@@ -75,8 +75,13 @@ class HttpSession(Closable):
         super().__init__()
 
         self._session: ClientSession | None = None
+        self._closed: bool = False
 
     async def _get_session(self) -> ClientSession:
+        if self._closed:
+            msg = "HttpSession has been closed and cannot be used"
+            raise RuntimeError(msg)
+
         if self._session is not None:
             return self._session
 
@@ -87,10 +92,19 @@ class HttpSession(Closable):
     @override
     async def close(self) -> None:
         """Close the underlying session. Should be called when session will no longer be used."""
+        if self._closed:
+            return  # Already closed, make it idempotent
+
+        self._closed = True
+
         if self._session is not None:
             logger.debug("Closing aiohttp session")
-            await self._session.close()
-            self._session = None
+            try:
+                await self._session.close()
+            except (RuntimeError, OSError, ConnectionError) as e:
+                logger.warning("Error closing aiohttp session: %s", e)
+            finally:
+                self._session = None
 
     async def request(
         self,

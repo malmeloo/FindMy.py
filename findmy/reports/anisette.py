@@ -171,6 +171,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
 
         self._anisette_data: dict[str, str] | None = None
         self._anisette_data_expires_at: float = 0
+        self._closed = False
 
     @override
     def serialize(self) -> dict:
@@ -217,6 +218,10 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         with_client_info: bool = False,
     ) -> dict[str, str]:
         """See `BaseAnisetteProvider.get_headers`_."""
+        if self._closed:
+            msg = "RemoteAnisetteProvider has been closed and cannot be used"
+            raise RuntimeError(msg)
+
         if self._anisette_data is None or time.time() >= self._anisette_data_expires_at:
             logger.info("Fetching anisette data from %s", self._server_url)
 
@@ -229,7 +234,15 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
     @override
     async def close(self) -> None:
         """See `AnisetteProvider.close`."""
-        await self._http.close()
+        if self._closed:
+            return  # Already closed, make it idempotent
+
+        self._closed = True
+
+        try:
+            await self._http.close()
+        except (RuntimeError, OSError, ConnectionError) as e:
+            logger.warning("Error closing anisette HTTP session: %s", e)
 
 
 class LocalAnisetteProvider(BaseAnisetteProvider):
