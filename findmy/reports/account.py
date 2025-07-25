@@ -482,12 +482,12 @@ class AsyncAppleAccount(BaseAppleAccount):
         # Close in proper order: anisette first, then HTTP session
         try:
             await self._anisette.close()
-        except Exception as e:
+        except (RuntimeError, OSError, ConnectionError) as e:
             logger.warning("Error closing anisette provider: %s", e)
 
         try:
             await self._http.close()
-        except Exception as e:
+        except (RuntimeError, OSError, ConnectionError) as e:
             logger.warning("Error closing HTTP session: %s", e)
 
     @require_login_state(LoginState.LOGGED_OUT)
