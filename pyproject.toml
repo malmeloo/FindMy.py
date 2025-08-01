@@ -33,7 +33,7 @@ test = [
     "pytest>=8.3.2,<9.0.0",
 ]
 docs = [
-    "sphinx>=7.2.6,<8.0.0",
+    "sphinx>=8.2.3,<8.3.0",
     "sphinx-autoapi==3.6.0",
 ]
 
