@@ -18,6 +18,9 @@ dependencies = [
     "anisette>=1.2.1,<2.0.0",
 ]
 
+[tool.uv.dependency-groups.docs]
+requires-python = ">=3.11"
+
 [dependency-groups]
 dev = [
     "pre-commit>=4.0.0,<5.0.0",
