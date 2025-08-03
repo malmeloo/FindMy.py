@@ -24,17 +24,24 @@ logging.basicConfig(level=logging.INFO)
 
 
 def fetch_reports(priv_key: str) -> int:
-    key = KeyPair.from_b64(priv_key)
+    # Step 0: construct an account instance
+    # We use a helper for this to simplify interactive authentication
     acc = get_account_sync(STORE_PATH, ANISETTE_SERVER, ANISETTE_LIBS_PATH)
 
     print(f"Logged in as: {acc.account_name} ({acc.first_name} {acc.last_name})")
 
-    # It's that simple!
+    # Step 1: construct a key object and get its location reports
+    key = KeyPair.from_b64(priv_key)
     reports = acc.fetch_last_reports(key)
+
+    # Step 2: print the reports!
     for report in sorted(reports):
         print(report)
 
-    # Make sure to save account state when you're done!
+        # We can save the report to a file if we want
+        report.to_json("last_report.json")
+
+    # Step 3: Make sure to save account state when you're done!
     acc.to_json(STORE_PATH)
 
     return 0

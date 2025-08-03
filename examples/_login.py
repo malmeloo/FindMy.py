@@ -1,4 +1,3 @@
-# ruff: noqa: ASYNC230
 from __future__ import annotations
 
 from findmy.reports import (
