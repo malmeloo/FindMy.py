@@ -141,7 +141,7 @@ def _extract_phone_numbers(html: str) -> list[dict]:
     return data.get("direct", {}).get("phoneNumberVerification", {}).get("trustedPhoneNumbers", [])
 
 
-class BaseAppleAccount(Closable, Serializable, ABC):
+class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
     """Base class for an Apple account."""
 
     @property

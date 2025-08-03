@@ -127,7 +127,7 @@ class HasPublicKey(HasHashedPublicKey, ABC):
         )
 
 
-class KeyPair(HasPublicKey, Serializable):
+class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
     """A private-public keypair for a trackable FindMy accessory."""
 
     def __init__(

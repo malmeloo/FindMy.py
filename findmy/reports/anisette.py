@@ -188,7 +188,7 @@ class BaseAnisetteProvider(Closable, Serializable, ABC):
         return cpd
 
 
-class RemoteAnisetteProvider(BaseAnisetteProvider):
+class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMapping]):
     """Anisette provider. Fetches headers from a remote Anisette server."""
 
     _ANISETTE_DATA_VALID_FOR = 30
@@ -269,7 +269,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         await self._http.close()
 
 
-class LocalAnisetteProvider(BaseAnisetteProvider):
+class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapping]):
     """Anisette provider. Generates headers without a remote server using the `anisette` library."""
 
     def __init__(

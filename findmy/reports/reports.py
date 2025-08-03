@@ -51,7 +51,7 @@ class LocationReportDecryptedMapping(TypedDict):
 LocationReportMapping = Union[LocationReportEncryptedMapping, LocationReportDecryptedMapping]
 
 
-class LocationReport(HasHashedPublicKey, Serializable):
+class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
     """Location report corresponding to a certain `HasHashedPublicKey`."""
 
     def __init__(

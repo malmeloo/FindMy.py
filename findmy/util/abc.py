@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Generic, Self, TypeVar
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class Closable(ABC):
@@ -42,14 +43,14 @@ class Closable(ABC):
             pass
 
 
-T = TypeVar("T", bound=dict)
+_T = TypeVar("_T", bound=Mapping)
 
 
-class Serializable(Generic[T], ABC):
+class Serializable(Generic[_T], ABC):
     """ABC for serializable classes."""
 
     @abstractmethod
-    def to_json(self, dst: str | Path | None = None, /) -> T:
+    def to_json(self, dst: str | Path | None = None, /) -> _T:
         """
         Export the current state of the object as a JSON-serializable dictionary.
 
@@ -66,7 +67,7 @@ class Serializable(Generic[T], ABC):
 
     @classmethod
     @abstractmethod
-    def from_json(cls, val: str | Path | T, /) -> Self:
+    def from_json(cls, val: str | Path | _T, /) -> Self:
         """
         Restore state from a previous `Closable.to_json` export.
 

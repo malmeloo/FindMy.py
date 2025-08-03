@@ -82,7 +82,7 @@ class RollingKeyPairSource(ABC):
         return keys
 
 
-class FindMyAccessory(RollingKeyPairSource, Serializable):
+class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]):
     """A findable Find My-accessory using official key rollover."""
 
     def __init__(  # noqa: PLR0913
