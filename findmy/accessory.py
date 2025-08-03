@@ -6,23 +6,38 @@ Accessories could be anything ranging from AirTags to iPhones.
 
 from __future__ import annotations
 
-import json
 import logging
 import plistlib
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, overload
+from typing import IO, TYPE_CHECKING, Literal, TypedDict, overload
 
 from typing_extensions import override
+
+from findmy.util.abc import Serializable
+from findmy.util.files import read_data_json, save_and_return_json
 
 from .keys import KeyGenerator, KeyPair, KeyType
 from .util import crypto
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Mapping
+    from collections.abc import Generator
 
 logger = logging.getLogger(__name__)
+
+
+class FindMyAccessoryMapping(TypedDict):
+    """JSON mapping representing state of a FindMyAccessory instance."""
+
+    type: Literal["accessory"]
+    master_key: str
+    skn: str
+    sks: str
+    paired_at: str
+    name: str | None
+    model: str | None
+    identifier: str | None
 
 
 class RollingKeyPairSource(ABC):
@@ -67,7 +82,7 @@ class RollingKeyPairSource(ABC):
         return keys
 
 
-class FindMyAccessory(RollingKeyPairSource):
+class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]):
     """A findable Find My-accessory using official key rollover."""
 
     def __init__(  # noqa: PLR0913
@@ -242,9 +257,10 @@ class FindMyAccessory(RollingKeyPairSource):
             identifier=identifier,
         )
 
-    def to_json(self, path: str | Path | None = None) -> dict[str, str | int | None]:
-        """Convert the accessory to a JSON-serializable dictionary."""
-        d = {
+    @override
+    def to_json(self, path: str | Path | None = None, /) -> FindMyAccessoryMapping:
+        res: FindMyAccessoryMapping = {
+            "type": "accessory",
             "master_key": self._primary_gen.master_key.hex(),
             "skn": self.skn.hex(),
             "sks": self.sks.hex(),
@@ -253,23 +269,32 @@ class FindMyAccessory(RollingKeyPairSource):
             "model": self.model,
             "identifier": self.identifier,
         }
-        if path is not None:
-            Path(path).write_text(json.dumps(d, indent=4))
-        return d
+
+        return save_and_return_json(res, path)
 
     @classmethod
-    def from_json(cls, json_: str | Path | Mapping, /) -> FindMyAccessory:
-        """Create a FindMyAccessory from a JSON file."""
-        data = json.loads(Path(json_).read_text()) if isinstance(json_, (str, Path)) else json_
-        return cls(
-            master_key=bytes.fromhex(data["master_key"]),
-            skn=bytes.fromhex(data["skn"]),
-            sks=bytes.fromhex(data["sks"]),
-            paired_at=datetime.fromisoformat(data["paired_at"]),
-            name=data["name"],
-            model=data["model"],
-            identifier=data["identifier"],
-        )
+    @override
+    def from_json(
+        cls,
+        val: str | Path | FindMyAccessoryMapping,
+        /,
+    ) -> FindMyAccessory:
+        val = read_data_json(val)
+        assert val["type"] == "accessory"
+
+        try:
+            return cls(
+                master_key=bytes.fromhex(val["master_key"]),
+                skn=bytes.fromhex(val["skn"]),
+                sks=bytes.fromhex(val["sks"]),
+                paired_at=datetime.fromisoformat(val["paired_at"]),
+                name=val["name"],
+                model=val["model"],
+                identifier=val["identifier"],
+            )
+        except KeyError as e:
+            msg = f"Failed to restore account data: {e}"
+            raise ValueError(msg) from None
 
 
 class AccessoryKeyGenerator(KeyGenerator[KeyPair]):

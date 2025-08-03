@@ -11,11 +11,11 @@ import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from functools import wraps
-from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
+    Literal,
     TypedDict,
     TypeVar,
     cast,
@@ -32,8 +32,10 @@ from findmy.errors import (
     UnauthorizedError,
     UnhandledProtocolError,
 )
+from findmy.reports.anisette import AnisetteMapping, get_provider_from_mapping
 from findmy.util import crypto
-from findmy.util.abc import Closable
+from findmy.util.abc import Closable, Serializable
+from findmy.util.files import read_data_json, save_and_return_json
 from findmy.util.http import HttpResponse, HttpSession, decode_plist
 
 from .reports import LocationReport, LocationReportsFetcher
@@ -49,7 +51,8 @@ from .twofactor import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Sequence
+    from pathlib import Path
 
     from findmy.accessory import RollingKeyPairSource
     from findmy.keys import HasHashedPublicKey
@@ -68,6 +71,33 @@ class _AccountInfo(TypedDict):
     first_name: str
     last_name: str
     trusted_device_2fa: bool
+
+
+class _AccountStateMappingIds(TypedDict):
+    uid: str
+    devid: str
+
+
+class _AccountStateMappingAccount(TypedDict):
+    username: str | None
+    password: str | None
+    info: _AccountInfo | None
+
+
+class _AccountStateMappingLoginState(TypedDict):
+    state: int
+    data: dict  # TODO: make typed  # noqa: TD002, TD003
+
+
+class AccountStateMapping(TypedDict):
+    """JSON mapping representing state of an Apple account instance."""
+
+    type: Literal["account"]
+
+    ids: _AccountStateMappingIds
+    account: _AccountStateMappingAccount
+    login: _AccountStateMappingLoginState
+    anisette: AnisetteMapping
 
 
 _P = ParamSpec("_P")
@@ -111,7 +141,7 @@ def _extract_phone_numbers(html: str) -> list[dict]:
     return data.get("direct", {}).get("phoneNumberVerification", {}).get("trustedPhoneNumbers", [])
 
 
-class BaseAppleAccount(Closable, ABC):
+class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
     """Base class for an Apple account."""
 
     @property
@@ -148,33 +178,6 @@ class BaseAppleAccount(Closable, ABC):
         Last name of the account holder as reported by Apple.
 
         May be None in some cases, such as when not logged in.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def to_json(self, path: str | Path | None = None) -> dict:
-        """
-        Export the current state of the account as a JSON-serializable dictionary.
-
-        If `path` is provided, the output will also be written to that file.
-
-        The output of this method is guaranteed to be JSON-serializable, and passing
-        the return value of this function as an argument to `BaseAppleAccount.from_json`
-        will always result in an exact copy of the internal state as it was when exported.
-
-        This method is especially useful to avoid having to keep going through the login flow.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def from_json(self, json_: str | Path | Mapping, /) -> None:
-        """
-        Restore the state from a previous `BaseAppleAccount.to_json` export.
-
-        If given a str or Path, it must point to a json file from `BaseAppleAccount.to_json`.
-        Otherwise it should be the Mapping itself.
-
-        See `BaseAppleAccount.to_json` for more information.
         """
         raise NotImplementedError
 
@@ -347,31 +350,33 @@ class AsyncAppleAccount(BaseAppleAccount):
 
     def __init__(
         self,
-        *,
         anisette: BaseAnisetteProvider,
-        user_id: str | None = None,
-        device_id: str | None = None,
+        *,
+        state_info: AccountStateMapping | None = None,
     ) -> None:
         """
         Initialize the apple account.
 
         :param anisette: An instance of `AsyncAnisetteProvider`.
-        :param user_id: An optional user ID to use. Will be auto-generated if missing.
-        :param device_id: An optional device ID to use. Will be auto-generated if missing.
         """
         super().__init__()
 
         self._anisette: BaseAnisetteProvider = anisette
-        self._uid: str = user_id or str(uuid.uuid4())
-        self._devid: str = device_id or str(uuid.uuid4())
+        self._uid: str = state_info["ids"]["uid"] if state_info else str(uuid.uuid4())
+        self._devid: str = state_info["ids"]["devid"] if state_info else str(uuid.uuid4())
 
-        self._username: str | None = None
-        self._password: str | None = None
+        # TODO: combine, user/pass should be "all or nothing"  # noqa: TD002, TD003
+        self._username: str | None = state_info["account"]["username"] if state_info else None
+        self._password: str | None = state_info["account"]["password"] if state_info else None
 
-        self._login_state: LoginState = LoginState.LOGGED_OUT
-        self._login_state_data: dict = {}
+        self._login_state: LoginState = (
+            LoginState(state_info["login"]["state"]) if state_info else LoginState.LOGGED_OUT
+        )
+        self._login_state_data: dict = state_info["login"]["data"] if state_info else {}
 
-        self._account_info: _AccountInfo | None = None
+        self._account_info: _AccountInfo | None = (
+            state_info["account"]["info"] if state_info else None
+        )
 
         self._http: HttpSession = HttpSession()
         self._reports: LocationReportsFetcher = LocationReportsFetcher(self)
@@ -433,36 +438,39 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._account_info["last_name"] if self._account_info else None
 
     @override
-    def to_json(self, path: str | Path | None = None) -> dict:
-        result = {
+    def to_json(self, path: str | Path | None = None, /) -> AccountStateMapping:
+        res: AccountStateMapping = {
+            "type": "account",
             "ids": {"uid": self._uid, "devid": self._devid},
             "account": {
                 "username": self._username,
                 "password": self._password,
                 "info": self._account_info,
             },
-            "login_state": {
+            "login": {
                 "state": self._login_state.value,
                 "data": self._login_state_data,
             },
+            "anisette": self._anisette.to_json(),
         }
-        if path is not None:
-            Path(path).write_text(json.dumps(result, indent=4))
-        return result
 
+        return save_and_return_json(res, path)
+
+    @classmethod
     @override
-    def from_json(self, json_: str | Path | Mapping, /) -> None:
-        data = json.loads(Path(json_).read_text()) if isinstance(json_, (str, Path)) else json_
+    def from_json(
+        cls,
+        val: str | Path | AccountStateMapping,
+        /,
+        *,
+        anisette_libs_path: str | Path | None = None,
+    ) -> AsyncAppleAccount:
+        val = read_data_json(val)
+        assert val["type"] == "account"
+
         try:
-            self._uid = data["ids"]["uid"]
-            self._devid = data["ids"]["devid"]
-
-            self._username = data["account"]["username"]
-            self._password = data["account"]["password"]
-            self._account_info = data["account"]["info"]
-
-            self._login_state = LoginState(data["login_state"]["state"])
-            self._login_state_data = data["login_state"]["data"]
+            ani_provider = get_provider_from_mapping(val["anisette"], libs_path=anisette_libs_path)
+            return cls(ani_provider, state_info=val)
         except KeyError as e:
             msg = f"Failed to restore account data: {e}"
             raise ValueError(msg) from None
@@ -976,13 +984,12 @@ class AppleAccount(BaseAppleAccount):
 
     def __init__(
         self,
-        *,
         anisette: BaseAnisetteProvider,
-        user_id: str | None = None,
-        device_id: str | None = None,
+        *,
+        state_info: AccountStateMapping | None = None,
     ) -> None:
         """See `AsyncAppleAccount.__init__`."""
-        self._asyncacc = AsyncAppleAccount(anisette=anisette, user_id=user_id, device_id=device_id)
+        self._asyncacc = AsyncAppleAccount(anisette=anisette, state_info=state_info)
 
         try:
             self._evt_loop = asyncio.get_running_loop()
@@ -1022,12 +1029,25 @@ class AppleAccount(BaseAppleAccount):
         return self._asyncacc.last_name
 
     @override
-    def to_json(self, path: str | Path | None = None) -> dict:
-        return self._asyncacc.to_json(path)
+    def to_json(self, dst: str | Path | None = None, /) -> AccountStateMapping:
+        return self._asyncacc.to_json(dst)
 
+    @classmethod
     @override
-    def from_json(self, json_: str | Path | Mapping, /) -> None:
-        return self._asyncacc.from_json(json_)
+    def from_json(
+        cls,
+        val: str | Path | AccountStateMapping,
+        /,
+        *,
+        anisette_libs_path: str | Path | None = None,
+    ) -> AppleAccount:
+        val = read_data_json(val)
+        try:
+            ani_provider = get_provider_from_mapping(val["anisette"], libs_path=anisette_libs_path)
+            return cls(ani_provider, state_info=val)
+        except KeyError as e:
+            msg = f"Failed to restore account data: {e}"
+            raise ValueError(msg) from None
 
     @override
     def login(self, username: str, password: str) -> LoginState:
