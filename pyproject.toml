@@ -61,6 +61,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"docs/*" = [
+    "INP001", # implicit namespaces
+]
 "examples/*" = [
     "T201",   # use of "print"
     "S101",   # use of "assert"
@@ -70,6 +73,10 @@ ignore = [
 "scripts/*" = [
     "T201", # use of "print"
     "D",    # documentation
+]
+"tests/*" = [
+    "INP001",  # implicit namespaces
+    "PLC0415", # import not on top of file
 ]
 
 [tool.setuptools]

@@ -1,8 +1,11 @@
+"""Key generation tests."""
+
 import pytest
 
 
-@pytest.mark.parametrize('execution_number', range(100))
-def test_import(execution_number):
+@pytest.mark.parametrize("execution_number", range(100))
+def test_keypair(execution_number: int) -> None:  # noqa: ARG001
+    """Test generation of new keypairs."""
     import findmy
 
     kp = findmy.KeyPair.new()
