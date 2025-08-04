@@ -7,12 +7,19 @@ import hashlib
 import secrets
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Generator, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Generic, Literal, TypedDict, TypeVar, overload
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from typing_extensions import override
 
-from .util import crypto
+from findmy.util.abc import Serializable
+from findmy.util.files import read_data_json, save_and_return_json
+
+from .util import crypto, parsers
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+    from pathlib import Path
 
 
 class KeyType(Enum):
@@ -21,6 +28,16 @@ class KeyType(Enum):
     UNKNOWN = 0
     PRIMARY = 1
     SECONDARY = 2
+
+
+class KeyPairMapping(TypedDict):
+    """JSON mapping representing a KeyPair."""
+
+    type: Literal["keypair"]
+
+    private_key: str
+    key_type: int
+    name: str | None
 
 
 class HasHashedPublicKey(ABC):
@@ -77,11 +94,48 @@ class HasPublicKey(HasHashedPublicKey, ABC):
         """See `HasHashedPublicKey.hashed_adv_key_bytes`."""
         return hashlib.sha256(self.adv_key_bytes).digest()
 
+    @property
+    def mac_address(self) -> str:
+        """Get the mac address from the public key."""
+        first_byte = (self.adv_key_bytes[0] | 0b11000000).to_bytes(1)
+        return ":".join([parsers.format_hex_byte(x) for x in first_byte + self.adv_key_bytes[1:6]])
 
-class KeyPair(HasPublicKey):
+    def adv_data(self, status: int = 0, hint: int = 0) -> bytes:
+        """Get the BLE advertisement data that should be broadcast to advertise this key."""
+        return bytes(
+            [
+                # apple company id
+                0x4C,
+                0x00,
+            ],
+        ) + self.of_data(status, hint)
+
+    def of_data(self, status: int = 0, hint: int = 0) -> bytes:
+        """Get the Offline Finding data that should be broadcast to advertise this key."""
+        return bytes(
+            [
+                # offline finding
+                0x12,
+                # offline finding data length
+                25,
+                status,
+                # remaining public key bytes
+                *self.adv_key_bytes[6:],
+                self.adv_key_bytes[0] >> 6,
+                hint,
+            ],
+        )
+
+
+class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
     """A private-public keypair for a trackable FindMy accessory."""
 
-    def __init__(self, private_key: bytes, key_type: KeyType = KeyType.UNKNOWN) -> None:
+    def __init__(
+        self,
+        private_key: bytes,
+        key_type: KeyType = KeyType.UNKNOWN,
+        name: str | None = None,
+    ) -> None:
         """Initialize the `KeyPair` with the private key bytes."""
         priv_int = crypto.bytes_to_int(private_key)
         self._priv_key = ec.derive_private_key(
@@ -90,11 +144,21 @@ class KeyPair(HasPublicKey):
         )
 
         self._key_type = key_type
+        self._name = name
 
     @property
     def key_type(self) -> KeyType:
         """Type of this key."""
         return self._key_type
+
+    @property
+    def name(self) -> str | None:
+        """Name of this KeyPair."""
+        return self._name
+
+    @name.setter
+    def name(self, name: str | None) -> None:
+        self._name = name
 
     @classmethod
     def new(cls) -> KeyPair:
@@ -132,13 +196,41 @@ class KeyPair(HasPublicKey):
         key_bytes = self._priv_key.public_key().public_numbers().x
         return int.to_bytes(key_bytes, 28, "big")
 
+    @override
+    def to_json(self, dst: str | Path | None = None, /) -> KeyPairMapping:
+        return save_and_return_json(
+            {
+                "type": "keypair",
+                "private_key": base64.b64encode(self.private_key_bytes).decode("ascii"),
+                "key_type": self._key_type.value,
+                "name": self.name,
+            },
+            dst,
+        )
+
+    @classmethod
+    @override
+    def from_json(cls, val: str | Path | KeyPairMapping, /) -> KeyPair:
+        val = read_data_json(val)
+        assert val["type"] == "keypair"
+
+        try:
+            return cls(
+                private_key=base64.b64decode(val["private_key"]),
+                key_type=KeyType(val["key_type"]),
+                name=val["name"],
+            )
+        except KeyError as e:
+            msg = f"Failed to restore KeyPair data: {e}"
+            raise ValueError(msg) from None
+
     def dh_exchange(self, other_pub_key: ec.EllipticCurvePublicKey) -> bytes:
         """Do a Diffie-Hellman key exchange using another EC public key."""
         return self._priv_key.exchange(ec.ECDH(), other_pub_key)
 
     @override
     def __repr__(self) -> str:
-        return f'KeyPair(public_key="{self.adv_key_b64}", type={self.key_type})'
+        return f'KeyPair(name="{self.name}", public_key="{self.adv_key_b64}", type={self.key_type})'
 
 
 K = TypeVar("K")

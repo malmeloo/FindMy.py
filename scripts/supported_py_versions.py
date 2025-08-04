@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import json
+from collections.abc import Generator
 from itertools import count
 from pathlib import Path
-from typing import Generator
 
 import tomli
 from packaging.specifiers import SpecifierSet
@@ -15,7 +15,7 @@ def get_python_versions() -> Generator[str, None, None]:
     with Path("pyproject.toml").open("rb") as f:
         pyproject_data = tomli.load(f)
 
-    specifier = SpecifierSet(pyproject_data["tool"]["poetry"]["dependencies"]["python"])
+    specifier = SpecifierSet(pyproject_data["project"]["requires-python"])
 
     below_spec = True
     for v_minor in count():

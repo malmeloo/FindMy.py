@@ -10,14 +10,34 @@ import logging
 import plistlib
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from typing import IO, Generator, overload
+from pathlib import Path
+from typing import IO, TYPE_CHECKING, Literal, TypedDict, overload
 
 from typing_extensions import override
+
+from findmy.util.abc import Serializable
+from findmy.util.files import read_data_json, save_and_return_json
 
 from .keys import KeyGenerator, KeyPair, KeyType
 from .util import crypto
 
-logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+logger = logging.getLogger(__name__)
+
+
+class FindMyAccessoryMapping(TypedDict):
+    """JSON mapping representing state of a FindMyAccessory instance."""
+
+    type: Literal["accessory"]
+    master_key: str
+    skn: str
+    sks: str
+    paired_at: str
+    name: str | None
+    model: str | None
+    identifier: str | None
 
 
 class RollingKeyPairSource(ABC):
@@ -62,16 +82,19 @@ class RollingKeyPairSource(ABC):
         return keys
 
 
-class FindMyAccessory(RollingKeyPairSource):
+class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]):
     """A findable Find My-accessory using official key rollover."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
+        *,
         master_key: bytes,
         skn: bytes,
         sks: bytes,
         paired_at: datetime,
         name: str | None = None,
+        model: str | None = None,
+        identifier: str | None = None,
     ) -> None:
         """
         Initialize a FindMyAccessory. These values are usually obtained during pairing.
@@ -85,12 +108,53 @@ class FindMyAccessory(RollingKeyPairSource):
         self._paired_at: datetime = paired_at
         if self._paired_at.tzinfo is None:
             self._paired_at = self._paired_at.astimezone()
-            logging.warning(
+            logger.warning(
                 "Pairing datetime is timezone-naive. Assuming system tz: %s.",
                 self._paired_at.tzname(),
             )
 
         self._name = name
+        self._model = model
+        self._identifier = identifier
+
+    @property
+    def master_key(self) -> bytes:
+        """The private master key."""
+        return self._primary_gen.master_key
+
+    @property
+    def skn(self) -> bytes:
+        """The SKN for the primary key."""
+        return self._primary_gen.initial_sk
+
+    @property
+    def sks(self) -> bytes:
+        """The SKS for the secondary key."""
+        return self._secondary_gen.initial_sk
+
+    @property
+    def paired_at(self) -> datetime:
+        """Date and time at which this accessory was paired with an Apple account."""
+        return self._paired_at
+
+    @property
+    def name(self) -> str | None:
+        """Name of this accessory."""
+        return self._name
+
+    @name.setter
+    def name(self, name: str | None) -> None:
+        self._name = name
+
+    @property
+    def model(self) -> str | None:
+        """Model string of this accessory, as provided by the manufacturer."""
+        return self._model
+
+    @property
+    def identifier(self) -> str | None:
+        """Internal identifier of this accessory."""
+        return self._identifier
 
     @property
     @override
@@ -146,9 +210,22 @@ class FindMyAccessory(RollingKeyPairSource):
         return possible_keys
 
     @classmethod
-    def from_plist(cls, plist: IO[bytes]) -> FindMyAccessory:
+    def from_plist(
+        cls,
+        plist: str | Path | dict | bytes | IO[bytes],
+        *,
+        name: str | None = None,
+    ) -> FindMyAccessory:
         """Create a FindMyAccessory from a .plist file dumped from the FindMy app."""
-        device_data = plistlib.load(plist)
+        if isinstance(plist, bytes):
+            # plist is a bytes object
+            device_data = plistlib.loads(plist)
+        elif isinstance(plist, (str, Path)):
+            device_data = plistlib.loads(Path(plist).read_bytes())
+        elif isinstance(plist, IO):
+            device_data = plistlib.load(plist)
+        else:
+            device_data = plist
 
         # PRIVATE master key. 28 (?) bytes.
         master_key = device_data["privateKey"]["key"]["data"][-28:]
@@ -167,7 +244,57 @@ class FindMyAccessory(RollingKeyPairSource):
         # "Paired at" timestamp (UTC)
         paired_at = device_data["pairingDate"].replace(tzinfo=timezone.utc)
 
-        return cls(master_key, skn, sks, paired_at)
+        model = device_data["model"]
+        identifier = device_data["identifier"]
+
+        return cls(
+            master_key=master_key,
+            skn=skn,
+            sks=sks,
+            paired_at=paired_at,
+            name=name,
+            model=model,
+            identifier=identifier,
+        )
+
+    @override
+    def to_json(self, path: str | Path | None = None, /) -> FindMyAccessoryMapping:
+        res: FindMyAccessoryMapping = {
+            "type": "accessory",
+            "master_key": self._primary_gen.master_key.hex(),
+            "skn": self.skn.hex(),
+            "sks": self.sks.hex(),
+            "paired_at": self._paired_at.isoformat(),
+            "name": self.name,
+            "model": self.model,
+            "identifier": self.identifier,
+        }
+
+        return save_and_return_json(res, path)
+
+    @classmethod
+    @override
+    def from_json(
+        cls,
+        val: str | Path | FindMyAccessoryMapping,
+        /,
+    ) -> FindMyAccessory:
+        val = read_data_json(val)
+        assert val["type"] == "accessory"
+
+        try:
+            return cls(
+                master_key=bytes.fromhex(val["master_key"]),
+                skn=bytes.fromhex(val["skn"]),
+                sks=bytes.fromhex(val["sks"]),
+                paired_at=datetime.fromisoformat(val["paired_at"]),
+                name=val["name"],
+                model=val["model"],
+                identifier=val["identifier"],
+            )
+        except KeyError as e:
+            msg = f"Failed to restore account data: {e}"
+            raise ValueError(msg) from None
 
 
 class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
@@ -201,6 +328,21 @@ class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
         self._cur_sk_ind = 0
 
         self._iter_ind = 0
+
+    @property
+    def master_key(self) -> bytes:
+        """The private master key."""
+        return self._master_key
+
+    @property
+    def initial_sk(self) -> bytes:
+        """The initial secret key."""
+        return self._initial_sk
+
+    @property
+    def key_type(self) -> KeyType:
+        """The type of key this generator produces."""
+        return self._key_type
 
     def _get_sk(self, ind: int) -> bytes:
         if ind < self._cur_sk_ind:  # behind us; need to reset :(

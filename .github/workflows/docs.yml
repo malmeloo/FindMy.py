@@ -17,14 +17,15 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - uses: './.github/actions/setup-project'
+    - name: Install uv and set the python version
+      uses: astral-sh/setup-uv@v6
       with:
-        dependency-groups: 'docs'
+        python-version: ${{ matrix.python-version }}
       
     - name: Build documentation
       run: |
         cd docs
-        poetry run make html
+        uv run make html
     
     - name: Setup Pages
       uses: actions/configure-pages@v5

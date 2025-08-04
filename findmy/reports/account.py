@@ -15,7 +15,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Sequence,
+    Literal,
     TypedDict,
     TypeVar,
     cast,
@@ -32,8 +32,10 @@ from findmy.errors import (
     UnauthorizedError,
     UnhandledProtocolError,
 )
+from findmy.reports.anisette import AnisetteMapping, get_provider_from_mapping
 from findmy.util import crypto
-from findmy.util.closable import Closable
+from findmy.util.abc import Closable, Serializable
+from findmy.util.files import read_data_json, save_and_return_json
 from findmy.util.http import HttpResponse, HttpSession, decode_plist
 
 from .reports import LocationReport, LocationReportsFetcher
@@ -49,13 +51,16 @@ from .twofactor import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
+
     from findmy.accessory import RollingKeyPairSource
     from findmy.keys import HasHashedPublicKey
     from findmy.util.types import MaybeCoro
 
     from .anisette import BaseAnisetteProvider
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 srp.rfc5054_enable()
 srp.no_username_in_x()
@@ -66,6 +71,33 @@ class _AccountInfo(TypedDict):
     first_name: str
     last_name: str
     trusted_device_2fa: bool
+
+
+class _AccountStateMappingIds(TypedDict):
+    uid: str
+    devid: str
+
+
+class _AccountStateMappingAccount(TypedDict):
+    username: str | None
+    password: str | None
+    info: _AccountInfo | None
+
+
+class _AccountStateMappingLoginState(TypedDict):
+    state: int
+    data: dict  # TODO: make typed  # noqa: TD002, TD003
+
+
+class AccountStateMapping(TypedDict):
+    """JSON mapping representing state of an Apple account instance."""
+
+    type: Literal["account"]
+
+    ids: _AccountStateMappingIds
+    account: _AccountStateMappingAccount
+    login: _AccountStateMappingLoginState
+    anisette: AnisetteMapping
 
 
 _P = ParamSpec("_P")
@@ -109,7 +141,7 @@ def _extract_phone_numbers(html: str) -> list[dict]:
     return data.get("direct", {}).get("phoneNumberVerification", {}).get("trustedPhoneNumbers", [])
 
 
-class BaseAppleAccount(Closable, ABC):
+class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
     """Base class for an Apple account."""
 
     @property
@@ -146,28 +178,6 @@ class BaseAppleAccount(Closable, ABC):
         Last name of the account holder as reported by Apple.
 
         May be None in some cases, such as when not logged in.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def export(self) -> dict:
-        """
-        Export a representation of the current state of the account as a dictionary.
-
-        The output of this method is guaranteed to be JSON-serializable, and passing
-        the return value of this function as an argument to `BaseAppleAccount.restore`
-        will always result in an exact copy of the internal state as it was when exported.
-
-        This method is especially useful to avoid having to keep going through the login flow.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def restore(self, data: dict) -> None:
-        """
-        Restore a previous export of the internal state of the account.
-
-        See `BaseAppleAccount.export` for more information.
         """
         raise NotImplementedError
 
@@ -234,27 +244,31 @@ class BaseAppleAccount(Closable, ABC):
     @abstractmethod
     def fetch_reports(
         self,
-        keys: Sequence[HasHashedPublicKey],
-        date_from: datetime,
-        date_to: datetime | None,
-    ) -> MaybeCoro[dict[HasHashedPublicKey, list[LocationReport]]]: ...
-
-    @overload
-    @abstractmethod
-    def fetch_reports(
-        self,
         keys: RollingKeyPairSource,
         date_from: datetime,
         date_to: datetime | None,
     ) -> MaybeCoro[list[LocationReport]]: ...
 
+    @overload
     @abstractmethod
     def fetch_reports(
         self,
-        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
+        keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
         date_from: datetime,
         date_to: datetime | None,
-    ) -> MaybeCoro[list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]]:
+    ) -> MaybeCoro[dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]]: ...
+
+    @abstractmethod
+    def fetch_reports(
+        self,
+        keys: HasHashedPublicKey
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource]
+        | RollingKeyPairSource,
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> MaybeCoro[
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
+    ]:
         """
         Fetch location reports for `HasHashedPublicKey`s between `date_from` and `date_end`.
 
@@ -274,24 +288,28 @@ class BaseAppleAccount(Closable, ABC):
     @abstractmethod
     def fetch_last_reports(
         self,
-        keys: Sequence[HasHashedPublicKey],
+        keys: RollingKeyPairSource,
         hours: int = 7 * 24,
-    ) -> MaybeCoro[dict[HasHashedPublicKey, list[LocationReport]]]: ...
+    ) -> MaybeCoro[list[LocationReport]]: ...
 
     @overload
     @abstractmethod
     def fetch_last_reports(
         self,
-        keys: RollingKeyPairSource,
+        keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
         hours: int = 7 * 24,
-    ) -> MaybeCoro[list[LocationReport]]: ...
+    ) -> MaybeCoro[dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]]: ...
 
     @abstractmethod
     def fetch_last_reports(
         self,
-        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
+        keys: HasHashedPublicKey
+        | RollingKeyPairSource
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource],
         hours: int = 7 * 24,
-    ) -> MaybeCoro[list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]]:
+    ) -> MaybeCoro[
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
+    ]:
         """
         Fetch location reports for a sequence of `HasHashedPublicKey`s for the last `hours` hours.
 
@@ -328,37 +346,41 @@ class AsyncAppleAccount(BaseAppleAccount):
     _ENDPOINT_2FA_TD_SUBMIT = "https://gsa.apple.com/grandslam/GsService2/validate"
 
     # reports endpoints
-    _ENDPOINT_REPORTS_FETCH = "https://gateway.icloud.com/acsnservice/fetch"
+    _ENDPOINT_REPORTS_FETCH = "https://gateway.icloud.com/findmyservice/v2/fetch"
 
     def __init__(
         self,
         anisette: BaseAnisetteProvider,
-        user_id: str | None = None,
-        device_id: str | None = None,
+        *,
+        state_info: AccountStateMapping | None = None,
     ) -> None:
         """
         Initialize the apple account.
 
         :param anisette: An instance of `AsyncAnisetteProvider`.
-        :param user_id: An optional user ID to use. Will be auto-generated if missing.
-        :param device_id: An optional device ID to use. Will be auto-generated if missing.
         """
         super().__init__()
 
         self._anisette: BaseAnisetteProvider = anisette
-        self._uid: str = user_id or str(uuid.uuid4())
-        self._devid: str = device_id or str(uuid.uuid4())
+        self._uid: str = state_info["ids"]["uid"] if state_info else str(uuid.uuid4())
+        self._devid: str = state_info["ids"]["devid"] if state_info else str(uuid.uuid4())
 
-        self._username: str | None = None
-        self._password: str | None = None
+        # TODO: combine, user/pass should be "all or nothing"  # noqa: TD002, TD003
+        self._username: str | None = state_info["account"]["username"] if state_info else None
+        self._password: str | None = state_info["account"]["password"] if state_info else None
 
-        self._login_state: LoginState = LoginState.LOGGED_OUT
-        self._login_state_data: dict = {}
+        self._login_state: LoginState = (
+            LoginState(state_info["login"]["state"]) if state_info else LoginState.LOGGED_OUT
+        )
+        self._login_state_data: dict = state_info["login"]["data"] if state_info else {}
 
-        self._account_info: _AccountInfo | None = None
+        self._account_info: _AccountInfo | None = (
+            state_info["account"]["info"] if state_info else None
+        )
 
         self._http: HttpSession = HttpSession()
         self._reports: LocationReportsFetcher = LocationReportsFetcher(self)
+        self._closed: bool = False
 
     def _set_login_state(
         self,
@@ -367,10 +389,10 @@ class AsyncAppleAccount(BaseAppleAccount):
     ) -> LoginState:
         # clear account info if downgrading state (e.g. LOGGED_IN -> LOGGED_OUT)
         if state < self._login_state:
-            logging.debug("Clearing cached account information")
+            logger.debug("Clearing cached account information")
             self._account_info = None
 
-        logging.info("Transitioning login state: %s -> %s", self._login_state, state)
+        logger.info("Transitioning login state: %s -> %s", self._login_state, state)
         self._login_state = state
         self._login_state_data = data or {}
 
@@ -416,34 +438,39 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._account_info["last_name"] if self._account_info else None
 
     @override
-    def export(self) -> dict:
-        """See `BaseAppleAccount.export`."""
-        return {
+    def to_json(self, path: str | Path | None = None, /) -> AccountStateMapping:
+        res: AccountStateMapping = {
+            "type": "account",
             "ids": {"uid": self._uid, "devid": self._devid},
             "account": {
                 "username": self._username,
                 "password": self._password,
                 "info": self._account_info,
             },
-            "login_state": {
+            "login": {
                 "state": self._login_state.value,
                 "data": self._login_state_data,
             },
+            "anisette": self._anisette.to_json(),
         }
 
+        return save_and_return_json(res, path)
+
+    @classmethod
     @override
-    def restore(self, data: dict) -> None:
-        """See `BaseAppleAccount.restore`."""
+    def from_json(
+        cls,
+        val: str | Path | AccountStateMapping,
+        /,
+        *,
+        anisette_libs_path: str | Path | None = None,
+    ) -> AsyncAppleAccount:
+        val = read_data_json(val)
+        assert val["type"] == "account"
+
         try:
-            self._uid = data["ids"]["uid"]
-            self._devid = data["ids"]["devid"]
-
-            self._username = data["account"]["username"]
-            self._password = data["account"]["password"]
-            self._account_info = data["account"]["info"]
-
-            self._login_state = LoginState(data["login_state"]["state"])
-            self._login_state_data = data["login_state"]["data"]
+            ani_provider = get_provider_from_mapping(val["anisette"], libs_path=anisette_libs_path)
+            return cls(ani_provider, state_info=val)
         except KeyError as e:
             msg = f"Failed to restore account data: {e}"
             raise ValueError(msg) from None
@@ -455,8 +482,21 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         Should be called when the object will no longer be used.
         """
-        await self._anisette.close()
-        await self._http.close()
+        if self._closed:
+            return  # Already closed, make it idempotent
+
+        self._closed = True
+
+        # Close in proper order: anisette first, then HTTP session
+        try:
+            await self._anisette.close()
+        except (RuntimeError, OSError, ConnectionError) as e:
+            logger.warning("Error closing anisette provider: %s", e)
+
+        try:
+            await self._http.close()
+        except (RuntimeError, OSError, ConnectionError) as e:
+            logger.warning("Error closing HTTP session: %s", e)
 
     @require_login_state(LoginState.LOGGED_OUT)
     @override
@@ -495,7 +535,7 @@ class AsyncAppleAccount(BaseAppleAccount):
                 for number in phone_numbers
             )
         except RuntimeError:
-            logging.warning("Unable to extract phone numbers from login page")
+            logger.warning("Unable to extract phone numbers from login page")
 
         return methods
 
@@ -575,13 +615,37 @@ class AsyncAppleAccount(BaseAppleAccount):
         return await self._login_mobileme()
 
     @require_login_state(LoginState.LOGGED_IN)
-    async def fetch_raw_reports(self, start: int, end: int, ids: list[str]) -> dict[str, Any]:
+    async def fetch_raw_reports(
+        self,
+        start: datetime,
+        end: datetime,
+        devices: list[list[str]],
+    ) -> dict[str, Any]:
         """Make a request for location reports, returning raw data."""
         auth = (
             self._login_state_data["dsid"],
             self._login_state_data["mobileme_data"]["tokens"]["searchPartyToken"],
         )
-        data = {"search": [{"startDate": start, "endDate": end, "ids": ids}]}
+        start_ts = int(start.timestamp() * 1000)
+        end_ts = int(end.timestamp() * 1000)
+        data = {
+            "clientContext": {
+                "clientBundleIdentifier": "com.apple.icloud.searchpartyuseragent",
+                "policy": "foregroundClient",
+            },
+            "fetch": [
+                {
+                    "ownedDeviceIds": [],
+                    "keyType": 1,
+                    "startDate": start_ts,
+                    "startDateSecondary": start_ts,
+                    "endDate": end_ts,
+                    # passing all keys as primary seems to work fine
+                    "primaryIds": device_keys,
+                }
+                for device_keys in devices
+            ],
+        }
 
         async def _do_request() -> HttpResponse:
             return await self._http.post(
@@ -593,7 +657,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         r = await _do_request()
         if r.status_code == 401:
-            logging.info("Got 401 while fetching reports, redoing login")
+            logger.info("Got 401 while fetching reports, redoing login")
 
             new_state = await self._gsa_authenticate()
             if new_state != LoginState.AUTHENTICATED:
@@ -611,11 +675,11 @@ class AsyncAppleAccount(BaseAppleAccount):
             resp = r.json()
         except json.JSONDecodeError:
             resp = {}
-        if not r.ok or resp.get("statusCode") != "200":
+        if not r.ok or resp.get("acsnLocations", {}).get("statusCode") != "200":
             msg = f"Failed to fetch reports: {resp.get('statusCode')}"
             raise UnhandledProtocolError(msg)
 
-        return resp
+        return resp["acsnLocations"]
 
     @overload
     async def fetch_reports(
@@ -628,27 +692,31 @@ class AsyncAppleAccount(BaseAppleAccount):
     @overload
     async def fetch_reports(
         self,
-        keys: Sequence[HasHashedPublicKey],
-        date_from: datetime,
-        date_to: datetime | None,
-    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
-
-    @overload
-    async def fetch_reports(
-        self,
         keys: RollingKeyPairSource,
         date_from: datetime,
         date_to: datetime | None,
     ) -> list[LocationReport]: ...
 
+    @overload
+    async def fetch_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
+
     @require_login_state(LoginState.LOGGED_IN)
     @override
     async def fetch_reports(
         self,
-        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
+        keys: HasHashedPublicKey
+        | RollingKeyPairSource
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource],
         date_from: datetime,
         date_to: datetime | None,
-    ) -> list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]:
+    ) -> (
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
+    ):
         """See `BaseAppleAccount.fetch_reports`."""
         date_to = date_to or datetime.now().astimezone()
 
@@ -668,24 +736,28 @@ class AsyncAppleAccount(BaseAppleAccount):
     @overload
     async def fetch_last_reports(
         self,
-        keys: Sequence[HasHashedPublicKey],
+        keys: RollingKeyPairSource,
         hours: int = 7 * 24,
-    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
+    ) -> list[LocationReport]: ...
 
     @overload
     async def fetch_last_reports(
         self,
-        keys: RollingKeyPairSource,
+        keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
         hours: int = 7 * 24,
-    ) -> list[LocationReport]: ...
+    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
 
     @require_login_state(LoginState.LOGGED_IN)
     @override
     async def fetch_last_reports(
         self,
-        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
+        keys: HasHashedPublicKey
+        | RollingKeyPairSource
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource],
         hours: int = 7 * 24,
-    ) -> list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]:
+    ) -> (
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
+    ):
         """See `BaseAppleAccount.fetch_last_reports`."""
         end = datetime.now(tz=timezone.utc)
         start = end - timedelta(hours=hours)
@@ -702,13 +774,13 @@ class AsyncAppleAccount(BaseAppleAccount):
         self._username = username or self._username
         self._password = password or self._password
 
-        logging.info("Attempting authentication for user %s", self._username)
+        logger.info("Attempting authentication for user %s", self._username)
 
         if not self._username or not self._password:
             msg = "No username or password specified"
             raise ValueError(msg)
 
-        logging.debug("Starting authentication with username")
+        logger.debug("Starting authentication with username")
 
         usr = srp.User(self._username, b"", hash_alg=srp.SHA256, ng_type=srp.NG_2048)
         _, a2k = usr.start_authentication()
@@ -716,7 +788,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             {"A2k": a2k, "u": self._username, "ps": ["s2k", "s2k_fo"], "o": "init"},
         )
 
-        logging.debug("Verifying response to auth request")
+        logger.debug("Verifying response to auth request")
 
         if r["Status"].get("ec") != 0:
             msg = "Email verification failed: " + r["Status"].get("em")
@@ -726,7 +798,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             msg = f"This implementation only supports s2k and sk2_fo. Server returned {sp}"
             raise UnhandledProtocolError(msg)
 
-        logging.debug("Attempting password challenge")
+        logger.debug("Attempting password challenge")
 
         usr.p = crypto.encrypt_password(self._password, r["s"], r["i"], sp)
         m1 = usr.process_challenge(r["s"], r["B"])
@@ -737,7 +809,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             {"c": r["c"], "M1": m1, "u": self._username, "o": "complete"},
         )
 
-        logging.debug("Verifying password challenge response")
+        logger.debug("Verifying password challenge response")
 
         if r["Status"].get("ec") != 0:
             msg = "Password authentication failed: " + r["Status"].get("em")
@@ -747,7 +819,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             msg = "Failed to verify session"
             raise UnhandledProtocolError(msg)
 
-        logging.debug("Decrypting SPD data in response")
+        logger.debug("Decrypting SPD data in response")
 
         spd = decode_plist(
             crypto.decrypt_spd_aes_cbc(
@@ -756,9 +828,9 @@ class AsyncAppleAccount(BaseAppleAccount):
             ),
         )
 
-        logging.debug("Received account information")
+        logger.debug("Received account information")
         self._account_info = cast(
-            _AccountInfo,
+            "_AccountInfo",
             {
                 "account_name": spd.get("acname"),
                 "first_name": spd.get("fn"),
@@ -769,7 +841,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         au = r["Status"].get("au")
         if au in ("secondaryAuth", "trustedDeviceSecondaryAuth"):
-            logging.info("Detected 2FA requirement: %s", au)
+            logger.info("Detected 2FA requirement: %s", au)
 
             self._account_info["trusted_device_2fa"] = au == "trustedDeviceSecondaryAuth"
 
@@ -778,7 +850,7 @@ class AsyncAppleAccount(BaseAppleAccount):
                 {"adsid": spd["adsid"], "idms_token": spd["GsIdmsToken"]},
             )
         if au is None:
-            logging.info("GSA authentication successful")
+            logger.info("GSA authentication successful")
 
             idms_pet = spd.get("t", {}).get("com.apple.gs.idms.pet", {}).get("token", "")
             return self._set_login_state(
@@ -791,7 +863,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
     @require_login_state(LoginState.AUTHENTICATED)
     async def _login_mobileme(self) -> LoginState:
-        logging.info("Logging into com.apple.mobileme")
+        logger.info("Logging into com.apple.mobileme")
         data = plistlib.dumps(
             {
                 "apple-id": self._username,
@@ -913,11 +985,11 @@ class AppleAccount(BaseAppleAccount):
     def __init__(
         self,
         anisette: BaseAnisetteProvider,
-        user_id: str | None = None,
-        device_id: str | None = None,
+        *,
+        state_info: AccountStateMapping | None = None,
     ) -> None:
         """See `AsyncAppleAccount.__init__`."""
-        self._asyncacc = AsyncAppleAccount(anisette, user_id, device_id)
+        self._asyncacc = AsyncAppleAccount(anisette=anisette, state_info=state_info)
 
         try:
             self._evt_loop = asyncio.get_running_loop()
@@ -957,14 +1029,25 @@ class AppleAccount(BaseAppleAccount):
         return self._asyncacc.last_name
 
     @override
-    def export(self) -> dict:
-        """See `AsyncAppleAccount.export`."""
-        return self._asyncacc.export()
+    def to_json(self, dst: str | Path | None = None, /) -> AccountStateMapping:
+        return self._asyncacc.to_json(dst)
 
+    @classmethod
     @override
-    def restore(self, data: dict) -> None:
-        """See `AsyncAppleAccount.restore`."""
-        return self._asyncacc.restore(data)
+    def from_json(
+        cls,
+        val: str | Path | AccountStateMapping,
+        /,
+        *,
+        anisette_libs_path: str | Path | None = None,
+    ) -> AppleAccount:
+        val = read_data_json(val)
+        try:
+            ani_provider = get_provider_from_mapping(val["anisette"], libs_path=anisette_libs_path)
+            return cls(ani_provider, state_info=val)
+        except KeyError as e:
+            msg = f"Failed to restore account data: {e}"
+            raise ValueError(msg) from None
 
     @override
     def login(self, username: str, password: str) -> LoginState:
@@ -1028,26 +1111,30 @@ class AppleAccount(BaseAppleAccount):
     @overload
     def fetch_reports(
         self,
-        keys: Sequence[HasHashedPublicKey],
-        date_from: datetime,
-        date_to: datetime | None,
-    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
-
-    @overload
-    def fetch_reports(
-        self,
         keys: RollingKeyPairSource,
         date_from: datetime,
         date_to: datetime | None,
     ) -> list[LocationReport]: ...
 
+    @overload
+    def fetch_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
+        date_from: datetime,
+        date_to: datetime | None,
+    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
+
     @override
     def fetch_reports(
         self,
-        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
+        keys: HasHashedPublicKey
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource]
+        | RollingKeyPairSource,
         date_from: datetime,
         date_to: datetime | None,
-    ) -> list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]:
+    ) -> (
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
+    ):
         """See `AsyncAppleAccount.fetch_reports`."""
         coro = self._asyncacc.fetch_reports(keys, date_from, date_to)
         return self._evt_loop.run_until_complete(coro)
@@ -1062,23 +1149,27 @@ class AppleAccount(BaseAppleAccount):
     @overload
     def fetch_last_reports(
         self,
-        keys: Sequence[HasHashedPublicKey],
-        hours: int = 7 * 24,
-    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
-
-    @overload
-    def fetch_last_reports(
-        self,
         keys: RollingKeyPairSource,
         hours: int = 7 * 24,
     ) -> list[LocationReport]: ...
 
+    @overload
+    def fetch_last_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
+        hours: int = 7 * 24,
+    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
+
     @override
     def fetch_last_reports(
         self,
-        keys: HasHashedPublicKey | Sequence[HasHashedPublicKey] | RollingKeyPairSource,
+        keys: HasHashedPublicKey
+        | RollingKeyPairSource
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource],
         hours: int = 7 * 24,
-    ) -> list[LocationReport] | dict[HasHashedPublicKey, list[LocationReport]]:
+    ) -> (
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
+    ):
         """See `AsyncAppleAccount.fetch_last_reports`."""
         coro = self._asyncacc.fetch_last_reports(keys, hours)
         return self._evt_loop.run_until_complete(coro)

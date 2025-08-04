@@ -3,4 +3,4 @@
 from .http import HttpResponse, HttpSession
 from .parsers import decode_plist
 
-__all__ = ("HttpSession", "HttpResponse", "decode_plist")
+__all__ = ("HttpResponse", "HttpSession", "decode_plist")

@@ -6,8 +6,8 @@ import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import TYPE_CHECKING, Any, AsyncGenerator
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
 from bleak import BleakScanner
 from typing_extensions import override
@@ -16,10 +16,12 @@ from findmy.accessory import RollingKeyPairSource
 from findmy.keys import HasPublicKey
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from bleak.backends.device import BLEDevice
     from bleak.backends.scanner import AdvertisementData
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class OfflineFindingDevice(ABC):
@@ -27,13 +29,6 @@ class OfflineFindingDevice(ABC):
 
     OF_HEADER_SIZE = 2
     OF_TYPE = 0x12
-
-    @classmethod
-    @property
-    @abstractmethod
-    def payload_len(cls) -> int:
-        """Length of OfflineFinding data payload in bytes."""
-        raise NotImplementedError
 
     def __init__(
         self,
@@ -96,18 +91,22 @@ class OfflineFindingDevice(ABC):
     ) -> OfflineFindingDevice | None:
         """Get a NearbyOfflineFindingDevice object from a BLE packet payload."""
         if len(ble_payload) < cls.OF_HEADER_SIZE:
-            logging.error("Not enough bytes to decode: %s", len(ble_payload))
+            logger.error("Not enough bytes to decode: %s", len(ble_payload))
             return None
         if ble_payload[0] != cls.OF_TYPE:
-            logging.debug("Unsupported OF type: %s", ble_payload[0])
+            logger.debug("Unsupported OF type: %s", ble_payload[0])
             return None
 
         device_type = next(
-            (dev for dev in cls.__subclasses__() if dev.payload_len == ble_payload[1]),
+            (
+                dev
+                for dev in _DEVICE_TYPES
+                if getattr(dev, "OF_PAYLOAD_LEN", None) == ble_payload[1]
+            ),
             None,
         )
         if device_type is None:
-            logging.error("Invalid OF payload length: %s", ble_payload[1])
+            logger.error("Invalid OF payload length: %s", ble_payload[1])
             return None
 
         return device_type.from_payload(
@@ -132,12 +131,7 @@ class OfflineFindingDevice(ABC):
 class NearbyOfflineFindingDevice(OfflineFindingDevice):
     """Offline-Finding device in nearby state."""
 
-    @classmethod
-    @property
-    @override
-    def payload_len(cls) -> int:
-        """Length of OfflineFinding data payload in bytes."""
-        return 0x02  # 2
+    OF_PAYLOAD_LEN = 0x02  # 2
 
     def __init__(
         self,
@@ -158,7 +152,12 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
         if isinstance(other_device, HasPublicKey):
             return other_device.adv_key_bytes.startswith(self._first_adv_key_bytes)
         if isinstance(other_device, RollingKeyPairSource):
-            return any(self.is_from(key) for key in other_device.keys_at(self.detected_at))
+            # 1 hour margin around the detected time
+            potential_keys = other_device.keys_between(
+                self.detected_at - timedelta(hours=1),
+                self.detected_at + timedelta(hours=1),
+            )
+            return any(self.is_from(key) for key in potential_keys)
 
         msg = f"Cannot compare against {type(other_device)}"
         raise ValueError(msg)
@@ -173,8 +172,8 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
         additional_data: dict[Any, Any] | None = None,
     ) -> NearbyOfflineFindingDevice | None:
         """Get a NearbyOfflineFindingDevice object from an OF message payload."""
-        if len(payload) != cls.payload_len:
-            logging.error(
+        if len(payload) != cls.OF_PAYLOAD_LEN:
+            logger.error(
                 "Invalid OF data length: %s instead of %s",
                 len(payload),
                 payload[1],
@@ -201,12 +200,7 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
 class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
     """Offline-Finding device in separated state."""
 
-    @classmethod
-    @property
-    @override
-    def payload_len(cls) -> int:
-        """Length of OfflineFinding data in bytes."""
-        return 0x19  # 25
+    OF_PAYLOAD_LEN = 0x19  # 25
 
     def __init__(  # noqa: PLR0913
         self,
@@ -240,7 +234,12 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
         if isinstance(other_device, HasPublicKey):
             return self.adv_key_bytes == other_device.adv_key_bytes
         if isinstance(other_device, RollingKeyPairSource):
-            return any(self.is_from(key) for key in other_device.keys_at(self.detected_at))
+            # 12 hour margin around the detected time
+            potential_keys = other_device.keys_between(
+                self.detected_at - timedelta(hours=12),
+                self.detected_at + timedelta(hours=12),
+            )
+            return any(self.is_from(key) for key in potential_keys)
 
         msg = f"Cannot compare against {type(other_device)}"
         raise ValueError(msg)
@@ -255,8 +254,8 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
         additional_data: dict[Any, Any] | None = None,
     ) -> SeparatedOfflineFindingDevice | None:
         """Get a SeparatedOfflineFindingDevice object from an OF message payload."""
-        if len(payload) != cls.payload_len:
-            logging.error(
+        if len(payload) != cls.OF_PAYLOAD_LEN:
+            logger.error(
                 "Invalid OF data length: %s instead of %s",
                 len(payload),
                 payload[1],
@@ -294,6 +293,12 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
         )
 
 
+_DEVICE_TYPES = {
+    NearbyOfflineFindingDevice,
+    SeparatedOfflineFindingDevice,
+}
+
+
 class OfflineFindingScanner:
     """BLE scanner that searches for `OfflineFindingDevice`s."""
 
@@ -324,7 +329,7 @@ class OfflineFindingScanner:
     async def _start_scan(self) -> None:
         async with self._scan_ctrl_lock:
             if self._scanner_count == 0:
-                logging.info("Starting BLE scanner")
+                logger.info("Starting BLE scanner")
                 await self._scanner.start()
             self._scanner_count += 1
 
@@ -332,7 +337,7 @@ class OfflineFindingScanner:
         async with self._scan_ctrl_lock:
             self._scanner_count -= 1
             if self._scanner_count == 0:
-                logging.info("Stopping BLE scanner")
+                logger.info("Stopping BLE scanner")
                 await self._scanner.stop()
 
     async def _scan_callback(
@@ -393,7 +398,8 @@ class OfflineFindingScanner:
                     yield device
 
                 time_left = stop_at - time.time()
-        except (asyncio.CancelledError, asyncio.TimeoutError):  # timeout reached
+        except asyncio.TimeoutError:  # timeout reached
+            self._device_fut = self._loop.create_future()
             return
         finally:
             await self._stop_scan()
