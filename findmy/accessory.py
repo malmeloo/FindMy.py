@@ -41,7 +41,7 @@ class FindMyAccessoryMapping(TypedDict):
 
 
 class RollingKeyPairSource(ABC):
-    """A class that generates rolling `KeyPair`s."""
+    """A class that generates rolling :meth:`KeyPair`s."""
 
     @property
     @abstractmethod

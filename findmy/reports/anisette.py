@@ -135,7 +135,7 @@ class BaseAnisetteProvider(Closable, Serializable, ABC):
         """
         Generate a complete dictionary of Anisette headers.
 
-        Consider using `BaseAppleAccount.get_anisette_headers` instead.
+        Consider using :meth:`BaseAppleAccount.get_anisette_headers` instead.
         """
         headers = {
             # Current Time
@@ -207,7 +207,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
 
     @override
     def to_json(self, dst: str | Path | None = None, /) -> RemoteAnisetteMapping:
-        """See `BaseAnisetteProvider.serialize`."""
+        """See :meth:`BaseAnisetteProvider.serialize`."""
         return save_and_return_json(
             {
                 "type": "aniRemote",
@@ -219,7 +219,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
     @classmethod
     @override
     def from_json(cls, val: str | Path | RemoteAnisetteMapping) -> RemoteAnisetteProvider:
-        """See `BaseAnisetteProvider.deserialize`."""
+        """See :meth:`BaseAnisetteProvider.deserialize`."""
         val = read_data_json(val)
 
         assert val["type"] == "aniRemote"
@@ -231,7 +231,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
     @property
     @override
     def otp(self) -> str:
-        """See `BaseAnisetteProvider.otp`_."""
+        """See :meth:`BaseAnisetteProvider.otp`."""
         otp = (self._anisette_data or {}).get("X-Apple-I-MD")
         if otp is None:
             logger.warning("X-Apple-I-MD header not found! Returning fallback...")
@@ -240,7 +240,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
     @property
     @override
     def machine(self) -> str:
-        """See `BaseAnisetteProvider.machine`_."""
+        """See :meth:`BaseAnisetteProvider.machine`."""
         machine = (self._anisette_data or {}).get("X-Apple-I-MD-M")
         if machine is None:
             logger.warning("X-Apple-I-MD-M header not found! Returning fallback...")
@@ -254,7 +254,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
         serial: str = "0",
         with_client_info: bool = False,
     ) -> dict[str, str]:
-        """See `BaseAnisetteProvider.get_headers`_."""
+        """See :meth::meth:`BaseAnisetteProvider.get_headers`."""
         if self._closed:
             msg = "RemoteAnisetteProvider has been closed and cannot be used"
             raise RuntimeError(msg)
@@ -270,7 +270,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
 
     @override
     async def close(self) -> None:
-        """See `AnisetteProvider.close`."""
+        """See :meth:`AnisetteProvider.close`."""
         if self._closed:
             return  # Already closed, make it idempotent
 
@@ -283,7 +283,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
 
 
 class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapping]):
-    """Anisette provider. Generates headers without a remote server using the `anisette` library."""
+    """Local anisette provider using the `anisette` library."""
 
     def __init__(
         self,
@@ -328,7 +328,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapp
 
     @override
     def to_json(self, dst: str | Path | None = None, /) -> LocalAnisetteMapping:
-        """See `BaseAnisetteProvider.serialize`."""
+        """See :meth:`BaseAnisetteProvider.serialize`."""
         with BytesIO() as buf:
             self._ani.save_provisioning(buf)
             prov_data = base64.b64encode(buf.getvalue()).decode("utf-8")
@@ -349,7 +349,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapp
         *,
         libs_path: str | Path | None = None,
     ) -> LocalAnisetteProvider:
-        """See `BaseAnisetteProvider.deserialize`."""
+        """See :meth:`BaseAnisetteProvider.deserialize`."""
         val = read_data_json(val)
 
         assert val["type"] == "aniLocal"
@@ -366,7 +366,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapp
         serial: str = "0",
         with_client_info: bool = False,
     ) -> dict[str, str]:
-        """See `BaseAnisetteProvider.get_headers`_."""
+        """See :meth:`BaseAnisetteProvider.get_headers`."""
         self._ani_data = self._ani.get_data()
 
         return await super().get_headers(user_id, device_id, serial, with_client_info)
@@ -374,7 +374,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapp
     @property
     @override
     def otp(self) -> str:
-        """See `BaseAnisetteProvider.otp`_."""
+        """See :meth:`BaseAnisetteProvider.otp`."""
         machine = (self._ani_data or {}).get("X-Apple-I-MD")
         if machine is None:
             logger.warning("X-Apple-I-MD header not found! Returning fallback...")
@@ -383,7 +383,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapp
     @property
     @override
     def machine(self) -> str:
-        """See `BaseAnisetteProvider.machine`_."""
+        """See :meth:`BaseAnisetteProvider.machine`."""
         machine = (self._ani_data or {}).get("X-Apple-I-MD-M")
         if machine is None:
             logger.warning("X-Apple-I-MD-M header not found! Returning fallback...")
@@ -391,4 +391,4 @@ class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapp
 
     @override
     async def close(self) -> None:
-        """See `BaseAnisetteProvider.close`_."""
+        """See :meth:`BaseAnisetteProvider.close`."""

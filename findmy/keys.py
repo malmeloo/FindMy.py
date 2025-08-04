@@ -91,7 +91,7 @@ class HasPublicKey(HasHashedPublicKey, ABC):
     @property
     @override
     def hashed_adv_key_bytes(self) -> bytes:
-        """See `HasHashedPublicKey.hashed_adv_key_bytes`."""
+        """See :meth:`HasHashedPublicKey.hashed_adv_key_bytes`."""
         return hashlib.sha256(self.adv_key_bytes).digest()
 
     @property
@@ -136,7 +136,7 @@ class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
         key_type: KeyType = KeyType.UNKNOWN,
         name: str | None = None,
     ) -> None:
-        """Initialize the `KeyPair` with the private key bytes."""
+        """Initialize the :meth:`KeyPair` with the private key bytes."""
         priv_int = crypto.bytes_to_int(private_key)
         self._priv_key = ec.derive_private_key(
             priv_int,
@@ -162,15 +162,15 @@ class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
 
     @classmethod
     def new(cls) -> KeyPair:
-        """Generate a new random `KeyPair`."""
+        """Generate a new random :meth:`KeyPair`."""
         return cls(secrets.token_bytes(28))
 
     @classmethod
     def from_b64(cls, key_b64: str) -> KeyPair:
         """
-        Import an existing `KeyPair` from its base64-encoded representation.
+        Import an existing :meth:`KeyPair` from its base64-encoded representation.
 
-        Same format as returned by `KeyPair.private_key_b64`.
+        Same format as returned by :meth:`KeyPair.private_key_b64`.
         """
         return cls(base64.b64decode(key_b64))
 
@@ -185,7 +185,7 @@ class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
         """
         Return the private key as a base64-encoded string.
 
-        Can be re-imported using `KeyPair.from_b64`.
+        Can be re-imported using :meth:`KeyPair.from_b64`.
         """
         return base64.b64encode(self.private_key_bytes).decode("ascii")
 
