@@ -33,6 +33,7 @@ docs = [
     "myst-parser>=4.0.1",
     "sphinx>=8.2.3,<8.3.0",
     "sphinx-autoapi==3.6.0",
+    "sphinx-book-theme>=1.1.4",
 ]
 
 [tool.pyright]
