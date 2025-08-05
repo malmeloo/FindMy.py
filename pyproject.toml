@@ -86,7 +86,7 @@ ignore = [
 ]
 
 [tool.setuptools]
-py-modules = ["findmy"]
+packages = ["findmy"]
 
 [build-system]
 requires = ["setuptools", "setuptools-scm"]
