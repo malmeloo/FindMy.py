@@ -6,11 +6,14 @@
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+import os
+import re
 
 project = "FindMy.py"
 copyright = "2024, Mike Almeloo"
 author = "Mike Almeloo"
-release = "0.8.0"
+version = re.sub("^v", "", os.popen("git describe --tags").read().strip())  # noqa: S605, S607
+release = version
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
