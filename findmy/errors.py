@@ -21,5 +21,5 @@ class InvalidStateError(RuntimeError):
     """
     Raised when a method is used that is in conflict with the internal account state.
 
-    For example: calling `BaseAppleAccount.login` while already logged in.
+    For example: calling :meth:`BaseAppleAccount.login` while already logged in.
     """

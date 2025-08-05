@@ -63,13 +63,13 @@ class AsyncSecondFactorMethod(BaseSecondFactorMethod, ABC):
     @override
     @abstractmethod
     async def request(self) -> None:
-        """See `BaseSecondFactorMethod.request`."""
+        """See :meth:`BaseSecondFactorMethod.request`."""
         raise NotImplementedError
 
     @override
     @abstractmethod
     async def submit(self, code: str) -> LoginState:
-        """See `BaseSecondFactorMethod.submit`."""
+        """See :meth:`BaseSecondFactorMethod.submit`."""
         raise NotImplementedError
 
 
@@ -93,13 +93,13 @@ class SyncSecondFactorMethod(BaseSecondFactorMethod, ABC):
     @override
     @abstractmethod
     def request(self) -> None:
-        """See `BaseSecondFactorMethod.request`."""
+        """See :meth:`BaseSecondFactorMethod.request`."""
         raise NotImplementedError
 
     @override
     @abstractmethod
     def submit(self, code: str) -> LoginState:
-        """See `BaseSecondFactorMethod.submit`."""
+        """See :meth:`BaseSecondFactorMethod.submit`."""
         raise NotImplementedError
 
 
@@ -128,7 +128,7 @@ class TrustedDeviceSecondFactorMethod(BaseSecondFactorMethod, ABC):
 
 
 class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
-    """An async implementation of `SmsSecondFactorMethod`."""
+    """An async implementation of :meth:`SmsSecondFactorMethod`."""
 
     def __init__(
         self,
@@ -139,7 +139,7 @@ class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
         """
         Initialize the second factor method.
 
-        Should not be done manually; use `AsyncAppleAccount.get_2fa_methods` instead.
+        Should not be done manually; use :meth:`AsyncAppleAccount.get_2fa_methods` instead.
         """
         super().__init__(account)
 
@@ -174,7 +174,7 @@ class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
 
 
 class SyncSmsSecondFactor(SyncSecondFactorMethod, SmsSecondFactorMethod):
-    """A sync implementation of `SmsSecondFactorMethod`."""
+    """A sync implementation of :meth:`SmsSecondFactorMethod`."""
 
     def __init__(
         self,
@@ -182,7 +182,7 @@ class SyncSmsSecondFactor(SyncSecondFactorMethod, SmsSecondFactorMethod):
         number_id: int,
         phone_number: str,
     ) -> None:
-        """See `AsyncSmsSecondFactor.__init__`."""
+        """See :meth:`AsyncSmsSecondFactor.__init__`."""
         super().__init__(account)
 
         self._phone_number_id: int = number_id
@@ -191,28 +191,28 @@ class SyncSmsSecondFactor(SyncSecondFactorMethod, SmsSecondFactorMethod):
     @property
     @override
     def phone_number_id(self) -> int:
-        """See `AsyncSmsSecondFactor.phone_number_id`."""
+        """See :meth:`AsyncSmsSecondFactor.phone_number_id`."""
         return self._phone_number_id
 
     @property
     @override
     def phone_number(self) -> str:
-        """See `AsyncSmsSecondFactor.phone_number`."""
+        """See :meth:`AsyncSmsSecondFactor.phone_number`."""
         return self._phone_number
 
     @override
     def request(self) -> None:
-        """See `AsyncSmsSecondFactor.request`."""
+        """See :meth:`AsyncSmsSecondFactor.request`."""
         return self.account.sms_2fa_request(self._phone_number_id)
 
     @override
     def submit(self, code: str) -> LoginState:
-        """See `AsyncSmsSecondFactor.submit`."""
+        """See :meth:`AsyncSmsSecondFactor.submit`."""
         return self.account.sms_2fa_submit(self._phone_number_id, code)
 
 
 class AsyncTrustedDeviceSecondFactor(AsyncSecondFactorMethod, TrustedDeviceSecondFactorMethod):
-    """An async implementation of `TrustedDeviceSecondFactorMethod`."""
+    """An async implementation of :meth:`TrustedDeviceSecondFactorMethod`."""
 
     @override
     async def request(self) -> None:
@@ -224,14 +224,14 @@ class AsyncTrustedDeviceSecondFactor(AsyncSecondFactorMethod, TrustedDeviceSecon
 
 
 class SyncTrustedDeviceSecondFactor(SyncSecondFactorMethod, TrustedDeviceSecondFactorMethod):
-    """A sync implementation of `TrustedDeviceSecondFactorMethod`."""
+    """A sync implementation of :meth:`TrustedDeviceSecondFactorMethod`."""
 
     @override
     def request(self) -> None:
-        """See `AsyncTrustedDeviceSecondFactor.request`."""
+        """See :meth:`AsyncTrustedDeviceSecondFactor.request`."""
         return self.account.td_2fa_request()
 
     @override
     def submit(self, code: str) -> LoginState:
-        """See `AsyncTrustedDeviceSecondFactor.submit`."""
+        """See :meth:`AsyncTrustedDeviceSecondFactor.submit`."""
         return self.account.td_2fa_submit(code)

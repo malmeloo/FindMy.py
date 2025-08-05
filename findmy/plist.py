@@ -31,7 +31,7 @@ def get_key() -> bytes:
 
 def decrypt_plist(encrypted: str | Path | bytes | IO[bytes], key: bytes) -> dict:
     """
-    Decrypts the encrypted plist file at `encrypted` using the provided `key`.
+    Decrypts the encrypted plist file at :meth:`encrypted` using the provided :meth:`key`.
 
     :param encrypted:       If bytes or IO, the encrypted plist data.
                             If str or Path, the path to the encrypted plist file, which is

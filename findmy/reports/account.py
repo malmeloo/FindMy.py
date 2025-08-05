@@ -200,7 +200,7 @@ class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
         """
         Request a 2FA code to be sent to a specific phone number ID.
 
-        Consider using `BaseSecondFactorMethod.request` instead.
+        Consider using :meth:`BaseSecondFactorMethod.request` instead.
         """
         raise NotImplementedError
 
@@ -209,7 +209,7 @@ class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
         """
         Submit a 2FA code that was sent to a specific phone number ID.
 
-        Consider using `BaseSecondFactorMethod.submit` instead.
+        Consider using :meth:`BaseSecondFactorMethod.submit` instead.
         """
         raise NotImplementedError
 
@@ -218,7 +218,7 @@ class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
         """
         Request a 2FA code to be sent to a trusted device.
 
-        Consider using `BaseSecondFactorMethod.request` instead.
+        Consider using :meth:`BaseSecondFactorMethod.request` instead.
         """
         raise NotImplementedError
 
@@ -227,7 +227,7 @@ class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
         """
         Submit a 2FA code that was sent to a trusted device.
 
-        Consider using `BaseSecondFactorMethod.submit` instead.
+        Consider using :meth:`BaseSecondFactorMethod.submit` instead.
         """
         raise NotImplementedError
 
@@ -270,9 +270,9 @@ class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
         list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ]:
         """
-        Fetch location reports for `HasHashedPublicKey`s between `date_from` and `date_end`.
+        Fetch location reports for :class:`HasHashedPublicKey`s between `date_from` and `date_end`.
 
-        Returns a dictionary mapping `HasHashedPublicKey`s to a list of their location reports.
+        Returns a dictionary mapping :class:`HasHashedPublicKey`s to their location reports.
         """
         raise NotImplementedError
 
@@ -311,9 +311,9 @@ class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
         list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ]:
         """
-        Fetch location reports for a sequence of `HasHashedPublicKey`s for the last `hours` hours.
+        Fetch location reports for :class:`HasHashedPublicKey`s for the last `hours` hours.
 
-        Utility method as an alternative to using `BaseAppleAccount.fetch_reports` directly.
+        Utility method as an alternative to using :meth:`BaseAppleAccount.fetch_reports` directly.
         """
         raise NotImplementedError
 
@@ -326,13 +326,13 @@ class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
         """
         Retrieve a complete dictionary of Anisette headers.
 
-        Utility method for `AnisetteProvider.get_headers` using this account's user and device ID.
+        Utility method for :meth:`AnisetteProvider.get_headers` using this account's user/device ID.
         """
         raise NotImplementedError
 
 
 class AsyncAppleAccount(BaseAppleAccount):
-    """An async implementation of `BaseAppleAccount`."""
+    """An async implementation of :meth:`BaseAppleAccount`."""
 
     # auth endpoints
     _ENDPOINT_GSA = "https://gsa.apple.com/grandslam/GsService2"
@@ -357,7 +357,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         """
         Initialize the apple account.
 
-        :param anisette: An instance of `AsyncAnisetteProvider`.
+        :param anisette: An instance of :meth:`AsyncAnisetteProvider`.
         """
         super().__init__()
 
@@ -401,7 +401,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     @property
     @override
     def login_state(self) -> LoginState:
-        """See `BaseAppleAccount.login_state`."""
+        """See :meth:`BaseAppleAccount.login_state`."""
         return self._login_state
 
     @property
@@ -412,7 +412,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     )
     @override
     def account_name(self) -> str | None:
-        """See `BaseAppleAccount.account_name`."""
+        """See :meth:`BaseAppleAccount.account_name`."""
         return self._account_info["account_name"] if self._account_info else None
 
     @property
@@ -423,7 +423,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     )
     @override
     def first_name(self) -> str | None:
-        """See `BaseAppleAccount.first_name`."""
+        """See :meth:`BaseAppleAccount.first_name`."""
         return self._account_info["first_name"] if self._account_info else None
 
     @property
@@ -434,7 +434,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     )
     @override
     def last_name(self) -> str | None:
-        """See `BaseAppleAccount.last_name`."""
+        """See :meth:`BaseAppleAccount.last_name`."""
         return self._account_info["last_name"] if self._account_info else None
 
     @override
@@ -501,7 +501,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     @require_login_state(LoginState.LOGGED_OUT)
     @override
     async def login(self, username: str, password: str) -> LoginState:
-        """See `BaseAppleAccount.login`."""
+        """See :meth:`BaseAppleAccount.login`."""
         # LOGGED_OUT -> (REQUIRE_2FA or AUTHENTICATED)
         new_state = await self._gsa_authenticate(username, password)
         if new_state == LoginState.REQUIRE_2FA:  # pass control back to handle 2FA
@@ -513,7 +513,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     @require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def get_2fa_methods(self) -> Sequence[AsyncSecondFactorMethod]:
-        """See `BaseAppleAccount.get_2fa_methods`."""
+        """See :meth:`BaseAppleAccount.get_2fa_methods`."""
         methods: list[AsyncSecondFactorMethod] = []
 
         if self._account_info is None:
@@ -542,7 +542,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     @require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def sms_2fa_request(self, phone_number_id: int) -> None:
-        """See `BaseAppleAccount.sms_2fa_request`."""
+        """See :meth:`BaseAppleAccount.sms_2fa_request`."""
         data = {"phoneNumber": {"id": phone_number_id}, "mode": "sms"}
 
         await self._sms_2fa_request(
@@ -554,7 +554,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     @require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
-        """See `BaseAppleAccount.sms_2fa_submit`."""
+        """See :meth:`BaseAppleAccount.sms_2fa_submit`."""
         data = {
             "phoneNumber": {"id": phone_number_id},
             "securityCode": {"code": str(code)},
@@ -579,7 +579,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     @require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def td_2fa_request(self) -> None:
-        """See `BaseAppleAccount.td_2fa_request`."""
+        """See :meth:`BaseAppleAccount.td_2fa_request`."""
         headers = {
             "Content-Type": "text/x-xml-plist",
             "Accept": "text/x-xml-plist",
@@ -593,7 +593,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     @require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def td_2fa_submit(self, code: str) -> LoginState:
-        """See `BaseAppleAccount.td_2fa_submit`."""
+        """See :meth:`BaseAppleAccount.td_2fa_submit`."""
         headers = {
             "security-code": code,
             "Content-Type": "text/x-xml-plist",
@@ -717,7 +717,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     ) -> (
         list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
-        """See `BaseAppleAccount.fetch_reports`."""
+        """See :meth:`BaseAppleAccount.fetch_reports`."""
         date_to = date_to or datetime.now().astimezone()
 
         return await self._reports.fetch_reports(
@@ -758,7 +758,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     ) -> (
         list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
-        """See `BaseAppleAccount.fetch_last_reports`."""
+        """See :meth:`BaseAppleAccount.fetch_last_reports`."""
         end = datetime.now(tz=timezone.utc)
         start = end - timedelta(hours=hours)
 
@@ -971,15 +971,15 @@ class AsyncAppleAccount(BaseAppleAccount):
         with_client_info: bool = False,
         serial: str = "0",
     ) -> dict[str, str]:
-        """See `BaseAppleAccount.get_anisette_headers`."""
+        """See :meth:`BaseAppleAccount.get_anisette_headers`."""
         return await self._anisette.get_headers(self._uid, self._devid, serial, with_client_info)
 
 
 class AppleAccount(BaseAppleAccount):
     """
-    A sync implementation of `BaseappleAccount`.
+    A sync implementation of :meth:`BaseappleAccount`.
 
-    Uses `AsyncappleAccount` internally.
+    Uses :meth:`AsyncappleAccount` internally.
     """
 
     def __init__(
@@ -988,7 +988,7 @@ class AppleAccount(BaseAppleAccount):
         *,
         state_info: AccountStateMapping | None = None,
     ) -> None:
-        """See `AsyncAppleAccount.__init__`."""
+        """See :meth:`AsyncAppleAccount.__init__`."""
         self._asyncacc = AsyncAppleAccount(anisette=anisette, state_info=state_info)
 
         try:
@@ -1001,31 +1001,31 @@ class AppleAccount(BaseAppleAccount):
 
     @override
     async def close(self) -> None:
-        """See `AsyncAppleAccount.close`."""
+        """See :meth:`AsyncAppleAccount.close`."""
         await self._asyncacc.close()
 
     @property
     @override
     def login_state(self) -> LoginState:
-        """See `AsyncAppleAccount.login_state`."""
+        """See :meth:`AsyncAppleAccount.login_state`."""
         return self._asyncacc.login_state
 
     @property
     @override
     def account_name(self) -> str | None:
-        """See `AsyncAppleAccount.login_state`."""
+        """See :meth:`AsyncAppleAccount.login_state`."""
         return self._asyncacc.account_name
 
     @property
     @override
     def first_name(self) -> str | None:
-        """See `AsyncAppleAccount.first_name`."""
+        """See :meth:`AsyncAppleAccount.first_name`."""
         return self._asyncacc.first_name
 
     @property
     @override
     def last_name(self) -> str | None:
-        """See `AsyncAppleAccount.last_name`."""
+        """See :meth:`AsyncAppleAccount.last_name`."""
         return self._asyncacc.last_name
 
     @override
@@ -1051,13 +1051,13 @@ class AppleAccount(BaseAppleAccount):
 
     @override
     def login(self, username: str, password: str) -> LoginState:
-        """See `AsyncAppleAccount.login`."""
+        """See :meth:`AsyncAppleAccount.login`."""
         coro = self._asyncacc.login(username, password)
         return self._evt_loop.run_until_complete(coro)
 
     @override
     def get_2fa_methods(self) -> Sequence[SyncSecondFactorMethod]:
-        """See `AsyncAppleAccount.get_2fa_methods`."""
+        """See :meth:`AsyncAppleAccount.get_2fa_methods`."""
         coro = self._asyncacc.get_2fa_methods()
         methods = self._evt_loop.run_until_complete(coro)
 
@@ -1078,25 +1078,25 @@ class AppleAccount(BaseAppleAccount):
 
     @override
     def sms_2fa_request(self, phone_number_id: int) -> None:
-        """See `AsyncAppleAccount.sms_2fa_request`."""
+        """See :meth:`AsyncAppleAccount.sms_2fa_request`."""
         coro = self._asyncacc.sms_2fa_request(phone_number_id)
         return self._evt_loop.run_until_complete(coro)
 
     @override
     def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
-        """See `AsyncAppleAccount.sms_2fa_submit`."""
+        """See :meth:`AsyncAppleAccount.sms_2fa_submit`."""
         coro = self._asyncacc.sms_2fa_submit(phone_number_id, code)
         return self._evt_loop.run_until_complete(coro)
 
     @override
     def td_2fa_request(self) -> None:
-        """See `AsyncAppleAccount.td_2fa_request`."""
+        """See :meth:`AsyncAppleAccount.td_2fa_request`."""
         coro = self._asyncacc.td_2fa_request()
         return self._evt_loop.run_until_complete(coro)
 
     @override
     def td_2fa_submit(self, code: str) -> LoginState:
-        """See `AsyncAppleAccount.td_2fa_submit`."""
+        """See :meth:`AsyncAppleAccount.td_2fa_submit`."""
         coro = self._asyncacc.td_2fa_submit(code)
         return self._evt_loop.run_until_complete(coro)
 
@@ -1135,7 +1135,7 @@ class AppleAccount(BaseAppleAccount):
     ) -> (
         list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
-        """See `AsyncAppleAccount.fetch_reports`."""
+        """See :meth:`AsyncAppleAccount.fetch_reports`."""
         coro = self._asyncacc.fetch_reports(keys, date_from, date_to)
         return self._evt_loop.run_until_complete(coro)
 
@@ -1170,7 +1170,7 @@ class AppleAccount(BaseAppleAccount):
     ) -> (
         list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
-        """See `AsyncAppleAccount.fetch_last_reports`."""
+        """See :meth:`AsyncAppleAccount.fetch_last_reports`."""
         coro = self._asyncacc.fetch_last_reports(keys, hours)
         return self._evt_loop.run_until_complete(coro)
 
@@ -1180,6 +1180,6 @@ class AppleAccount(BaseAppleAccount):
         with_client_info: bool = False,
         serial: str = "0",
     ) -> dict[str, str]:
-        """See `AsyncAppleAccount.get_anisette_headers`."""
+        """See :meth:`AsyncAppleAccount.get_anisette_headers`."""
         coro = self._asyncacc.get_anisette_headers(with_client_info, serial)
         return self._evt_loop.run_until_complete(coro)

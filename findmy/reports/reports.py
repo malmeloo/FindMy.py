@@ -52,14 +52,18 @@ LocationReportMapping = Union[LocationReportEncryptedMapping, LocationReportDecr
 
 
 class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
-    """Location report corresponding to a certain `HasHashedPublicKey`."""
+    """Location report corresponding to a certain :meth:`HasHashedPublicKey`."""
 
     def __init__(
         self,
         payload: bytes,
         hashed_adv_key: bytes,
     ) -> None:
-        """Initialize a `KeyReport`. You should probably use `KeyReport.from_payload` instead."""
+        """
+        Initialize a :class:`LocationReport`.
+
+        You should probably use :meth:`LocationReport.from_payload` instead.
+        """
         self._payload: bytes = payload
         self._hashed_adv_key: bytes = hashed_adv_key
 
@@ -68,7 +72,7 @@ class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
     @property
     @override
     def hashed_adv_key_bytes(self) -> bytes:
-        """See `HasHashedPublicKey.hashed_adv_key_bytes`."""
+        """See :meth:`HasHashedPublicKey.hashed_adv_key_bytes`."""
         return self._hashed_adv_key
 
     @property
@@ -96,7 +100,7 @@ class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
         return key.hashed_adv_key_bytes == self._hashed_adv_key
 
     def decrypt(self, key: KeyPair) -> None:
-        """Decrypt the report using its corresponding `KeyPair`."""
+        """Decrypt the report using its corresponding :meth:`KeyPair`."""
         if not self.can_decrypt(key):
             msg = "Cannot decrypt with this key!"
             raise ValueError(msg)
@@ -136,7 +140,7 @@ class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
 
     @property
     def timestamp(self) -> datetime:
-        """The `datetime` when this report was recorded by a device."""
+        """The :meth:`datetime` when this report was recorded by a device."""
         timestamp_int = int.from_bytes(self._payload[0:4], "big") + (60 * 60 * 24 * 11323)
         return datetime.fromtimestamp(timestamp_int, tz=timezone.utc).astimezone()
 
@@ -302,9 +306,9 @@ class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
 
     def __lt__(self, other: LocationReport) -> bool:
         """
-        Compare against another `KeyReport`.
+        Compare against another :meth:`KeyReport`.
 
-        A `KeyReport` is said to be "less than" another `KeyReport` iff its recorded
+        A :meth:`KeyReport` is said to be "less than" another :meth:`KeyReport` iff its recorded
         timestamp is strictly less than the other report.
         """
         if isinstance(other, LocationReport):
@@ -369,12 +373,12 @@ class LocationReportsFetcher:
         """
         Fetch location reports for a certain device.
 
-        When ``device`` is a single :class:`.HasHashedPublicKey`, this method will return
+        When `device` is a single :class:`HasHashedPublicKey`, this method will return
         a list of location reports corresponding to that key.
-        When ``device`` is a :class:`.RollingKeyPairSource`, it will return a list of
+        When `device` is a :class:`RollingKeyPairSource`, it will return a list of
         location reports corresponding to that source.
-        When ``device`` is a sequence of :class:`.HasHashedPublicKey`s or RollingKeyPairSource's,
-        it will return a dictionary with the :class:`.HasHashedPublicKey` or `.RollingKeyPairSource`
+        When `device` is a sequence of :class:`HasHashedPublicKey`s or RollingKeyPairSource's,
+        it will return a dictionary with the provided object
         as key, and a list of location reports as value.
         """
         key_devs: dict[HasHashedPublicKey, HasHashedPublicKey | RollingKeyPairSource] = {}

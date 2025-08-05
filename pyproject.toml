@@ -28,7 +28,13 @@ dev = [
     "packaging>=25.0,<26.0",
 ]
 test = ["pytest>=8.3.2,<9.0.0"]
-docs = ["sphinx>=8.2.3,<8.3.0", "sphinx-autoapi==3.6.0"]
+docs = [
+    "furo>=2025.7.19",
+    "myst-parser>=4.0.1",
+    "sphinx>=8.2.3,<8.3.0",
+    "sphinx-autoapi==3.6.0",
+    "sphinx-book-theme>=1.1.4",
+]
 
 [tool.pyright]
 venvPath = "."

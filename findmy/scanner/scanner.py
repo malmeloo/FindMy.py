@@ -211,7 +211,7 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
         detected_at: datetime,
         additional_data: dict[Any, Any] | None = None,
     ) -> None:
-        """Initialize a `SeparatedOfflineFindingDevice`."""
+        """Initialize a :meth:`SeparatedOfflineFindingDevice`."""
         super().__init__(mac_bytes, status, detected_at, additional_data)
 
         self._public_key: bytes = public_key
@@ -225,7 +225,7 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
     @property
     @override
     def adv_key_bytes(self) -> bytes:
-        """See `HasPublicKey.adv_key_bytes`."""
+        """See :meth:`HasPublicKey.adv_key_bytes`."""
         return self._public_key
 
     @override
@@ -300,7 +300,7 @@ _DEVICE_TYPES = {
 
 
 class OfflineFindingScanner:
-    """BLE scanner that searches for `OfflineFindingDevice`s."""
+    """BLE scanner that searches for :meth:`OfflineFindingDevice`s."""
 
     _scan_ctrl_lock = asyncio.Lock()
 
@@ -311,7 +311,7 @@ class OfflineFindingScanner:
         Initialize an instance of the Scanner using an event loop.
 
         You most likely do not want to use this yourself;
-        check out `OfflineFindingScanner.create` instead.
+        check out :meth:`OfflineFindingScanner.create` instead.
         """
         self._scanner: BleakScanner = BleakScanner(self._scan_callback, cb={"use_bdaddr": True})
 
@@ -377,10 +377,10 @@ class OfflineFindingScanner:
         extend_timeout: bool = False,
     ) -> AsyncGenerator[OfflineFindingDevice, None]:
         """
-        Scan for `OfflineFindingDevice`s for up to `timeout` seconds.
+        Scan for :meth:`OfflineFindingDevice`s for up to :meth:`timeout` seconds.
 
-        If `extend_timeout` is set, the timer will be extended
-        by `timeout` seconds every time a new device is discovered.
+        If :meth:`extend_timeout` is set, the timer will be extended
+        by :meth:`timeout` seconds every time a new device is discovered.
         """
         await self._start_scan()
 

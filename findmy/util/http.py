@@ -33,7 +33,7 @@ class _HttpRequestOptions(_RequestOptions, total=False):
 
 
 class HttpResponse:
-    """Response of a request made by `HttpSession`."""
+    """Response of a request made by :meth:`HttpSession`."""
 
     def __init__(self, status_code: int, content: bytes) -> None:
         """Initialize the response."""
@@ -115,7 +115,7 @@ class HttpSession(Closable):
         """
         Make an HTTP request.
 
-        Keyword arguments will directly be passed to `aiohttp.ClientSession.request`.
+        Keyword arguments will directly be passed to :meth:`aiohttp.ClientSession.request`.
         """
         session = await self._get_session()
 
