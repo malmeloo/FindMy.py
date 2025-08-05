@@ -31,7 +31,9 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- AutoAPI Options ---------------------------------------------------------
 autoapi_dirs = ["../findmy/"]
+autoapi_root = "reference/"
 autoapi_add_toctree_entry = False
+autoapi_keep_files = True
 autoapi_options = [
     "members",
     "undoc-members",

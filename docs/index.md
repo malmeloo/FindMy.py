@@ -30,6 +30,6 @@ reveng/index
 ```{toctree}
 :maxdepth: 1
 
-API Reference <autoapi/findmy/index>
+API Reference <reference/findmy/index>
 genindex
 ```
