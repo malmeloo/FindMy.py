@@ -17,10 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv and set the python version
-        uses: astral-sh/setup-uv@v6
-        with:
-          python-version: ${{ matrix.python-version }}
+      - uses: "./.github/actions/setup-project"
 
       - name: Install graphviz
         run: sudo apt-get install -y graphviz
