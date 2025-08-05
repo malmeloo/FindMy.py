@@ -233,10 +233,10 @@ class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
         return f'KeyPair(name="{self.name}", public_key="{self.adv_key_b64}", type={self.key_type})'
 
 
-K = TypeVar("K")
+_K = TypeVar("_K")
 
 
-class KeyGenerator(ABC, Generic[K]):
+class KeyGenerator(ABC, Generic[_K]):
     """KeyPair generator."""
 
     @abstractmethod
@@ -244,17 +244,17 @@ class KeyGenerator(ABC, Generic[K]):
         return NotImplemented
 
     @abstractmethod
-    def __next__(self) -> K:
+    def __next__(self) -> _K:
         return NotImplemented
 
     @overload
     @abstractmethod
-    def __getitem__(self, val: int) -> K: ...
+    def __getitem__(self, val: int) -> _K: ...
 
     @overload
     @abstractmethod
-    def __getitem__(self, val: slice) -> Generator[K, None, None]: ...
+    def __getitem__(self, val: slice) -> Generator[_K, None, None]: ...
 
     @abstractmethod
-    def __getitem__(self, val: int | slice) -> K | Generator[K, None, None]:
+    def __getitem__(self, val: int | slice) -> _K | Generator[_K, None, None]:
         return NotImplemented
