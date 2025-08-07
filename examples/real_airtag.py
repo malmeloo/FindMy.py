@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from pathlib import Path
 
 from _login import get_account_sync
 
@@ -32,8 +31,7 @@ logging.basicConfig(level=logging.INFO)
 
 def main(plist_path: str) -> int:
     # Step 0: create an accessory key generator
-    with Path(plist_path).open("rb") as f:
-        airtag = FindMyAccessory.from_plist(f)
+    airtag = FindMyAccessory.from_plist(plist_path)
 
     # Step 1: log into an Apple account
     print("Logging into account")
