@@ -1,6 +1,6 @@
 [project]
 name = "FindMy"
-version = "0.8.0"
+version = "0.8.1"
 description = "Everything you need to work with Apple's Find My network!"
 readme = "README.md"
 authors = [
