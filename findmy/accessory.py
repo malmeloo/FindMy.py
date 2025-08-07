@@ -7,22 +7,21 @@ Accessories could be anything ranging from AirTags to iPhones.
 from __future__ import annotations
 
 import logging
-import plistlib
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import IO, TYPE_CHECKING, Literal, TypedDict, overload
+from typing import TYPE_CHECKING, Literal, TypedDict, overload
 
 from typing_extensions import override
 
 from findmy.util.abc import Serializable
-from findmy.util.files import read_data_json, save_and_return_json
+from findmy.util.files import read_data_json, read_data_plist, save_and_return_json
 
 from .keys import KeyGenerator, KeyPair, KeyType
 from .util import crypto
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -224,21 +223,13 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
     @classmethod
     def from_plist(
         cls,
-        plist: str | Path | dict | bytes | IO[bytes],
-        key_alignment_plist: IO[bytes] | None = None,
+        plist: str | Path | dict | bytes,
+        key_alignment_plist: str | Path | dict | bytes | None = None,
         *,
         name: str | None = None,
     ) -> FindMyAccessory:
         """Create a FindMyAccessory from a .plist file dumped from the FindMy app."""
-        if isinstance(plist, bytes):
-            # plist is a bytes object
-            device_data = plistlib.loads(plist)
-        elif isinstance(plist, (str, Path)):
-            device_data = plistlib.loads(Path(plist).read_bytes())
-        elif isinstance(plist, IO):
-            device_data = plistlib.load(plist)
-        else:
-            device_data = plist
+        device_data = read_data_plist(plist)
 
         # PRIVATE master key. 28 (?) bytes.
         master_key = device_data["privateKey"]["key"]["data"][-28:]
@@ -263,11 +254,13 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         alignment_date = None
         index = None
         if key_alignment_plist:
-            alignment_data = plistlib.load(key_alignment_plist)
+            alignment_data = read_data_plist(key_alignment_plist)
 
+            # last observed date
             alignment_date = alignment_data["lastIndexObservationDate"].replace(
                 tzinfo=timezone.utc,
             )
+            # primary index value at last observed date
             index = alignment_data["lastIndexObserved"]
 
         return cls(

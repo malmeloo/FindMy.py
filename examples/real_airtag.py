@@ -33,13 +33,7 @@ logging.basicConfig(level=logging.INFO)
 
 def main(plist_path: Path, alignment_plist_path: Path | None) -> int:
     # Step 0: create an accessory key generator
-    with plist_path.open("rb") as f:
-        f2 = alignment_plist_path.open("rb") if alignment_plist_path else None
-
-        airtag = FindMyAccessory.from_plist(f, f2)
-
-        if f2:
-            f2.close()
+    airtag = FindMyAccessory.from_plist(plist_path, alignment_plist_path)
 
     # Step 1: log into an Apple account
     print("Logging into account")
