@@ -37,6 +37,8 @@ class FindMyAccessoryMapping(TypedDict):
     name: str | None
     model: str | None
     identifier: str | None
+    alignment_date: str | None
+    alignment_index: int | None
 
 
 class RollingKeyPairSource(ABC):
@@ -277,6 +279,10 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
 
     @override
     def to_json(self, path: str | Path | None = None, /) -> FindMyAccessoryMapping:
+        alignment_date = None
+        if self._alignment_date is not None:
+            alignment_date = self._alignment_date.isoformat()
+
         res: FindMyAccessoryMapping = {
             "type": "accessory",
             "master_key": self._primary_gen.master_key.hex(),
@@ -286,6 +292,8 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
             "name": self.name,
             "model": self.model,
             "identifier": self.identifier,
+            "alignment_date": alignment_date,
+            "alignment_index": self._alignment_index,
         }
 
         return save_and_return_json(res, path)
@@ -301,6 +309,10 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         assert val["type"] == "accessory"
 
         try:
+            alignment_date = val["alignment_date"]
+            if alignment_date is not None:
+                alignment_date = datetime.fromisoformat(alignment_date)
+
             return cls(
                 master_key=bytes.fromhex(val["master_key"]),
                 skn=bytes.fromhex(val["skn"]),
@@ -309,6 +321,8 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
                 name=val["name"],
                 model=val["model"],
                 identifier=val["identifier"],
+                alignment_date=alignment_date,
+                alignment_index=val["alignment_index"],
             )
         except KeyError as e:
             msg = f"Failed to restore account data: {e}"
