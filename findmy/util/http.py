@@ -11,10 +11,10 @@ import aiohttp
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
 from typing_extensions import Unpack, override
 
-from .closable import Closable
+from .abc import Closable
 from .parsers import decode_plist
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class _RequestOptions(TypedDict, total=False):
@@ -33,7 +33,7 @@ class _HttpRequestOptions(_RequestOptions, total=False):
 
 
 class HttpResponse:
-    """Response of a request made by `HttpSession`."""
+    """Response of a request made by :meth:`HttpSession`."""
 
     def __init__(self, status_code: int, content: bytes) -> None:
         """Initialize the response."""
@@ -75,22 +75,36 @@ class HttpSession(Closable):
         super().__init__()
 
         self._session: ClientSession | None = None
+        self._closed: bool = False
 
     async def _get_session(self) -> ClientSession:
+        if self._closed:
+            msg = "HttpSession has been closed and cannot be used"
+            raise RuntimeError(msg)
+
         if self._session is not None:
             return self._session
 
-        logging.debug("Creating aiohttp session")
+        logger.debug("Creating aiohttp session")
         self._session = ClientSession(timeout=ClientTimeout(total=5))
         return self._session
 
     @override
     async def close(self) -> None:
         """Close the underlying session. Should be called when session will no longer be used."""
+        if self._closed:
+            return  # Already closed, make it idempotent
+
+        self._closed = True
+
         if self._session is not None:
-            logging.debug("Closing aiohttp session")
-            await self._session.close()
-            self._session = None
+            logger.debug("Closing aiohttp session")
+            try:
+                await self._session.close()
+            except (RuntimeError, OSError, ConnectionError) as e:
+                logger.warning("Error closing aiohttp session: %s", e)
+            finally:
+                self._session = None
 
     async def request(
         self,
@@ -101,7 +115,7 @@ class HttpSession(Closable):
         """
         Make an HTTP request.
 
-        Keyword arguments will directly be passed to `aiohttp.ClientSession.request`.
+        Keyword arguments will directly be passed to :meth:`aiohttp.ClientSession.request`.
         """
         session = await self._get_session()
 
@@ -109,7 +123,7 @@ class HttpSession(Closable):
         auth = kwargs.pop("auth", None)
         if isinstance(auth, tuple):
             kwargs["auth"] = BasicAuth(auth[0], auth[1])
-        options = cast(_AiohttpRequestOptions, kwargs)
+        options = cast("_AiohttpRequestOptions", kwargs)
 
         auto_retry = kwargs.pop("auto_retry", False)
 
@@ -129,7 +143,7 @@ class HttpSession(Closable):
                     raise e from None
 
                 retry_after = 5 * retry_count
-                logging.warning(
+                logger.warning(
                     "Error while making HTTP request; retrying after %i seconds. %s",
                     retry_after,
                     e,

@@ -6,7 +6,7 @@ from typing_extensions import override
 
 
 class LoginState(Enum):
-    """Enum of possible login states. Used for `AppleAccount`'s internal state machine."""
+    """Enum of possible login states. Used for :meth:`AppleAccount`'s internal state machine."""
 
     LOGGED_OUT = 0
     REQUIRE_2FA = 1
@@ -15,9 +15,9 @@ class LoginState(Enum):
 
     def __lt__(self, other: "LoginState") -> bool:
         """
-        Compare against another `LoginState`.
+        Compare against another :meth:`LoginState`.
 
-        A `LoginState` is said to be "less than" another `LoginState` iff it is in
+        A :meth:`LoginState` is said to be "less than" another :meth:`LoginState` iff it is in
         an "earlier" stage of the login process, going from LOGGED_OUT to LOGGED_IN.
         """
         if isinstance(other, LoginState):

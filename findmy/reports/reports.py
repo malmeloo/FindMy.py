@@ -8,7 +8,7 @@ import logging
 import struct
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, cast, overload
+from typing import TYPE_CHECKING, Literal, TypedDict, Union, cast, overload
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -16,38 +16,63 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from typing_extensions import override
 
 from findmy.accessory import RollingKeyPairSource
-from findmy.keys import HasHashedPublicKey, KeyPair
+from findmy.keys import HasHashedPublicKey, KeyPair, KeyPairMapping
+from findmy.util.abc import Serializable
+from findmy.util.files import read_data_json, save_and_return_json
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from pathlib import Path
 
     from .account import AsyncAppleAccount
 
-logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
-class LocationReport(HasHashedPublicKey):
-    """Location report corresponding to a certain `HasHashedPublicKey`."""
+class LocationReportEncryptedMapping(TypedDict):
+    """JSON mapping representing an encrypted location report."""
+
+    type: Literal["locReportEncrypted"]
+
+    payload: str
+    hashed_adv_key: str
+
+
+class LocationReportDecryptedMapping(TypedDict):
+    """JSON mapping representing a decrypted location report."""
+
+    type: Literal["locReportDecrypted"]
+
+    payload: str
+    hashed_adv_key: str
+    key: KeyPairMapping
+
+
+LocationReportMapping = Union[LocationReportEncryptedMapping, LocationReportDecryptedMapping]
+
+
+class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
+    """Location report corresponding to a certain :meth:`HasHashedPublicKey`."""
 
     def __init__(
         self,
         payload: bytes,
         hashed_adv_key: bytes,
-        published_at: datetime,
-        description: str = "",
     ) -> None:
-        """Initialize a `KeyReport`. You should probably use `KeyReport.from_payload` instead."""
+        """
+        Initialize a :class:`LocationReport`.
+
+        You should probably use :meth:`LocationReport.from_payload` instead.
+        """
         self._payload: bytes = payload
         self._hashed_adv_key: bytes = hashed_adv_key
-        self._published_at: datetime = published_at
-        self._description: str = description
 
         self._decrypted_data: tuple[KeyPair, bytes] | None = None
 
     @property
     @override
     def hashed_adv_key_bytes(self) -> bytes:
-        """See `HasHashedPublicKey.hashed_adv_key_bytes`."""
+        """See :meth:`HasHashedPublicKey.hashed_adv_key_bytes`."""
         return self._hashed_adv_key
 
     @property
@@ -70,9 +95,13 @@ class LocationReport(HasHashedPublicKey):
         """Whether the report is currently decrypted."""
         return self._decrypted_data is not None
 
+    def can_decrypt(self, key: KeyPair, /) -> bool:
+        """Whether the report can be decrypted using the given key."""
+        return key.hashed_adv_key_bytes == self._hashed_adv_key
+
     def decrypt(self, key: KeyPair) -> None:
-        """Decrypt the report using its corresponding `KeyPair`."""
-        if key.hashed_adv_key_bytes != self._hashed_adv_key:
+        """Decrypt the report using its corresponding :meth:`KeyPair`."""
+        if not self.can_decrypt(key):
             msg = "Cannot decrypt with this key!"
             raise ValueError(msg)
 
@@ -110,18 +139,8 @@ class LocationReport(HasHashedPublicKey):
         self._decrypted_data = (key, decrypted_payload)
 
     @property
-    def published_at(self) -> datetime:
-        """The `datetime` when this report was published by a device."""
-        return self._published_at
-
-    @property
-    def description(self) -> str:
-        """Description of the location report as published by Apple."""
-        return self._description
-
-    @property
     def timestamp(self) -> datetime:
-        """The `datetime` when this report was recorded by a device."""
+        """The :meth:`datetime` when this report was recorded by a device."""
         timestamp_int = int.from_bytes(self._payload[0:4], "big") + (60 * 60 * 24 * 11323)
         return datetime.fromtimestamp(timestamp_int, tz=timezone.utc).astimezone()
 
@@ -177,6 +196,86 @@ class LocationReport(HasHashedPublicKey):
         status_bytes = self._decrypted_data[1][9:10]
         return int.from_bytes(status_bytes, "big")
 
+    @overload
+    def to_json(
+        self,
+        dst: str | Path | None = None,
+        /,
+        *,
+        include_key: Literal[True],
+    ) -> LocationReportEncryptedMapping:
+        pass
+
+    @overload
+    def to_json(
+        self,
+        dst: str | Path | None = None,
+        /,
+        *,
+        include_key: Literal[False],
+    ) -> LocationReportDecryptedMapping:
+        pass
+
+    @overload
+    def to_json(
+        self,
+        dst: str | Path | None = None,
+        /,
+        *,
+        include_key: None = None,
+    ) -> LocationReportMapping:
+        pass
+
+    @override
+    def to_json(
+        self,
+        dst: str | Path | None = None,
+        /,
+        *,
+        include_key: bool | None = None,
+    ) -> LocationReportMapping:
+        if include_key is None:
+            include_key = self.is_decrypted
+
+        if include_key:
+            return save_and_return_json(
+                {
+                    "type": "locReportDecrypted",
+                    "payload": base64.b64encode(self._payload).decode("utf-8"),
+                    "hashed_adv_key": base64.b64encode(self._hashed_adv_key).decode("utf-8"),
+                    "key": self.key.to_json(),
+                },
+                dst,
+            )
+        return save_and_return_json(
+            {
+                "type": "locReportEncrypted",
+                "payload": base64.b64encode(self._payload).decode("utf-8"),
+                "hashed_adv_key": base64.b64encode(self._hashed_adv_key).decode("utf-8"),
+            },
+            dst,
+        )
+
+    @classmethod
+    @override
+    def from_json(cls, val: str | Path | LocationReportMapping, /) -> LocationReport:
+        val = read_data_json(val)
+        assert val["type"] == "locReportEncrypted" or val["type"] == "locReportDecrypted"
+
+        try:
+            report = cls(
+                payload=base64.b64decode(val["payload"]),
+                hashed_adv_key=base64.b64decode(val["hashed_adv_key"]),
+            )
+            if val["type"] == "locReportDecrypted":
+                key = KeyPair.from_json(val["key"])
+                report.decrypt(key)
+        except KeyError as e:
+            msg = f"Failed to restore account data: {e}"
+            raise ValueError(msg) from None
+        else:
+            return report
+
     @override
     def __eq__(self, other: object) -> bool:
         """
@@ -207,9 +306,9 @@ class LocationReport(HasHashedPublicKey):
 
     def __lt__(self, other: LocationReport) -> bool:
         """
-        Compare against another `KeyReport`.
+        Compare against another :meth:`KeyReport`.
 
-        A `KeyReport` is said to be "less than" another `KeyReport` iff its recorded
+        A :meth:`KeyReport` is said to be "less than" another :meth:`KeyReport` iff its recorded
         timestamp is strictly less than the other report.
         """
         if isinstance(other, LocationReport):
@@ -250,14 +349,6 @@ class LocationReportsFetcher:
         self,
         date_from: datetime,
         date_to: datetime,
-        device: Sequence[HasHashedPublicKey],
-    ) -> dict[HasHashedPublicKey, list[LocationReport]]: ...
-
-    @overload
-    async def fetch_reports(
-        self,
-        date_from: datetime,
-        date_to: datetime,
         device: RollingKeyPairSource,
     ) -> list[LocationReport]: ...
 
@@ -266,76 +357,73 @@ class LocationReportsFetcher:
         self,
         date_from: datetime,
         date_to: datetime,
-        device: Sequence[RollingKeyPairSource],
-    ) -> dict[RollingKeyPairSource, list[LocationReport]]: ...
+        device: Sequence[HasHashedPublicKey | RollingKeyPairSource],
+    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
 
-    async def fetch_reports(
+    async def fetch_reports(  # noqa: C901
         self,
         date_from: datetime,
         date_to: datetime,
         device: HasHashedPublicKey
-        | Sequence[HasHashedPublicKey]
         | RollingKeyPairSource
-        | Sequence[RollingKeyPairSource],
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource],
     ) -> (
-        list[LocationReport]
-        | dict[HasHashedPublicKey, list[LocationReport]]
-        | dict[RollingKeyPairSource, list[LocationReport]]
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
         """
         Fetch location reports for a certain device.
 
-        When ``device`` is a single :class:`.HasHashedPublicKey`, this method will return
+        When `device` is a single :class:`HasHashedPublicKey`, this method will return
         a list of location reports corresponding to that key.
-        When ``device`` is a sequence of :class:`.HasHashedPublicKey`s, it will return a dictionary
-        with the :class:`.HasHashedPublicKey` as key, and a list of location reports as value.
-        When ``device`` is a :class:`.RollingKeyPairSource`, it will return a list of
+        When `device` is a :class:`RollingKeyPairSource`, it will return a list of
         location reports corresponding to that source.
+        When `device` is a sequence of :class:`HasHashedPublicKey`s or RollingKeyPairSource's,
+        it will return a dictionary with the provided object
+        as key, and a list of location reports as value.
         """
-        key_devs: (
-            dict[HasHashedPublicKey, HasHashedPublicKey]
-            | dict[HasHashedPublicKey, RollingKeyPairSource]
-        ) = {}
+        key_devs: dict[HasHashedPublicKey, HasHashedPublicKey | RollingKeyPairSource] = {}
+        key_batches: list[list[HasHashedPublicKey]] = []
         if isinstance(device, HasHashedPublicKey):
             # single key
             key_devs = {device: device}
-        elif isinstance(device, list) and all(isinstance(x, HasHashedPublicKey) for x in device):
-            # multiple static keys
-            device = cast(list[HasHashedPublicKey], device)
-            key_devs = {key: key for key in device}
+            key_batches.append([device])
         elif isinstance(device, RollingKeyPairSource):
             # key generator
             #   add 12h margin to the generator
-            key_devs = {
-                key: device
-                for key in device.keys_between(
-                    date_from - timedelta(hours=12),
-                    date_to + timedelta(hours=12),
-                )
-            }
-        elif isinstance(device, list) and all(isinstance(x, RollingKeyPairSource) for x in device):
+            keys = device.keys_between(
+                date_from - timedelta(hours=12),
+                date_to + timedelta(hours=12),
+            )
+            key_devs = dict.fromkeys(keys, device)
+            key_batches.append(list(keys))
+        elif isinstance(device, list) and all(
+            isinstance(x, HasHashedPublicKey | RollingKeyPairSource) for x in device
+        ):
             # multiple key generators
             #   add 12h margin to each generator
-            device = cast(list[RollingKeyPairSource], device)
-            key_devs = {
-                key: dev
-                for dev in device
-                for key in dev.keys_between(
-                    date_from - timedelta(hours=12),
-                    date_to + timedelta(hours=12),
-                )
-            }
+            device = cast("list[HasHashedPublicKey | RollingKeyPairSource]", device)
+            for dev in device:
+                if isinstance(dev, HasHashedPublicKey):
+                    key_devs[dev] = dev
+                    key_batches.append([dev])
+                elif isinstance(dev, RollingKeyPairSource):
+                    keys = dev.keys_between(
+                        date_from - timedelta(hours=12),
+                        date_to + timedelta(hours=12),
+                    )
+                    for key in keys:
+                        key_devs[key] = dev
+                    key_batches.append(list(keys))
         else:
             msg = "Unknown device type: %s"
             raise ValueError(msg, type(device))
 
         # sequence of keys (fetch 256 max at a time)
-        key_reports: dict[HasHashedPublicKey, list[LocationReport]] = {}
-        keys = list(key_devs.keys())
-        for key_offset in range(0, len(keys), 256):
-            chunk_keys = keys[key_offset : key_offset + 256]
-            chunk_reports = await self._fetch_reports(date_from, date_to, chunk_keys)
-            key_reports |= chunk_reports
+        key_reports: dict[HasHashedPublicKey, list[LocationReport]] = await self._fetch_reports(
+            date_from,
+            date_to,
+            key_batches,
+        )
 
         # combine (key -> list[report]) and (key -> device) into (device -> list[report])
         device_reports = defaultdict(list)
@@ -355,40 +443,38 @@ class LocationReportsFetcher:
         self,
         date_from: datetime,
         date_to: datetime,
-        keys: Sequence[HasHashedPublicKey],
+        device_keys: Sequence[Sequence[HasHashedPublicKey]],
     ) -> dict[HasHashedPublicKey, list[LocationReport]]:
-        logging.debug("Fetching reports for %s keys", len(keys))
+        logger.debug("Fetching reports for %s device(s)", len(device_keys))
 
         # lock requested time range to the past 7 days, +- 12 hours, then filter the response.
         # this is due to an Apple backend bug where the time range is not respected.
         # More info: https://github.com/biemster/FindMy/issues/7
         now = datetime.now().astimezone()
-        start_date = int((now - timedelta(days=7, hours=12)).timestamp() * 1000)
-        end_date = int((now + timedelta(hours=12)).timestamp() * 1000)
-        ids = [key.hashed_adv_key_b64 for key in keys]
+        start_date = now - timedelta(days=7, hours=12)
+        end_date = now + timedelta(hours=12)
+        ids = [[key.hashed_adv_key_b64 for key in keys] for keys in device_keys]
         data = await self._account.fetch_raw_reports(start_date, end_date, ids)
 
-        id_to_key: dict[bytes, HasHashedPublicKey] = {key.hashed_adv_key_bytes: key for key in keys}
+        id_to_key: dict[bytes, HasHashedPublicKey] = {
+            key.hashed_adv_key_bytes: key for keys in device_keys for key in keys
+        }
         reports: dict[HasHashedPublicKey, list[LocationReport]] = defaultdict(list)
-        for report in data.get("results", []):
-            payload = base64.b64decode(report["payload"])
-            hashed_adv_key = base64.b64decode(report["id"])
-            date_published = datetime.fromtimestamp(
-                report.get("datePublished", 0) / 1000,
-                tz=timezone.utc,
-            ).astimezone()
-            description = report.get("description", "")
+        for key_reports in data.get("locationPayload", []):
+            hashed_adv_key_bytes = base64.b64decode(key_reports["id"])
+            key = id_to_key[hashed_adv_key_bytes]
 
-            loc_report = LocationReport(payload, hashed_adv_key, date_published, description)
+            for report in key_reports.get("locationInfo", []):
+                payload = base64.b64decode(report)
+                loc_report = LocationReport(payload, hashed_adv_key_bytes)
 
-            # pre-decrypt if possible
-            key = id_to_key[hashed_adv_key]
-            if isinstance(key, KeyPair):
-                loc_report.decrypt(key)
+                if loc_report.timestamp < date_from or loc_report.timestamp > date_to:
+                    continue
 
-            if loc_report.timestamp < date_from or loc_report.timestamp > date_to:
-                continue
+                # pre-decrypt if possible
+                if isinstance(key, KeyPair):
+                    loc_report.decrypt(key)
 
-            reports[key].append(loc_report)
+                reports[key].append(loc_report)
 
         return reports

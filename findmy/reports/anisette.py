@@ -8,14 +8,52 @@ import logging
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
+from io import BytesIO
+from pathlib import Path
+from typing import BinaryIO, Literal, TypedDict, Union
 
+from anisette import Anisette, AnisetteHeaders
 from typing_extensions import override
 
-from findmy.util.closable import Closable
+from findmy.util.abc import Closable, Serializable
+from findmy.util.files import read_data_json, save_and_return_json
 from findmy.util.http import HttpSession
 
+logger = logging.getLogger(__name__)
 
-class BaseAnisetteProvider(Closable, ABC):
+
+class RemoteAnisetteMapping(TypedDict):
+    """JSON mapping representing state of a remote Anisette provider."""
+
+    type: Literal["aniRemote"]
+    url: str
+
+
+class LocalAnisetteMapping(TypedDict):
+    """JSON mapping representing state of a local Anisette provider."""
+
+    type: Literal["aniLocal"]
+    prov_data: str
+
+
+AnisetteMapping = Union[RemoteAnisetteMapping, LocalAnisetteMapping]
+
+
+def get_provider_from_mapping(
+    mapping: AnisetteMapping,
+    *,
+    libs_path: str | Path | None = None,
+) -> RemoteAnisetteProvider | LocalAnisetteProvider:
+    """Get the correct Anisette provider instance from saved JSON data."""
+    if mapping["type"] == "aniRemote":
+        return RemoteAnisetteProvider.from_json(mapping)
+    if mapping["type"] == "aniLocal":
+        return LocalAnisetteProvider.from_json(mapping, libs_path=libs_path)
+    msg = f"Unknown anisette type: {mapping['type']}"
+    raise ValueError(msg)
+
+
+class BaseAnisetteProvider(Closable, Serializable, ABC):
     """
     Abstract base class for Anisette providers.
 
@@ -25,22 +63,13 @@ class BaseAnisetteProvider(Closable, ABC):
     @property
     @abstractmethod
     def otp(self) -> str:
-        """
-        A seemingly random base64 string containing 28 bytes.
-
-        TODO: Figure out how to generate this.
-        """
+        """A seemingly random base64 string containing 28 bytes."""
         raise NotImplementedError
 
     @property
     @abstractmethod
     def machine(self) -> str:
-        """
-        A base64 encoded string of 60 'random' bytes.
-
-        We're not sure how this is generated, we have to rely on the server.
-        TODO: Figure out how to generate this.
-        """
+        """A base64 encoded string of 60 'random' bytes."""
         raise NotImplementedError
 
     @property
@@ -106,7 +135,7 @@ class BaseAnisetteProvider(Closable, ABC):
         """
         Generate a complete dictionary of Anisette headers.
 
-        Consider using `BaseAppleAccount.get_anisette_headers` instead.
+        Consider using :meth:`BaseAppleAccount.get_anisette_headers` instead.
         """
         headers = {
             # Current Time
@@ -159,7 +188,7 @@ class BaseAnisetteProvider(Closable, ABC):
         return cpd
 
 
-class RemoteAnisetteProvider(BaseAnisetteProvider):
+class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMapping]):
     """Anisette provider. Fetches headers from a remote Anisette server."""
 
     _ANISETTE_DATA_VALID_FOR = 30
@@ -174,23 +203,47 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
 
         self._anisette_data: dict[str, str] | None = None
         self._anisette_data_expires_at: float = 0
+        self._closed = False
+
+    @override
+    def to_json(self, dst: str | Path | None = None, /) -> RemoteAnisetteMapping:
+        """See :meth:`BaseAnisetteProvider.serialize`."""
+        return save_and_return_json(
+            {
+                "type": "aniRemote",
+                "url": self._server_url,
+            },
+            dst,
+        )
+
+    @classmethod
+    @override
+    def from_json(cls, val: str | Path | RemoteAnisetteMapping) -> RemoteAnisetteProvider:
+        """See :meth:`BaseAnisetteProvider.deserialize`."""
+        val = read_data_json(val)
+
+        assert val["type"] == "aniRemote"
+
+        server_url = val["url"]
+
+        return cls(server_url)
 
     @property
     @override
     def otp(self) -> str:
-        """See `BaseAnisetteProvider.otp`_."""
+        """See :meth:`BaseAnisetteProvider.otp`."""
         otp = (self._anisette_data or {}).get("X-Apple-I-MD")
         if otp is None:
-            logging.warning("X-Apple-I-MD header not found! Returning fallback...")
+            logger.warning("X-Apple-I-MD header not found! Returning fallback...")
         return otp or ""
 
     @property
     @override
     def machine(self) -> str:
-        """See `BaseAnisetteProvider.machine`_."""
+        """See :meth:`BaseAnisetteProvider.machine`."""
         machine = (self._anisette_data or {}).get("X-Apple-I-MD-M")
         if machine is None:
-            logging.warning("X-Apple-I-MD-M header not found! Returning fallback...")
+            logger.warning("X-Apple-I-MD-M header not found! Returning fallback...")
         return machine or ""
 
     @override
@@ -201,9 +254,13 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
         serial: str = "0",
         with_client_info: bool = False,
     ) -> dict[str, str]:
-        """See `BaseAnisetteProvider.get_headers`_."""
+        """See :meth::meth:`BaseAnisetteProvider.get_headers`."""
+        if self._closed:
+            msg = "RemoteAnisetteProvider has been closed and cannot be used"
+            raise RuntimeError(msg)
+
         if self._anisette_data is None or time.time() >= self._anisette_data_expires_at:
-            logging.info("Fetching anisette data from %s", self._server_url)
+            logger.info("Fetching anisette data from %s", self._server_url)
 
             r = await self._http.get(self._server_url, auto_retry=True)
             self._anisette_data = r.json()
@@ -213,27 +270,125 @@ class RemoteAnisetteProvider(BaseAnisetteProvider):
 
     @override
     async def close(self) -> None:
-        """See `AnisetteProvider.close`."""
-        await self._http.close()
+        """See :meth:`AnisetteProvider.close`."""
+        if self._closed:
+            return  # Already closed, make it idempotent
+
+        self._closed = True
+
+        try:
+            await self._http.close()
+        except (RuntimeError, OSError, ConnectionError) as e:
+            logger.warning("Error closing anisette HTTP session: %s", e)
 
 
-# TODO(malmeloo): implement using pyprovision
-# https://github.com/malmeloo/FindMy.py/issues/2
-class LocalAnisetteProvider(BaseAnisetteProvider):
-    """Anisette provider. Generates headers without a remote server using pyprovision."""
+class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapping]):
+    """Local anisette provider using the `anisette` library."""
+
+    def __init__(
+        self,
+        *,
+        state_blob: BinaryIO | None = None,
+        libs_path: str | Path | None = None,
+    ) -> None:
+        """Initialize the provider."""
+        super().__init__()
+
+        if isinstance(libs_path, str):
+            libs_path = Path(libs_path)
+
+        if libs_path is None or not libs_path.is_file():
+            logger.info(
+                "The Anisette engine will download libraries required for operation, "
+                "this may take a few seconds...",
+            )
+        if libs_path is None:
+            logger.info(
+                "To speed up future local Anisette initializations, "
+                "provide a filesystem path to load the libraries from.",
+            )
+
+        files: list[BinaryIO | Path] = []
+        if state_blob is not None:
+            files.append(state_blob)
+        if libs_path is not None and libs_path.exists():
+            files.append(libs_path)
+
+        self._ani = Anisette.load(*files)
+        self._ani_data: AnisetteHeaders | None = None
+        self._libs_path: Path | None = libs_path
+
+        if libs_path is not None:
+            self._ani.save_libs(libs_path)
+        if state_blob is not None and not self._ani.is_provisioned:
+            logger.warning(
+                "The Anisette state that was loaded has not yet been provisioned. "
+                "Was the previous session saved properly?",
+            )
+
+    @override
+    def to_json(self, dst: str | Path | None = None, /) -> LocalAnisetteMapping:
+        """See :meth:`BaseAnisetteProvider.serialize`."""
+        with BytesIO() as buf:
+            self._ani.save_provisioning(buf)
+            prov_data = base64.b64encode(buf.getvalue()).decode("utf-8")
+
+        return save_and_return_json(
+            {
+                "type": "aniLocal",
+                "prov_data": prov_data,
+            },
+            dst,
+        )
+
+    @classmethod
+    @override
+    def from_json(
+        cls,
+        val: str | Path | LocalAnisetteMapping,
+        *,
+        libs_path: str | Path | None = None,
+    ) -> LocalAnisetteProvider:
+        """See :meth:`BaseAnisetteProvider.deserialize`."""
+        val = read_data_json(val)
+
+        assert val["type"] == "aniLocal"
+
+        state_blob = BytesIO(base64.b64decode(val["prov_data"]))
+
+        return cls(state_blob=state_blob, libs_path=libs_path)
+
+    @override
+    async def get_headers(
+        self,
+        user_id: str,
+        device_id: str,
+        serial: str = "0",
+        with_client_info: bool = False,
+    ) -> dict[str, str]:
+        """See :meth:`BaseAnisetteProvider.get_headers`."""
+        self._ani_data = self._ani.get_data()
+
+        return await super().get_headers(user_id, device_id, serial, with_client_info)
 
     @property
     @override
     def otp(self) -> str:
-        """See `BaseAnisetteProvider.otp`_."""
-        raise NotImplementedError
+        """See :meth:`BaseAnisetteProvider.otp`."""
+        machine = (self._ani_data or {}).get("X-Apple-I-MD")
+        if machine is None:
+            logger.warning("X-Apple-I-MD header not found! Returning fallback...")
+        return machine or ""
 
     @property
     @override
     def machine(self) -> str:
-        """See `BaseAnisetteProvider.machine`_."""
-        raise NotImplementedError
+        """See :meth:`BaseAnisetteProvider.machine`."""
+        machine = (self._ani_data or {}).get("X-Apple-I-MD-M")
+        if machine is None:
+            logger.warning("X-Apple-I-MD-M header not found! Returning fallback...")
+        return machine or ""
 
     @override
     async def close(self) -> None:
-        """See `BaseAnisetteProvider.close`_."""
+        """See :meth:`BaseAnisetteProvider.close`."""

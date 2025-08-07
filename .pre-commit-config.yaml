@@ -1,11 +1,31 @@
+default_install_hook_types:
+  - pre-commit
+  - post-checkout
+  - post-merge
+  - post-rewrite
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.5
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.8.4
     hooks:
-      - id: ruff
-        args: ["--fix"]
-      - id: ruff-format
-  - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.381
+      - id: uv-sync
+        args: ["--all-groups"]
+
+  - repo: local
     hooks:
-      - id: pyright
+      - id: uv-basedpyright
+        name: Run basedpyright via uv
+        entry: uv run basedpyright
+        language: system
+        types: [python]
+
+      - id: uv-ruff-check
+        name: Run ruff check via uv
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+
+      - id: uv-ruff-fmt
+        name: Run ruff format via uv
+        entry: uv run ruff format
+        language: system
+        types: [python]

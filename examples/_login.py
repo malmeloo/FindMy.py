@@ -1,18 +1,13 @@
-# ruff: noqa: ASYNC230
-
-import json
-from pathlib import Path
+from __future__ import annotations
 
 from findmy.reports import (
     AppleAccount,
     AsyncAppleAccount,
-    BaseAnisetteProvider,
     LoginState,
     SmsSecondFactorMethod,
     TrustedDeviceSecondFactorMethod,
 )
-
-ACCOUNT_STORE = "account.json"
+from findmy.reports.anisette import LocalAnisetteProvider, RemoteAnisetteProvider
 
 
 def _login_sync(account: AppleAccount) -> None:
@@ -69,35 +64,45 @@ async def _login_async(account: AsyncAppleAccount) -> None:
         await method.submit(code)
 
 
-def get_account_sync(anisette: BaseAnisetteProvider) -> AppleAccount:
+def get_account_sync(
+    store_path: str,
+    anisette_url: str | None,
+    libs_path: str | None,
+) -> AppleAccount:
     """Tries to restore a saved Apple account, or prompts the user for login otherwise. (sync)"""
-    acc = AppleAccount(anisette)
-
-    # Save / restore account logic
-    acc_store = Path("account.json")
     try:
-        with acc_store.open() as f:
-            acc.restore(json.load(f))
+        acc = AppleAccount.from_json(store_path, anisette_libs_path=libs_path)
     except FileNotFoundError:
+        ani = (
+            LocalAnisetteProvider(libs_path=libs_path)
+            if anisette_url is None
+            else RemoteAnisetteProvider(anisette_url)
+        )
+        acc = AppleAccount(ani)
         _login_sync(acc)
-        with acc_store.open("w+") as f:
-            json.dump(acc.export(), f)
+
+        acc.to_json(store_path)
 
     return acc
 
 
-async def get_account_async(anisette: BaseAnisetteProvider) -> AsyncAppleAccount:
+async def get_account_async(
+    store_path: str,
+    anisette_url: str | None,
+    libs_path: str | None,
+) -> AsyncAppleAccount:
     """Tries to restore a saved Apple account, or prompts the user for login otherwise. (async)"""
-    acc = AsyncAppleAccount(anisette)
-
-    # Save / restore account logic
-    acc_store = Path("account.json")
     try:
-        with acc_store.open() as f:
-            acc.restore(json.load(f))
+        acc = AsyncAppleAccount.from_json(store_path, anisette_libs_path=libs_path)
     except FileNotFoundError:
+        ani = (
+            LocalAnisetteProvider(libs_path=libs_path)
+            if anisette_url is None
+            else RemoteAnisetteProvider(anisette_url)
+        )
+        acc = AsyncAppleAccount(ani)
         await _login_async(acc)
-        with acc_store.open("w+") as f:
-            json.dump(acc.export(), f)
+
+        acc.to_json(store_path)
 
     return acc
