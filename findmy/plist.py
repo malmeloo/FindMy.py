@@ -1,7 +1,16 @@
-"""Utils for decrypting the encypted .record files into .plist files."""
+"""
+Utils for decrypting the encypted .record files into .plist files.
+
+Originally from:
+Author: Shane B. <shane@wander.dev>
+in https://github.com/parawanderer/OpenTagViewer/blob/08a59cab551721afb9dc9f829ad31dae8d5bd400/python/airtag_decryptor.py
+which was based on:
+Based on: https://gist.github.com/airy10/5205dc851fbd0715fcd7a5cdde25e7c8
+"""
 
 from __future__ import annotations
 
+import logging
 import plistlib
 import subprocess
 from pathlib import Path
@@ -11,22 +20,54 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from .accessory import FindMyAccessory
 
-# Originally from:
-# Author: Shane B. <shane@wander.dev>
-# in https://github.com/parawanderer/OpenTagViewer/blob/08a59cab551721afb9dc9f829ad31dae8d5bd400/python/airtag_decryptor.py
-# which was based on:
-# Based on: https://gist.github.com/airy10/5205dc851fbd0715fcd7a5cdde25e7c8
+logger = logging.getLogger(__name__)
+
+
+_DEFAULT_SEARCH_PATH = Path.home() / "Library" / "com.apple.icloud.searchpartyd"
 
 
 # consider switching to this library https://github.com/microsoft/keyper
 # once they publish a version of it that includes my MR with the changes to make it compatible
 # with keys that are non-utf-8 encoded (like the BeaconStore one)
 # if I contribute this, properly escape the label argument here...
-def get_key() -> bytes:
+def _get_beaconstore_key() -> bytes:
     """Get the decryption key for BeaconStore using the system password prompt window."""
     # This thing will pop up 2 Password Input windows...
     key_in_hex = subprocess.getoutput("/usr/bin/security find-generic-password -l 'BeaconStore' -w")  # noqa: S605
     return bytes.fromhex(key_in_hex)
+
+
+def _get_accessory_name(
+    accessory_id: str,
+    key: bytes,
+    *,
+    search_path: Path | None = None,
+) -> str | None:
+    search_path = search_path or _DEFAULT_SEARCH_PATH
+    path = next((search_path / "BeaconNamingRecord" / accessory_id).glob(pattern="*.record"), None)
+    if path is None:
+        logger.warning(
+            "Accessory %s does not have a BeaconNamingRecord, defaulting to None", accessory_id
+        )
+        return None
+
+    naming_record_plist = decrypt_plist(path, key)
+    return naming_record_plist.get("name", None)
+
+
+def _get_alignment_plist(
+    accessory_id: str,
+    key: bytes,
+    *,
+    search_path: Path | None = None,
+) -> dict | None:
+    search_path = search_path or _DEFAULT_SEARCH_PATH
+    path = next((search_path / "KeyAlignmentRecords" / accessory_id).glob(pattern="*.record"), None)
+    if path is None:
+        logger.warning("Accessory %s does not have a KeyAlignmentRecord", accessory_id)
+        return None
+
+    return decrypt_plist(path, key)
 
 
 def decrypt_plist(encrypted: str | Path | bytes | IO[bytes], key: bytes) -> dict:
@@ -76,15 +117,15 @@ def list_accessories(
         search_path = Path.home() / "Library" / "com.apple.icloud.searchpartyd"
     search_path = Path(search_path)
     if key is None:
-        key = get_key()
+        key = _get_beaconstore_key()
 
     accesories = []
     encrypted_plist_paths = search_path.glob("OwnedBeacons/*.record")
     for path in encrypted_plist_paths:
         plist = decrypt_plist(path, key)
-        naming_record_path = next((search_path / "BeaconNamingRecord" / path.stem).glob("*.record"))
-        naming_record_plist = decrypt_plist(naming_record_path, key)
-        name = naming_record_plist["name"]
-        accessory = FindMyAccessory.from_plist(plist, name=name)
+        name = _get_accessory_name(path.stem, key)
+        alignment_plist = _get_alignment_plist(path.stem, key)
+
+        accessory = FindMyAccessory.from_plist(plist, alignment_plist, name=name)
         accesories.append(accessory)
     return accesories
