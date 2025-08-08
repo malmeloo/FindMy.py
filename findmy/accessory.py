@@ -7,22 +7,21 @@ Accessories could be anything ranging from AirTags to iPhones.
 from __future__ import annotations
 
 import logging
-import plistlib
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import IO, TYPE_CHECKING, Literal, TypedDict, overload
+from typing import TYPE_CHECKING, Literal, TypedDict, overload
 
 from typing_extensions import override
 
 from findmy.util.abc import Serializable
-from findmy.util.files import read_data_json, save_and_return_json
+from findmy.util.files import read_data_json, read_data_plist, save_and_return_json
 
 from .keys import KeyGenerator, KeyPair, KeyType
 from .util import crypto
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +37,8 @@ class FindMyAccessoryMapping(TypedDict):
     name: str | None
     model: str | None
     identifier: str | None
+    alignment_date: str | None
+    alignment_index: int | None
 
 
 class RollingKeyPairSource(ABC):
@@ -95,6 +96,8 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         name: str | None = None,
         model: str | None = None,
         identifier: str | None = None,
+        alignment_date: datetime | None = None,
+        alignment_index: int | None = None,
     ) -> None:
         """
         Initialize a FindMyAccessory. These values are usually obtained during pairing.
@@ -116,6 +119,14 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         self._name = name
         self._model = model
         self._identifier = identifier
+        self._alignment_date = alignment_date if alignment_date is not None else paired_at
+        self._alignment_index = alignment_index if alignment_index is not None else 0
+        if self._alignment_date.tzinfo is None:
+            self._alignment_date = self._alignment_date.astimezone()
+            logger.warning(
+                "Alignment datetime is timezone-naive. Assuming system tz: %s.",
+                self._alignment_date.tzname(),
+            )
 
     @property
     def master_key(self) -> bytes:
@@ -173,25 +184,27 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         secondary_offset = 0
 
         if isinstance(ind, datetime):
-            # number of 15-minute slots since pairing time
-            ind = (
+            # number of 15-minute slots since alignment
+            slots_since_alignment = (
                 int(
-                    (ind - self._paired_at).total_seconds() / (15 * 60),
+                    (ind - self._alignment_date).total_seconds() / (15 * 60),
                 )
                 + 1
             )
+            ind = self._alignment_index + slots_since_alignment
+
             # number of slots until first 4 am
-            first_rollover = self._paired_at.astimezone().replace(
+            first_rollover = self._alignment_date.astimezone().replace(
                 hour=4,
                 minute=0,
                 second=0,
                 microsecond=0,
             )
-            if first_rollover < self._paired_at:  # we rolled backwards, so increment the day
+            if first_rollover < self._alignment_date:  # we rolled backwards, so increment the day
                 first_rollover += timedelta(days=1)
             secondary_offset = (
                 int(
-                    (first_rollover - self._paired_at).total_seconds() / (15 * 60),
+                    (first_rollover - self._alignment_date).total_seconds() / (15 * 60),
                 )
                 + 1
             )
@@ -212,20 +225,13 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
     @classmethod
     def from_plist(
         cls,
-        plist: str | Path | dict | bytes | IO[bytes],
+        plist: str | Path | dict | bytes,
+        key_alignment_plist: str | Path | dict | bytes | None = None,
         *,
         name: str | None = None,
     ) -> FindMyAccessory:
         """Create a FindMyAccessory from a .plist file dumped from the FindMy app."""
-        if isinstance(plist, bytes):
-            # plist is a bytes object
-            device_data = plistlib.loads(plist)
-        elif isinstance(plist, (str, Path)):
-            device_data = plistlib.loads(Path(plist).read_bytes())
-        elif isinstance(plist, IO):
-            device_data = plistlib.load(plist)
-        else:
-            device_data = plist
+        device_data = read_data_plist(plist)
 
         # PRIVATE master key. 28 (?) bytes.
         master_key = device_data["privateKey"]["key"]["data"][-28:]
@@ -247,6 +253,18 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         model = device_data["model"]
         identifier = device_data["identifier"]
 
+        alignment_date = None
+        index = None
+        if key_alignment_plist:
+            alignment_data = read_data_plist(key_alignment_plist)
+
+            # last observed date
+            alignment_date = alignment_data["lastIndexObservationDate"].replace(
+                tzinfo=timezone.utc,
+            )
+            # primary index value at last observed date
+            index = alignment_data["lastIndexObserved"]
+
         return cls(
             master_key=master_key,
             skn=skn,
@@ -255,10 +273,16 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
             name=name,
             model=model,
             identifier=identifier,
+            alignment_date=alignment_date,
+            alignment_index=index,
         )
 
     @override
     def to_json(self, path: str | Path | None = None, /) -> FindMyAccessoryMapping:
+        alignment_date = None
+        if self._alignment_date is not None:
+            alignment_date = self._alignment_date.isoformat()
+
         res: FindMyAccessoryMapping = {
             "type": "accessory",
             "master_key": self._primary_gen.master_key.hex(),
@@ -268,6 +292,8 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
             "name": self.name,
             "model": self.model,
             "identifier": self.identifier,
+            "alignment_date": alignment_date,
+            "alignment_index": self._alignment_index,
         }
 
         return save_and_return_json(res, path)
@@ -283,6 +309,10 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         assert val["type"] == "accessory"
 
         try:
+            alignment_date = val["alignment_date"]
+            if alignment_date is not None:
+                alignment_date = datetime.fromisoformat(alignment_date)
+
             return cls(
                 master_key=bytes.fromhex(val["master_key"]),
                 skn=bytes.fromhex(val["skn"]),
@@ -291,6 +321,8 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
                 name=val["name"],
                 model=val["model"],
                 identifier=val["identifier"],
+                alignment_date=alignment_date,
+                alignment_index=val["alignment_index"],
             )
         except KeyError as e:
             msg = f"Failed to restore account data: {e}"

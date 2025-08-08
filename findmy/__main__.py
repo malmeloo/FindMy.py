@@ -8,7 +8,7 @@ import logging
 from importlib.metadata import version
 from pathlib import Path
 
-from .plist import get_key, list_accessories
+from .plist import list_accessories
 
 
 def main() -> None:  # noqa: D103
@@ -96,8 +96,7 @@ def decrypt_all(out_dir: str | Path | None = None) -> None:
         d.mkdir(parents=True, exist_ok=True)
         return d / f"{acc.identifier}.json"
 
-    key = get_key()
-    accs = list_accessories(key=key)
+    accs = list_accessories()
     jsons = [acc.to_json(get_path(out_dir, acc)) for acc in accs]
     print(json.dumps(jsons, indent=4, ensure_ascii=False))  # noqa: T201
 
