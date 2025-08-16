@@ -7,8 +7,8 @@ import hashlib
 import logging
 import struct
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Literal, TypedDict, Union, cast, overload
+from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING, Literal, TypedDict, cast, overload
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -48,7 +48,7 @@ class LocationReportDecryptedMapping(TypedDict):
     key: KeyPairMapping
 
 
-LocationReportMapping = Union[LocationReportEncryptedMapping, LocationReportDecryptedMapping]
+LocationReportMapping = LocationReportEncryptedMapping | LocationReportDecryptedMapping
 
 
 class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
@@ -142,7 +142,7 @@ class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
     def timestamp(self) -> datetime:
         """The :meth:`datetime` when this report was recorded by a device."""
         timestamp_int = int.from_bytes(self._payload[0:4], "big") + (60 * 60 * 24 * 11323)
-        return datetime.fromtimestamp(timestamp_int, tz=timezone.utc).astimezone()
+        return datetime.fromtimestamp(timestamp_int, tz=UTC).astimezone()
 
     @property
     def confidence(self) -> int:

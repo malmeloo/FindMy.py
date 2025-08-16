@@ -348,7 +348,7 @@ class OfflineFindingScanner:
         self._device_fut.set_result((device, data))
         self._device_fut = self._loop.create_future()
 
-    async def _wait_for_device(self, timeout: float) -> OfflineFindingDevice | None:
+    async def _wait_for_device(self, timeout: float) -> OfflineFindingDevice | None:  # noqa: ASYNC109
         device, data = await asyncio.wait_for(self._device_fut, timeout=timeout)
 
         apple_data = data.manufacturer_data.get(self.BLE_COMPANY_APPLE, b"")
@@ -372,7 +372,7 @@ class OfflineFindingScanner:
 
     async def scan_for(
         self,
-        timeout: float = 10,
+        timeout: float = 10,  # noqa: ASYNC109
         *,
         extend_timeout: bool = False,
     ) -> AsyncGenerator[OfflineFindingDevice, None]:
@@ -398,7 +398,7 @@ class OfflineFindingScanner:
                     yield device
 
                 time_left = stop_at - time.time()
-        except asyncio.TimeoutError:  # timeout reached
+        except TimeoutError:  # timeout reached
             self._device_fut = self._loop.create_future()
             return
         finally:

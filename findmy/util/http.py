@@ -138,7 +138,7 @@ class HttpSession(Closable):
                     **options,
                 ) as r:
                     return HttpResponse(r.status, await r.content.read())
-            except aiohttp.ClientError as e:  # noqa: PERF203
+            except aiohttp.ClientError as e:
                 if not auto_retry or retry_count > 3:
                     raise e from None
 

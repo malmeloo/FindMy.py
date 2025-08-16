@@ -7,10 +7,10 @@ import locale
 import logging
 import time
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO, Literal, TypedDict, Union
+from typing import BinaryIO, Literal, TypedDict
 
 from anisette import Anisette, AnisetteHeaders
 from typing_extensions import override
@@ -36,7 +36,7 @@ class LocalAnisetteMapping(TypedDict):
     prov_data: str
 
 
-AnisetteMapping = Union[RemoteAnisetteMapping, LocalAnisetteMapping]
+AnisetteMapping = RemoteAnisetteMapping | LocalAnisetteMapping
 
 
 def get_provider_from_mapping(
@@ -75,7 +75,7 @@ class BaseAnisetteProvider(Closable, Serializable, ABC):
     @property
     def timestamp(self) -> str:
         """Current timestamp in ISO 8601 format."""
-        return datetime.now(tz=timezone.utc).replace(microsecond=0).isoformat() + "Z"
+        return datetime.now(tz=UTC).replace(microsecond=0).isoformat() + "Z"
 
     @property
     def timezone(self) -> str:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import plistlib
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Literal, TypedDict, overload
 
@@ -242,7 +242,7 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
             sks = device_data["secureLocationsSharedSecret"]["key"]["data"]
 
         # "Paired at" timestamp (UTC)
-        paired_at = device_data["pairingDate"].replace(tzinfo=timezone.utc)
+        paired_at = device_data["pairingDate"].replace(tzinfo=UTC)
 
         model = device_data["model"]
         identifier = device_data["identifier"]
