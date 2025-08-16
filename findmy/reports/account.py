@@ -9,12 +9,13 @@ import logging
 import plistlib
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta
 from functools import wraps
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
+    Concatenate,
     Literal,
     TypedDict,
     TypeVar,
@@ -24,7 +25,7 @@ from typing import (
 
 import bs4
 import srp._pysrp as srp
-from typing_extensions import Concatenate, ParamSpec, override
+from typing_extensions import ParamSpec, override
 
 from findmy.errors import (
     InvalidCredentialsError,
@@ -759,7 +760,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
         """See :meth:`BaseAppleAccount.fetch_last_reports`."""
-        end = datetime.now(tz=timezone.utc)
+        end = datetime.now(tz=UTC)
         start = end - timedelta(hours=hours)
 
         return await self.fetch_reports(keys, start, end)

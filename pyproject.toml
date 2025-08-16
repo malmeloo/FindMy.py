@@ -5,7 +5,7 @@ description = "Everything you need to work with Apple's Find My network!"
 readme = "README.md"
 authors = [{ name = "Mike Almeloo", email = "git@mikealmel.ooo" }]
 license-files = ["LICENSE.md"]
-requires-python = ">=3.9,<3.14"
+requires-python = ">=3.11,<3.14"
 dependencies = [
     "srp>=1.0.21,<2.0.0",
     "cryptography>=42.0.0,<46.0.0",
@@ -15,9 +15,6 @@ dependencies = [
     "typing-extensions>=4.12.2,<5.0.0",
     "anisette>=1.2.1,<2.0.0",
 ]
-
-[tool.uv.dependency-groups.docs]
-requires-python = ">=3.11"
 
 [dependency-groups]
 dev = [
@@ -46,6 +43,7 @@ reportImplicitOverride = true
 
 [tool.ruff]
 line-length = 100
+target-version = "py311"
 
 exclude = ["docs/", "tests/"]
 
