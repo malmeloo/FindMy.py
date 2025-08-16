@@ -21,7 +21,6 @@
       </a>
 </div>
 
-## 🚀 Overview
 The current "Find My-scene" is quite fragmented, with code
 being all over the place across multiple repositories,
 written by [several authors](#Credits). This project aims to
