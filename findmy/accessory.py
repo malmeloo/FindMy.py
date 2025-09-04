@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
 
+    from findmy.reports.reports import LocationReport
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,37 +50,38 @@ class RollingKeyPairSource(ABC):
     @abstractmethod
     def interval(self) -> timedelta:
         """KeyPair rollover interval."""
-
-    @abstractmethod
-    def keys_at(self, ind: int | datetime) -> set[KeyPair]:
-        """Generate potential key(s) occurring at a certain index or timestamp."""
         raise NotImplementedError
 
-    @overload
+    @abstractmethod
+    def get_min_index(self, dt: datetime) -> int:
+        """Get the minimum key index that the accessory could be broadcasting at a specific time."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_max_index(self, dt: datetime) -> int:
+        """Get the maximum key index that the accessory could be broadcasting at a specific time."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_alignment(self, report: LocationReport, index: int) -> None:
+        """
+        Update alignment of the accessory.
+
+        Alignment can be updated based on a LocationReport that was observed at a specific index.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def keys_at(self, ind: int) -> set[KeyPair]:
+        """Generate potential key(s) occurring at a certain index."""
+        raise NotImplementedError
+
     def keys_between(self, start: int, end: int) -> set[KeyPair]:
-        pass
-
-    @overload
-    def keys_between(self, start: datetime, end: datetime) -> set[KeyPair]:
-        pass
-
-    def keys_between(self, start: int | datetime, end: int | datetime) -> set[KeyPair]:
-        """Generate potential key(s) occurring between two indices or timestamps."""
+        """Generate potential key(s) occurring between two indices."""
         keys: set[KeyPair] = set()
 
-        if isinstance(start, int) and isinstance(end, int):
-            while start < end:
-                keys.update(self.keys_at(start))
-
-                start += 1
-        elif isinstance(start, datetime) and isinstance(end, datetime):
-            while start < end:
-                keys.update(self.keys_at(start))
-
-                start += self.interval
-        else:
-            msg = "Invalid start/end type"
-            raise TypeError(msg)
+        for ind in range(start, end + 1):
+            keys.update(self.keys_at(ind))
 
         return keys
 
@@ -174,53 +177,82 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         return timedelta(minutes=15)
 
     @override
-    def keys_at(self, ind: int | datetime) -> set[KeyPair]:
-        """Get the potential primary and secondary keys active at a certain time or index."""
-        if isinstance(ind, datetime) and ind < self._paired_at:
-            return set()
-        if isinstance(ind, int) and ind < 0:
-            return set()
-
-        secondary_offset = 0
-
-        if isinstance(ind, datetime):
-            # number of 15-minute slots since alignment
-            slots_since_alignment = (
-                int(
-                    (ind - self._alignment_date).total_seconds() / (15 * 60),
-                )
-                + 1
-            )
-            ind = self._alignment_index + slots_since_alignment
-
-            # number of slots until first 4 am
-            first_rollover = self._alignment_date.astimezone().replace(
-                hour=4,
-                minute=0,
-                second=0,
-                microsecond=0,
-            )
-            if first_rollover < self._alignment_date:  # we rolled backwards, so increment the day
-                first_rollover += timedelta(days=1)
-            secondary_offset = (
-                int(
-                    (first_rollover - self._alignment_date).total_seconds() / (15 * 60),
-                )
-                + 1
+    def get_min_index(self, dt: datetime) -> int:
+        if dt.tzinfo is None:
+            end = dt.astimezone()
+            logger.warning(
+                "Datetime is timezone-naive. Assuming system tz: %s.",
+                end.tzname(),
             )
 
-        possible_keys = set()
-        # primary key can always be determined
-        possible_keys.add(self._primary_gen[ind])
+        if dt >= self._alignment_date:
+            # in the worst case, the accessory has not rolled over at all since alignment
+            return self._alignment_index
 
+        # the accessory key will rollover AT MOST once every 15 minutes, so
+        # this is the minimum index for which we will need to generate keys.
+        # it's possible that rollover has progressed slower or not at all.
+        ind_before_alignment = (self._alignment_date - dt) // self.interval
+        return self._alignment_index - ind_before_alignment
+
+    @override
+    def get_max_index(self, dt: datetime) -> int:
+        if dt.tzinfo is None:
+            end = dt.astimezone()
+            logger.warning(
+                "Datetime is timezone-naive. Assuming system tz: %s.",
+                end.tzname(),
+            )
+
+        if dt <= self._alignment_date:
+            # in the worst case, the accessory has not rolled over at all since `dt`,
+            # in which case it was at the alignment index. We can't go lower than that.
+            return self._alignment_index
+
+        # the accessory key will rollover AT MOST once every 15 minutes, so
+        # this is the maximum index for which we will need to generate keys.
+        # it's possible that rollover has progressed slower or not at all.
+        ind_since_alignment = (dt - self._alignment_date) // self.interval
+        return self._alignment_index + ind_since_alignment
+
+    @override
+    def update_alignment(self, report: LocationReport, index: int) -> None:
+        if report.timestamp < self._alignment_date:
+            # we only care about the most recent report
+            return
+
+        logger.info("Updating alignment based on report observed at index %i", index)
+
+        self._alignment_date = report.timestamp
+        self._alignment_index = index
+
+    def _primary_key_at(self, ind: int) -> KeyPair:
+        """Get the primary key at a certain index."""
+        return self._primary_gen[ind]
+
+    def _secondary_keys_at(self, ind: int) -> tuple[KeyPair, KeyPair]:
+        """Get possible secondary keys at a certain primary index."""
         # when the accessory has been rebooted, it will use the following secondary key
-        possible_keys.add(self._secondary_gen[ind // 96 + 1])
+        key_1 = self._secondary_gen[ind // 96 + 1]
 
-        if ind > secondary_offset:
-            # after the first 4 am after pairing, we need to account for the first day
-            possible_keys.add(self._secondary_gen[(ind - secondary_offset) // 96 + 2])
+        # in some cases, the secondary index may not be at primary_ind // 96 + 1, but at +2 instead.
+        # example: if we paired at 3:00 am, the first secondary key will be used until 4:00 am,
+        # at which point the second secondary key will be used. The primary index at 4:00 am is 4,
+        # but the 'second' secondary key is used.
+        # however, since we don't know the exact index rollover pattern, we just take a guess here
+        # and return both keys. for alignment, it's better to underestimate progression of the index
+        # than to overestimate it.
+        key_2 = self._secondary_gen[ind // 96 + 2]
 
-        return possible_keys
+        return key_1, key_2
+
+    @override
+    def keys_at(self, ind: int) -> set[KeyPair]:
+        """Get the primary and secondary keys that might be active at a certain index."""
+        if ind < 0:
+            return set()
+
+        return {self._primary_key_at(ind), *self._secondary_keys_at(ind)}
 
     @classmethod
     def from_plist(
@@ -377,6 +409,10 @@ class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
         return self._key_type
 
     def _get_sk(self, ind: int) -> bytes:
+        if ind < 0:
+            msg = "The key index must be non-negative"
+            raise ValueError(msg)
+
         if ind < self._cur_sk_ind:  # behind us; need to reset :(
             self._cur_sk = self._initial_sk
             self._cur_sk_ind = 0
