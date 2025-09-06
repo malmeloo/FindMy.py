@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import bisect
 import hashlib
 import logging
 import struct
@@ -337,48 +338,50 @@ class LocationReportsFetcher:
         self._account: AsyncAppleAccount = account
 
     @overload
-    async def fetch_location(
+    async def fetch_location_history(
         self,
         device: HasHashedPublicKey,
-    ) -> LocationReport | None: ...
+    ) -> list[LocationReport]: ...
 
     @overload
-    async def fetch_location(
+    async def fetch_location_history(
         self,
         device: RollingKeyPairSource,
-    ) -> LocationReport | None: ...
+    ) -> list[LocationReport]: ...
 
     @overload
-    async def fetch_location(
+    async def fetch_location_history(
         self,
         device: Sequence[HasHashedPublicKey | RollingKeyPairSource],
-    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, LocationReport | None]: ...
+    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
 
-    async def fetch_location(
+    async def fetch_location_history(
         self,
         device: HasHashedPublicKey
         | RollingKeyPairSource
         | Sequence[HasHashedPublicKey | RollingKeyPairSource],
     ) -> (
-        LocationReport
-        | dict[HasHashedPublicKey | RollingKeyPairSource, LocationReport | None]
-        | None
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
         """
-        Fetch location for a certain device or multipel devices.
+        Fetch location history for a certain device or multiple devices.
 
         When `device` is a single :class:`HasHashedPublicKey`, this method will return
-        a location report corresponding to that key, or None if unavailable.
-        When `device` is a :class:`RollingKeyPairSource`, it will return a location
-        report corresponding to that source, or None if unavailable.
+        a list of location reports corresponding to that key.
+        When `device` is a :class:`RollingKeyPairSource`, it will return a list of location
+        reports corresponding to that source.
         When `device` is a sequence of :class:`HasHashedPublicKey`s or RollingKeyPairSource's,
         it will return a dictionary with the provided objects
-        as keys, and a location report (or None) as value.
+        as keys, and a list of location reports as value.
+
+        Note that the location history of :class:`RollingKeyPairSource` devices is not guaranteed
+        to be complete, and may be missing certain historical reports. The most recent report is
+        however guaranteed to be in line with what Apple reports.
         """
         if isinstance(device, HasHashedPublicKey):
             # single key
             key_reports = await self._fetch_key_reports([device])
-            return key_reports.get(device, None)
+            return key_reports.get(device, [])
 
         if isinstance(device, RollingKeyPairSource):
             # key generator
@@ -395,7 +398,9 @@ class LocationReportsFetcher:
         #   we can batch static keys in a single request,
         #   but key generators need to be queried separately
         static_keys: list[HasHashedPublicKey] = []
-        reports: dict[HasHashedPublicKey | RollingKeyPairSource, LocationReport | None] = {}
+        reports: dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]] = {
+            dev: [] for dev in device
+        }
         for dev in device:
             if isinstance(dev, HasHashedPublicKey):
                 # save for later batch request
@@ -413,7 +418,7 @@ class LocationReportsFetcher:
     async def _fetch_accessory_report(
         self,
         accessory: RollingKeyPairSource,
-    ) -> LocationReport | None:
+    ) -> list[LocationReport]:
         logger.debug("Fetching location report for accessory")
 
         now = datetime.now().astimezone()
@@ -428,18 +433,16 @@ class LocationReportsFetcher:
         cur_keys_primary: set[str] = set()
         cur_keys_secondary: set[str] = set()
         cur_index = accessory.get_min_index(start_date)
-        ret: LocationReport | None = None
+        ret: set[LocationReport] = set()
 
-        async def _fetch() -> LocationReport | None:
+        async def _fetch() -> set[LocationReport]:
             """Fetch current keys and add them to final reports."""
             new_reports: list[LocationReport] = await self._account.fetch_raw_reports(
                 [(list(cur_keys_primary), (list(cur_keys_secondary)))]
             )
             logger.info("Fetched %d new reports (index %i)", len(new_reports), cur_index)
 
-            if new_reports:
-                report = sorted(new_reports)[-1]
-
+            for report in new_reports:
                 key = id_to_key[report.hashed_adv_key_bytes]
                 report.decrypt(key)
 
@@ -448,13 +451,11 @@ class LocationReportsFetcher:
                 # since apple only returns the latest reports per request.
                 # This makes the value more likely to be stable.
                 accessory.update_alignment(report, max(key_to_ind[key]))
-            else:
-                report = None
 
             cur_keys_primary.clear()
             cur_keys_secondary.clear()
 
-            return report
+            return set(new_reports)
 
         while cur_index <= accessory.get_max_index(end_date):
             key_batch = accessory.keys_at(cur_index)
@@ -474,9 +475,7 @@ class LocationReportsFetcher:
                 len(cur_keys_primary | new_keys_primary) > 290
                 or len(cur_keys_secondary | new_keys_secondary) > 290
             ):
-                report = await _fetch()
-                if ret is None or (report is not None and report.timestamp > ret.timestamp):
-                    ret = report
+                ret |= await _fetch()
 
             # build mappings before adding to current keys
             for key in key_batch:
@@ -489,17 +488,14 @@ class LocationReportsFetcher:
 
         if cur_keys_primary or cur_keys_secondary:
             # fetch remaining keys
-            report = await _fetch()
-            if ret is None or (report is not None and report.timestamp > ret.timestamp):
-                ret = report
+            ret |= await _fetch()
 
-        # filter duplicate reports (can happen since key batches may overlap)
-        return ret
+        return sorted(ret)
 
     async def _fetch_key_reports(
         self,
         keys: Sequence[HasHashedPublicKey],
-    ) -> dict[HasHashedPublicKey, LocationReport | None]:
+    ) -> dict[HasHashedPublicKey, list[LocationReport]]:
         logger.debug("Fetching reports for %s key(s)", len(keys))
 
         # fetch all as primary keys
@@ -507,17 +503,13 @@ class LocationReportsFetcher:
         encrypted_reports: list[LocationReport] = await self._account.fetch_raw_reports(ids)
 
         id_to_key: dict[bytes, HasHashedPublicKey] = {key.hashed_adv_key_bytes: key for key in keys}
-        reports: dict[HasHashedPublicKey, LocationReport | None] = dict.fromkeys(keys)
+        reports: dict[HasHashedPublicKey, list[LocationReport]] = {key: [] for key in keys}
         for report in encrypted_reports:
             key = id_to_key[report.hashed_adv_key_bytes]
+            bisect.insort(reports[key], report)
 
-            cur_report = reports[key]
-            if cur_report is None or report.timestamp > cur_report.timestamp:
-                # more recent report, replace
-                reports[key] = report
-
-                # pre-decrypt report if possible
-                if isinstance(key, KeyPair):
-                    report.decrypt(key)
+            # pre-decrypt report if possible
+            if isinstance(key, KeyPair):
+                report.decrypt(key)
 
         return reports

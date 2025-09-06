@@ -233,6 +233,49 @@ class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
 
     @overload
     @abstractmethod
+    def fetch_location_history(
+        self,
+        keys: HasHashedPublicKey,
+    ) -> MaybeCoro[list[LocationReport]]: ...
+
+    @overload
+    @abstractmethod
+    def fetch_location_history(
+        self,
+        keys: RollingKeyPairSource,
+    ) -> MaybeCoro[list[LocationReport]]: ...
+
+    @overload
+    @abstractmethod
+    def fetch_location_history(
+        self,
+        keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
+    ) -> MaybeCoro[dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]]: ...
+
+    @abstractmethod
+    def fetch_location_history(
+        self,
+        keys: HasHashedPublicKey
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource]
+        | RollingKeyPairSource,
+    ) -> MaybeCoro[
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
+    ]:
+        """
+        Fetch location history for :class:`HasHashedPublicKey`s and :class:`RollingKeyPairSource`s.
+
+        Note that location history for devices is provided on a best-effort
+        basis and may not be fully complete or stable. Multiple consecutive calls to this method
+        may result in different location reports, especially for reports further in the past.
+        However, each one of these reports is guaranteed to be in line with the data reported by
+        Apple, and the most recent report will always be included in the results.
+
+        Unless you really need to use this method, and use :meth:`fetch_location` instead.
+        """
+        raise NotImplementedError
+
+    @overload
+    @abstractmethod
     def fetch_location(
         self,
         keys: HasHashedPublicKey,
@@ -650,6 +693,36 @@ class AsyncAppleAccount(BaseAppleAccount):
         return reports
 
     @overload
+    async def fetch_location_history(
+        self,
+        keys: HasHashedPublicKey,
+    ) -> list[LocationReport]: ...
+
+    @overload
+    async def fetch_location_history(
+        self,
+        keys: RollingKeyPairSource,
+    ) -> list[LocationReport]: ...
+
+    @overload
+    async def fetch_location_history(
+        self,
+        keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
+    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
+
+    @override
+    async def fetch_location_history(
+        self,
+        keys: HasHashedPublicKey
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource]
+        | RollingKeyPairSource,
+    ) -> (
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
+    ):
+        """See `BaseAppleAccount.fetch_location_history`."""
+        return await self._reports.fetch_location_history(keys)
+
+    @overload
     async def fetch_location(
         self,
         keys: HasHashedPublicKey,
@@ -679,8 +752,12 @@ class AsyncAppleAccount(BaseAppleAccount):
         | dict[HasHashedPublicKey | RollingKeyPairSource, LocationReport | None]
         | None
     ):
-        """See :meth:`BaseAppleAccount.fetch_reports`."""
-        return await self._reports.fetch_location(keys)
+        """See :meth:`BaseAppleAccount.fetch_location`."""
+        hist = await self.fetch_location_history(keys)
+        if isinstance(hist, list):
+            return sorted(hist)[-1] if hist else None
+
+        return {dev: sorted(reports)[-1] if reports else None for dev, reports in hist.items()}
 
     @require_login_state(LoginState.LOGGED_OUT, LoginState.REQUIRE_2FA, LoginState.LOGGED_IN)
     async def _gsa_authenticate(
@@ -1019,10 +1096,35 @@ class AppleAccount(BaseAppleAccount):
         return self._evt_loop.run_until_complete(coro)
 
     @overload
-    def fetch_location(
+    def fetch_location_history(
         self,
         keys: HasHashedPublicKey,
-    ) -> LocationReport | None: ...
+    ) -> list[LocationReport]: ...
+
+    @overload
+    def fetch_location_history(
+        self,
+        keys: RollingKeyPairSource,
+    ) -> list[LocationReport]: ...
+
+    @overload
+    def fetch_location_history(
+        self,
+        keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
+    ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
+
+    @override
+    def fetch_location_history(
+        self,
+        keys: HasHashedPublicKey
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource]
+        | RollingKeyPairSource,
+    ) -> (
+        list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
+    ):
+        """See `BaseAppleAccount.fetch_location_history`."""
+        coro = self._asyncacc.fetch_location_history(keys)
+        return self._evt_loop.run_until_complete(coro)
 
     @overload
     def fetch_location(
@@ -1040,16 +1142,19 @@ class AppleAccount(BaseAppleAccount):
     def fetch_location(
         self,
         keys: HasHashedPublicKey
-        | Sequence[HasHashedPublicKey | RollingKeyPairSource]
-        | RollingKeyPairSource,
+        | RollingKeyPairSource
+        | Sequence[HasHashedPublicKey | RollingKeyPairSource],
     ) -> (
         LocationReport
         | dict[HasHashedPublicKey | RollingKeyPairSource, LocationReport | None]
         | None
     ):
-        """See :meth:`AsyncAppleAccount.fetch_location`."""
-        coro = self._asyncacc.fetch_location(keys)
-        return self._evt_loop.run_until_complete(coro)
+        """See :meth:`BaseAppleAccount.fetch_location`."""
+        hist = self.fetch_location_history(keys)
+        if isinstance(hist, list):
+            return sorted(hist)[-1] if hist else None
+
+        return {dev: sorted(reports)[-1] if reports else None for dev, reports in hist.items()}
 
     @override
     def get_anisette_headers(
