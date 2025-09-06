@@ -1129,6 +1129,12 @@ class AppleAccount(BaseAppleAccount):
     @overload
     def fetch_location(
         self,
+        keys: HasHashedPublicKey,
+    ) -> LocationReport | None: ...
+
+    @overload
+    def fetch_location(
+        self,
         keys: RollingKeyPairSource,
     ) -> LocationReport | None: ...
 

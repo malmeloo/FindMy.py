@@ -31,34 +31,32 @@ ANISETTE_LIBS_PATH = "ani_libs.bin"
 logging.basicConfig(level=logging.INFO)
 
 
-def main(plist_path: Path, alignment_plist_path: Path | None) -> int:
+def main(airtag_path: Path) -> int:
     # Step 0: create an accessory key generator
-    airtag = FindMyAccessory.from_plist(plist_path, alignment_plist_path)
+    airtag = FindMyAccessory.from_json(airtag_path)
 
     # Step 1: log into an Apple account
     print("Logging into account")
     acc = get_account_sync(STORE_PATH, ANISETTE_SERVER, ANISETTE_LIBS_PATH)
 
     # step 2: fetch reports!
-    print("Fetching reports")
-    reports = acc.fetch_last_reports(airtag)
+    print("Fetching location")
+    location = acc.fetch_location(airtag)
 
     # step 3: print 'em
-    print()
-    print("Location reports:")
-    for report in sorted(reports):
-        print(f" - {report}")
+    print("Last known location:")
+    print(f" - {location}")
 
     # step 4: save current account state to disk
     acc.to_json(STORE_PATH)
+    airtag.to_json(airtag_path)
 
     return 0
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("plist_path", type=Path)
-    parser.add_argument("--alignment_plist_path", default=None, type=Path)
+    parser.add_argument("airtag_path", type=Path)
     args = parser.parse_args()
 
-    sys.exit(main(args.plist_path, args.alignment_plist_path))
+    sys.exit(main(args.airtag_path))

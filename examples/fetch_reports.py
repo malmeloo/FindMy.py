@@ -32,16 +32,22 @@ def fetch_reports(priv_key: str) -> int:
 
     # Step 1: construct a key object and get its location reports
     key = KeyPair.from_b64(priv_key)
-    reports = acc.fetch_last_reports(key)
+    location = acc.fetch_location(key)
 
-    # Step 2: print the reports!
-    for report in sorted(reports):
-        print(report)
+    # Step 2: print it!
+    print("Last known location:")
+    print(f" - {location}")
 
-        # We can save the report to a file if we want
-        report.to_json("last_report.json")
+    # Step 3 (optional): We can save the location report to a file if we want.
+    #                    BUT WATCH OUT! This file will contain the tag's private key!
+    if location is not None:
+        location.to_json("last_report.json")
 
-    # Step 3: Make sure to save account state when you're done!
+        # To load it later:
+        # loc = LocationReport.from_json("last_report.json")
+
+    # Step 4: Make sure to save account state when you're done!
+    # Otherwise you have to log in again...
     acc.to_json(STORE_PATH)
 
     return 0
