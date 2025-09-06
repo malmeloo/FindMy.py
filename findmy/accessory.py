@@ -23,8 +23,6 @@ if TYPE_CHECKING:
     from collections.abc import Generator
     from pathlib import Path
 
-    from findmy.reports.reports import LocationReport
-
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +61,7 @@ class RollingKeyPairSource(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def update_alignment(self, report: LocationReport, index: int) -> None:
+    def update_alignment(self, dt: datetime, index: int) -> None:
         """
         Update alignment of the accessory.
 
@@ -76,14 +74,23 @@ class RollingKeyPairSource(ABC):
         """Generate potential key(s) occurring at a certain index."""
         raise NotImplementedError
 
-    def keys_between(self, start: int, end: int) -> set[KeyPair]:
-        """Generate potential key(s) occurring between two indices."""
-        keys: set[KeyPair] = set()
+    def keys_between(
+        self, start: int | datetime, end: int | datetime
+    ) -> Generator[tuple[int, KeyPair], None, None]:
+        """Generate potential key(s) that could be occurring between two indices or datetimes."""
+        if isinstance(start, datetime):
+            start = self.get_min_index(start)
+        if isinstance(end, datetime):
+            end = self.get_max_index(end)
 
+        yielded: set[KeyPair] = set()
         for ind in range(start, end + 1):
-            keys.update(self.keys_at(ind))
+            for key in self.keys_at(ind):
+                if key in yielded:
+                    continue
 
-        return keys
+                yielded.add(key)
+                yield ind, key
 
 
 class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]):
@@ -216,14 +223,14 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         return self._alignment_index + ind_since_alignment
 
     @override
-    def update_alignment(self, report: LocationReport, index: int) -> None:
-        if report.timestamp < self._alignment_date:
+    def update_alignment(self, dt: datetime, index: int) -> None:
+        if dt < self._alignment_date:
             # we only care about the most recent report
             return
 
         logger.info("Updating alignment based on report observed at index %i", index)
 
-        self._alignment_date = report.timestamp
+        self._alignment_date = dt
         self._alignment_index = index
 
     def _primary_key_at(self, ind: int) -> KeyPair:

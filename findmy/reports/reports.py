@@ -450,7 +450,7 @@ class LocationReportsFetcher:
                 # if a key maps to multiple indices, only feed it the maximum index,
                 # since apple only returns the latest reports per request.
                 # This makes the value more likely to be stable.
-                accessory.update_alignment(report, max(key_to_ind[key]))
+                accessory.update_alignment(report.timestamp, max(key_to_ind[key]))
 
             cur_keys_primary.clear()
             cur_keys_secondary.clear()
