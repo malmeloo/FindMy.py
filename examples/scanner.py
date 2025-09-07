@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import argparse
 import asyncio
 import logging
-import sys
+from pathlib import Path
 
 from findmy import KeyPair
+from findmy.accessory import FindMyAccessory
 from findmy.scanner import (
     NearbyOfflineFindingDevice,
     OfflineFindingScanner,
@@ -35,7 +37,7 @@ def _print_separated(device: SeparatedOfflineFindingDevice) -> None:
     print()
 
 
-async def scan(check_key: KeyPair | None = None) -> None:
+async def scan(check_key: KeyPair | FindMyAccessory | None = None) -> bool:
     scanner = await OfflineFindingScanner.create()
 
     print("Scanning for FindMy-devices...")
@@ -56,15 +58,31 @@ async def scan(check_key: KeyPair | None = None) -> None:
         if check_key and device.is_from(check_key):
             scan_device = device
 
+    print()
     if scan_device:
-        print("Key or accessory was found in scan results! :D")
+        print("Device was found in scan results! :D")
     elif check_key:
-        print("Selected key or accessory was not found in scan results... :c")
+        print("Device was not found in scan results... :c")
+
+    return scan_device is not None and check_key is not None
 
 
 if __name__ == "__main__":
-    key = None
-    if len(sys.argv) >= 2:
-        key = KeyPair.from_b64(sys.argv[1])
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--private_key", type=str)
+    group.add_argument("--airtag_file", type=Path)
+    args = parser.parse_args()
 
-    asyncio.run(scan(key))
+    dev: KeyPair | FindMyAccessory | None = None
+    if args.private_key:
+        dev = KeyPair.from_b64(args.private_key)
+    elif args.airtag_file:
+        dev = FindMyAccessory.from_json(args.airtag_file)
+
+    device_found = asyncio.run(scan(dev))
+
+    if device_found and isinstance(dev, FindMyAccessory):
+        print("Current scan results were used to align the accessory.")
+        print(f'Updated alignment will be saved to "{args.airtag_file}".')
+        dev.to_json(args.airtag_file)
