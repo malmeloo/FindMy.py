@@ -40,7 +40,7 @@ jobs:
           python-version: ${{ matrix.py-version }}
 
       - name: Run unit tests
-        run: uv run pytest
+        run: uv run --group test --python ${{ matrix.py-version }} pytest
 
   results:
     runs-on: ubuntu-latest

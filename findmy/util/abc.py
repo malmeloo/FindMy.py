@@ -6,7 +6,9 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Generic, Self, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
+
+from typing_extensions import Self
 
 if TYPE_CHECKING:
     from pathlib import Path
