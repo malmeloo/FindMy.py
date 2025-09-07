@@ -72,6 +72,7 @@ ignore = [
     "S101",   # use of "assert"
     "D",      # documentation
     "INP001", # namespacing
+    "ERA001", # commented out code
 ]
 "scripts/*" = [
     "T201", # use of "print"

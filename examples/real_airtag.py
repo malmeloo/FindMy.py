@@ -4,8 +4,10 @@ Example showing how to fetch locations of an AirTag, or any other FindMy accesso
 
 from __future__ import annotations
 
+import argparse
 import logging
 import sys
+from pathlib import Path
 
 from _login import get_account_sync
 
@@ -29,35 +31,32 @@ ANISETTE_LIBS_PATH = "ani_libs.bin"
 logging.basicConfig(level=logging.INFO)
 
 
-def main(plist_path: str) -> int:
+def main(airtag_path: Path) -> int:
     # Step 0: create an accessory key generator
-    airtag = FindMyAccessory.from_plist(plist_path)
+    airtag = FindMyAccessory.from_json(airtag_path)
 
     # Step 1: log into an Apple account
     print("Logging into account")
     acc = get_account_sync(STORE_PATH, ANISETTE_SERVER, ANISETTE_LIBS_PATH)
 
     # step 2: fetch reports!
-    print("Fetching reports")
-    reports = acc.fetch_last_reports(airtag)
+    print("Fetching location")
+    location = acc.fetch_location(airtag)
 
     # step 3: print 'em
-    print()
-    print("Location reports:")
-    for report in sorted(reports):
-        print(f" - {report}")
+    print("Last known location:")
+    print(f" - {location}")
 
     # step 4: save current account state to disk
     acc.to_json(STORE_PATH)
+    airtag.to_json(airtag_path)
 
     return 0
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <path to accessory plist>", file=sys.stderr)
-        print(file=sys.stderr)
-        print("The plist file should be dumped from MacOS's FindMy app.", file=sys.stderr)
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("airtag_path", type=Path)
+    args = parser.parse_args()
 
-    sys.exit(main(sys.argv[1]))
+    sys.exit(main(args.airtag_path))

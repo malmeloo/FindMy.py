@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import base64
+import bisect
 import hashlib
 import logging
 import struct
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Literal, TypedDict, Union, cast, overload
+from typing import TYPE_CHECKING, Literal, TypedDict, Union, overload
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -16,7 +17,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from typing_extensions import override
 
 from findmy.accessory import RollingKeyPairSource
-from findmy.keys import HasHashedPublicKey, KeyPair, KeyPairMapping
+from findmy.keys import HasHashedPublicKey, KeyPair, KeyPairMapping, KeyType
 from findmy.util.abc import Serializable
 from findmy.util.files import read_data_json, save_and_return_json
 
@@ -337,33 +338,25 @@ class LocationReportsFetcher:
         self._account: AsyncAppleAccount = account
 
     @overload
-    async def fetch_reports(
+    async def fetch_location_history(
         self,
-        date_from: datetime,
-        date_to: datetime,
         device: HasHashedPublicKey,
     ) -> list[LocationReport]: ...
 
     @overload
-    async def fetch_reports(
+    async def fetch_location_history(
         self,
-        date_from: datetime,
-        date_to: datetime,
         device: RollingKeyPairSource,
     ) -> list[LocationReport]: ...
 
     @overload
-    async def fetch_reports(
+    async def fetch_location_history(
         self,
-        date_from: datetime,
-        date_to: datetime,
         device: Sequence[HasHashedPublicKey | RollingKeyPairSource],
     ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
 
-    async def fetch_reports(  # noqa: C901
+    async def fetch_location_history(
         self,
-        date_from: datetime,
-        date_to: datetime,
         device: HasHashedPublicKey
         | RollingKeyPairSource
         | Sequence[HasHashedPublicKey | RollingKeyPairSource],
@@ -371,110 +364,152 @@ class LocationReportsFetcher:
         list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
         """
-        Fetch location reports for a certain device.
+        Fetch location history for a certain device or multiple devices.
 
         When `device` is a single :class:`HasHashedPublicKey`, this method will return
         a list of location reports corresponding to that key.
-        When `device` is a :class:`RollingKeyPairSource`, it will return a list of
-        location reports corresponding to that source.
+        When `device` is a :class:`RollingKeyPairSource`, it will return a list of location
+        reports corresponding to that source.
         When `device` is a sequence of :class:`HasHashedPublicKey`s or RollingKeyPairSource's,
-        it will return a dictionary with the provided object
-        as key, and a list of location reports as value.
+        it will return a dictionary with the provided objects
+        as keys, and a list of location reports as value.
+
+        Note that the location history of :class:`RollingKeyPairSource` devices is not guaranteed
+        to be complete, and may be missing certain historical reports. The most recent report is
+        however guaranteed to be in line with what Apple reports.
         """
-        key_devs: dict[HasHashedPublicKey, HasHashedPublicKey | RollingKeyPairSource] = {}
-        key_batches: list[list[HasHashedPublicKey]] = []
         if isinstance(device, HasHashedPublicKey):
             # single key
-            key_devs = {device: device}
-            key_batches.append([device])
-        elif isinstance(device, RollingKeyPairSource):
+            key_reports = await self._fetch_key_reports([device])
+            return key_reports.get(device, [])
+
+        if isinstance(device, RollingKeyPairSource):
             # key generator
-            #   add 12h margin to the generator
-            keys = device.keys_between(
-                date_from - timedelta(hours=12),
-                date_to + timedelta(hours=12),
-            )
-            key_devs = dict.fromkeys(keys, device)
-            key_batches.append(list(keys))
-        elif isinstance(device, list) and all(
+            return await self._fetch_accessory_report(device)
+
+        if not isinstance(device, list) or not all(
             isinstance(x, HasHashedPublicKey | RollingKeyPairSource) for x in device
         ):
-            # multiple key generators
-            #   add 12h margin to each generator
-            device = cast("list[HasHashedPublicKey | RollingKeyPairSource]", device)
-            for dev in device:
-                if isinstance(dev, HasHashedPublicKey):
-                    key_devs[dev] = dev
-                    key_batches.append([dev])
-                elif isinstance(dev, RollingKeyPairSource):
-                    keys = dev.keys_between(
-                        date_from - timedelta(hours=12),
-                        date_to + timedelta(hours=12),
-                    )
-                    for key in keys:
-                        key_devs[key] = dev
-                    key_batches.append(list(keys))
-        else:
-            msg = "Unknown device type: %s"
-            raise ValueError(msg, type(device))
+            # unsupported type
+            msg = "Device must be a HasHashedPublicKey, RollingKeyPairSource, or list thereof."
+            raise ValueError(msg)
 
-        # sequence of keys (fetch 256 max at a time)
-        key_reports: dict[HasHashedPublicKey, list[LocationReport]] = await self._fetch_reports(
-            date_from,
-            date_to,
-            key_batches,
-        )
-
-        # combine (key -> list[report]) and (key -> device) into (device -> list[report])
-        device_reports = defaultdict(list)
-        for key, reports in key_reports.items():
-            device_reports[key_devs[key]].extend(reports)
-        for dev in device_reports:
-            device_reports[dev] = sorted(device_reports[dev])
-
-        # result
-        if isinstance(device, (HasHashedPublicKey, RollingKeyPairSource)):
-            # single key or generator
-            return device_reports[device]
-        # multiple static keys or key generators
-        return device_reports
-
-    async def _fetch_reports(
-        self,
-        date_from: datetime,
-        date_to: datetime,
-        device_keys: Sequence[Sequence[HasHashedPublicKey]],
-    ) -> dict[HasHashedPublicKey, list[LocationReport]]:
-        logger.debug("Fetching reports for %s device(s)", len(device_keys))
-
-        # lock requested time range to the past 7 days, +- 12 hours, then filter the response.
-        # this is due to an Apple backend bug where the time range is not respected.
-        # More info: https://github.com/biemster/FindMy/issues/7
-        now = datetime.now().astimezone()
-        start_date = now - timedelta(days=7, hours=12)
-        end_date = now + timedelta(hours=12)
-        ids = [[key.hashed_adv_key_b64 for key in keys] for keys in device_keys]
-        data = await self._account.fetch_raw_reports(start_date, end_date, ids)
-
-        id_to_key: dict[bytes, HasHashedPublicKey] = {
-            key.hashed_adv_key_bytes: key for keys in device_keys for key in keys
+        # multiple key generators
+        #   we can batch static keys in a single request,
+        #   but key generators need to be queried separately
+        static_keys: list[HasHashedPublicKey] = []
+        reports: dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]] = {
+            dev: [] for dev in device
         }
-        reports: dict[HasHashedPublicKey, list[LocationReport]] = defaultdict(list)
-        for key_reports in data.get("locationPayload", []):
-            hashed_adv_key_bytes = base64.b64decode(key_reports["id"])
-            key = id_to_key[hashed_adv_key_bytes]
+        for dev in device:
+            if isinstance(dev, HasHashedPublicKey):
+                # save for later batch request
+                static_keys.append(dev)
+            elif isinstance(dev, RollingKeyPairSource):
+                # query immediately
+                reports[dev] = await self._fetch_accessory_report(dev)
 
-            for report in key_reports.get("locationInfo", []):
-                payload = base64.b64decode(report)
-                loc_report = LocationReport(payload, hashed_adv_key_bytes)
+        if static_keys:  # batch request for static keys
+            key_reports = await self._fetch_key_reports(static_keys)
+            reports.update(dict(key_reports.items()))
 
-                if loc_report.timestamp < date_from or loc_report.timestamp > date_to:
-                    continue
+        return reports
 
-                # pre-decrypt if possible
-                if isinstance(key, KeyPair):
-                    loc_report.decrypt(key)
+    async def _fetch_accessory_report(
+        self,
+        accessory: RollingKeyPairSource,
+    ) -> list[LocationReport]:
+        logger.debug("Fetching location report for accessory")
 
-                reports[key].append(loc_report)
+        now = datetime.now().astimezone()
+        start_date = now - timedelta(days=7)
+        end_date = now
+
+        # mappings
+        key_to_ind: dict[KeyPair, set[int]] = defaultdict(set)
+        id_to_key: dict[bytes, KeyPair] = {}
+
+        # state variables
+        cur_keys_primary: set[str] = set()
+        cur_keys_secondary: set[str] = set()
+        cur_index = accessory.get_min_index(start_date)
+        ret: set[LocationReport] = set()
+
+        async def _fetch() -> set[LocationReport]:
+            """Fetch current keys and add them to final reports."""
+            new_reports: list[LocationReport] = await self._account.fetch_raw_reports(
+                [(list(cur_keys_primary), (list(cur_keys_secondary)))]
+            )
+            logger.info("Fetched %d new reports (index %i)", len(new_reports), cur_index)
+
+            for report in new_reports:
+                key = id_to_key[report.hashed_adv_key_bytes]
+                report.decrypt(key)
+
+                # update alignment data on every report
+                # if a key maps to multiple indices, only feed it the maximum index,
+                # since apple only returns the latest reports per request.
+                # This makes the value more likely to be stable.
+                accessory.update_alignment(report.timestamp, max(key_to_ind[key]))
+
+            cur_keys_primary.clear()
+            cur_keys_secondary.clear()
+
+            return set(new_reports)
+
+        while cur_index <= accessory.get_max_index(end_date):
+            key_batch = accessory.keys_at(cur_index)
+
+            # split into primary and secondary keys
+            # (UNKNOWN keys are filed as primary)
+            new_keys_primary: set[str] = {
+                key.hashed_adv_key_b64 for key in key_batch if key.key_type == KeyType.PRIMARY
+            }
+            new_keys_secondary: set[str] = {
+                key.hashed_adv_key_b64 for key in key_batch if key.key_type != KeyType.PRIMARY
+            }
+
+            # 290 seems to be the maximum number of keys that Apple accepts in a single request,
+            # so if adding the new keys would exceed that, fire a request first
+            if (
+                len(cur_keys_primary | new_keys_primary) > 290
+                or len(cur_keys_secondary | new_keys_secondary) > 290
+            ):
+                ret |= await _fetch()
+
+            # build mappings before adding to current keys
+            for key in key_batch:
+                key_to_ind[key].add(cur_index)
+                id_to_key[key.hashed_adv_key_bytes] = key
+            cur_keys_primary |= new_keys_primary
+            cur_keys_secondary |= new_keys_secondary
+
+            cur_index += 1
+
+        if cur_keys_primary or cur_keys_secondary:
+            # fetch remaining keys
+            ret |= await _fetch()
+
+        return sorted(ret)
+
+    async def _fetch_key_reports(
+        self,
+        keys: Sequence[HasHashedPublicKey],
+    ) -> dict[HasHashedPublicKey, list[LocationReport]]:
+        logger.debug("Fetching reports for %s key(s)", len(keys))
+
+        # fetch all as primary keys
+        ids = [([key.hashed_adv_key_b64], []) for key in keys]
+        encrypted_reports: list[LocationReport] = await self._account.fetch_raw_reports(ids)
+
+        id_to_key: dict[bytes, HasHashedPublicKey] = {key.hashed_adv_key_bytes: key for key in keys}
+        reports: dict[HasHashedPublicKey, list[LocationReport]] = {key: [] for key in keys}
+        for report in encrypted_reports:
+            key = id_to_key[report.hashed_adv_key_bytes]
+            bisect.insort(reports[key], report)
+
+            # pre-decrypt report if possible
+            if isinstance(key, KeyPair):
+                report.decrypt(key)
 
         return reports

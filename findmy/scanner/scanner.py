@@ -6,7 +6,7 @@ import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 from bleak import BleakScanner
@@ -152,12 +152,22 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
         if isinstance(other_device, HasPublicKey):
             return other_device.adv_key_bytes.startswith(self._first_adv_key_bytes)
         if isinstance(other_device, RollingKeyPairSource):
-            # 1 hour margin around the detected time
+            # 12 hour margin around the detected time
             potential_keys = other_device.keys_between(
-                self.detected_at - timedelta(hours=1),
-                self.detected_at + timedelta(hours=1),
+                self.detected_at - timedelta(hours=12),
+                self.detected_at + timedelta(hours=12),
             )
-            return any(self.is_from(key) for key in potential_keys)
+            for ind, key in potential_keys:
+                if not self.is_from(key):
+                    continue
+
+                # update alignment of found key
+                now = datetime.now(tz=timezone.utc)
+                other_device.update_alignment(now, ind)
+
+                return True
+
+            return False
 
         msg = f"Cannot compare against {type(other_device)}"
         raise ValueError(msg)
@@ -232,14 +242,24 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
     def is_from(self, other_device: HasPublicKey | RollingKeyPairSource) -> bool:
         """Check whether the OF device's identity originates from a specific key source."""
         if isinstance(other_device, HasPublicKey):
-            return self.adv_key_bytes == other_device.adv_key_bytes
+            return other_device.adv_key_bytes == self.adv_key_bytes
         if isinstance(other_device, RollingKeyPairSource):
             # 12 hour margin around the detected time
             potential_keys = other_device.keys_between(
                 self.detected_at - timedelta(hours=12),
                 self.detected_at + timedelta(hours=12),
             )
-            return any(self.is_from(key) for key in potential_keys)
+            for ind, key in potential_keys:
+                if not self.is_from(key):
+                    continue
+
+                # update alignment of found key
+                now = datetime.now(tz=timezone.utc)
+                other_device.update_alignment(now, ind)
+
+                return True
+
+            return False
 
         msg = f"Cannot compare against {type(other_device)}"
         raise ValueError(msg)
