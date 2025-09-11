@@ -1,6 +1,6 @@
 """Utility functions and classes. Intended for internal use."""
 
-from . import abc, crypto, files, http, parsers, plist, session, types
+from . import abc, crypto, files, http, parsers, session, types
 
 __all__ = (
     "abc",
@@ -8,7 +8,6 @@ __all__ = (
     "files",
     "http",
     "parsers",
-    "plist",
     "session",
     "types",
 )
