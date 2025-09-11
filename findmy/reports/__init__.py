@@ -2,11 +2,18 @@
 
 from .account import AccountStateMapping, AppleAccount, AsyncAppleAccount, BaseAppleAccount
 from .anisette import (
+    AnisetteMapping,
     BaseAnisetteProvider,
     LocalAnisetteMapping,
     LocalAnisetteProvider,
     RemoteAnisetteMapping,
     RemoteAnisetteProvider,
+)
+from .reports import (
+    LocationReport,
+    LocationReportDecryptedMapping,
+    LocationReportEncryptedMapping,
+    LocationReportMapping,
 )
 from .state import LoginState
 from .twofactor import (
@@ -21,6 +28,7 @@ from .twofactor import (
 
 __all__ = (
     "AccountStateMapping",
+    "AnisetteMapping",
     "AppleAccount",
     "AsyncAppleAccount",
     "AsyncSmsSecondFactor",
@@ -30,6 +38,10 @@ __all__ = (
     "BaseSecondFactorMethod",
     "LocalAnisetteMapping",
     "LocalAnisetteProvider",
+    "LocationReport",
+    "LocationReportDecryptedMapping",
+    "LocationReportEncryptedMapping",
+    "LocationReportMapping",
     "LoginState",
     "RemoteAnisetteMapping",
     "RemoteAnisetteProvider",

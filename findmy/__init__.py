@@ -10,6 +10,7 @@ from .errors import (
 from .keys import HasHashedPublicKey, HasPublicKey, KeyPair, KeyPairMapping, KeyPairType
 from .reports import (
     AccountStateMapping,
+    AnisetteMapping,
     AppleAccount,
     AsyncAppleAccount,
     AsyncSmsSecondFactor,
@@ -19,6 +20,10 @@ from .reports import (
     BaseSecondFactorMethod,
     LocalAnisetteMapping,
     LocalAnisetteProvider,
+    LocationReport,
+    LocationReportDecryptedMapping,
+    LocationReportEncryptedMapping,
+    LocationReportMapping,
     LoginState,
     RemoteAnisetteMapping,
     RemoteAnisetteProvider,
@@ -36,6 +41,7 @@ from .scanner import (
 
 __all__ = (
     "AccountStateMapping",
+    "AnisetteMapping",
     "AppleAccount",
     "AsyncAppleAccount",
     "AsyncSmsSecondFactor",
@@ -54,6 +60,10 @@ __all__ = (
     "KeyPairType",
     "LocalAnisetteMapping",
     "LocalAnisetteProvider",
+    "LocationReport",
+    "LocationReportDecryptedMapping",
+    "LocationReportEncryptedMapping",
+    "LocationReportMapping",
     "LoginState",
     "NearbyOfflineFindingDevice",
     "OfflineFindingDevice",
