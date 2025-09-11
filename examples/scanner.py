@@ -5,9 +5,9 @@ import asyncio
 import logging
 from pathlib import Path
 
-from findmy import KeyPair
-from findmy.accessory import FindMyAccessory
-from findmy.scanner import (
+from findmy import (
+    FindMyAccessory,
+    KeyPair,
     NearbyOfflineFindingDevice,
     OfflineFindingScanner,
     SeparatedOfflineFindingDevice,

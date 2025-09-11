@@ -26,18 +26,15 @@ import bs4
 import srp._pysrp as srp
 from typing_extensions import Concatenate, ParamSpec, override
 
+from findmy import util
 from findmy.errors import (
     InvalidCredentialsError,
     InvalidStateError,
     UnauthorizedError,
     UnhandledProtocolError,
 )
-from findmy.reports.anisette import AnisetteMapping, get_provider_from_mapping
-from findmy.util import crypto
-from findmy.util.abc import Closable, Serializable
-from findmy.util.files import read_data_json, save_and_return_json
-from findmy.util.http import HttpResponse, HttpSession, decode_plist
 
+from .anisette import AnisetteMapping, get_provider_from_mapping
 from .reports import LocationReport, LocationReportsFetcher
 from .state import LoginState
 from .twofactor import (
@@ -106,7 +103,7 @@ _A = TypeVar("_A", bound="BaseAppleAccount")
 _F = Callable[Concatenate[_A, _P], _R]
 
 
-def require_login_state(*states: LoginState) -> Callable[[_F], _F]:
+def _require_login_state(*states: LoginState) -> Callable[[_F], _F]:
     """Enforce a login state as precondition for a method."""
 
     def decorator(func: _F) -> _F:
@@ -141,7 +138,7 @@ def _extract_phone_numbers(html: str) -> list[dict]:
     return data.get("direct", {}).get("phoneNumberVerification", {}).get("trustedPhoneNumbers", [])
 
 
-class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
+class BaseAppleAccount(util.abc.Closable, util.abc.Serializable[AccountStateMapping], ABC):
     """Base class for an Apple account."""
 
     @property
@@ -376,7 +373,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             state_info["account"]["info"] if state_info else None
         )
 
-        self._http: HttpSession = HttpSession()
+        self._http: util.http.HttpSession = util.http.HttpSession()
         self._reports: LocationReportsFetcher = LocationReportsFetcher(self)
         self._closed: bool = False
 
@@ -403,7 +400,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._login_state
 
     @property
-    @require_login_state(
+    @_require_login_state(
         LoginState.LOGGED_IN,
         LoginState.AUTHENTICATED,
         LoginState.REQUIRE_2FA,
@@ -414,7 +411,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._account_info["account_name"] if self._account_info else None
 
     @property
-    @require_login_state(
+    @_require_login_state(
         LoginState.LOGGED_IN,
         LoginState.AUTHENTICATED,
         LoginState.REQUIRE_2FA,
@@ -425,7 +422,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._account_info["first_name"] if self._account_info else None
 
     @property
-    @require_login_state(
+    @_require_login_state(
         LoginState.LOGGED_IN,
         LoginState.AUTHENTICATED,
         LoginState.REQUIRE_2FA,
@@ -452,7 +449,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             "anisette": self._anisette.to_json(),
         }
 
-        return save_and_return_json(res, path)
+        return util.files.save_and_return_json(res, path)
 
     @classmethod
     @override
@@ -463,7 +460,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         *,
         anisette_libs_path: str | Path | None = None,
     ) -> AsyncAppleAccount:
-        val = read_data_json(val)
+        val = util.files.read_data_json(val)
         assert val["type"] == "account"
 
         try:
@@ -496,7 +493,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         except (RuntimeError, OSError, ConnectionError) as e:
             logger.warning("Error closing HTTP session: %s", e)
 
-    @require_login_state(LoginState.LOGGED_OUT)
+    @_require_login_state(LoginState.LOGGED_OUT)
     @override
     async def login(self, username: str, password: str) -> LoginState:
         """See :meth:`BaseAppleAccount.login`."""
@@ -508,7 +505,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         # AUTHENTICATED -> LOGGED_IN
         return await self._login_mobileme()
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def get_2fa_methods(self) -> Sequence[AsyncSecondFactorMethod]:
         """See :meth:`BaseAppleAccount.get_2fa_methods`."""
@@ -537,7 +534,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         return methods
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def sms_2fa_request(self, phone_number_id: int) -> None:
         """See :meth:`BaseAppleAccount.sms_2fa_request`."""
@@ -549,7 +546,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             data,
         )
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
         """See :meth:`BaseAppleAccount.sms_2fa_submit`."""
@@ -574,7 +571,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         # AUTHENTICATED -> LOGGED_IN
         return await self._login_mobileme()
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def td_2fa_request(self) -> None:
         """See :meth:`BaseAppleAccount.td_2fa_request`."""
@@ -588,7 +585,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             headers=headers,
         )
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def td_2fa_submit(self, code: str) -> LoginState:
         """See :meth:`BaseAppleAccount.td_2fa_submit`."""
@@ -612,7 +609,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         # AUTHENTICATED -> LOGGED_IN
         return await self._login_mobileme()
 
-    @require_login_state(LoginState.LOGGED_IN)
+    @_require_login_state(LoginState.LOGGED_IN)
     async def fetch_raw_reports(
         self,
         devices: list[tuple[list[str], list[str]]],
@@ -647,7 +644,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             ],
         }
 
-        async def _do_request() -> HttpResponse:
+        async def _do_request() -> util.http.HttpResponse:
             return await self._http.post(
                 self._ENDPOINT_REPORTS_FETCH,
                 auth=auth,
@@ -740,7 +737,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
     ) -> dict[HasHashedPublicKey | RollingKeyPairSource, LocationReport | None]: ...
 
-    @require_login_state(LoginState.LOGGED_IN)
+    @_require_login_state(LoginState.LOGGED_IN)
     @override
     async def fetch_location(
         self,
@@ -759,7 +756,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         return {dev: sorted(reports)[-1] if reports else None for dev, reports in hist.items()}
 
-    @require_login_state(LoginState.LOGGED_OUT, LoginState.REQUIRE_2FA, LoginState.LOGGED_IN)
+    @_require_login_state(LoginState.LOGGED_OUT, LoginState.REQUIRE_2FA, LoginState.LOGGED_IN)
     async def _gsa_authenticate(
         self,
         username: str | None = None,
@@ -795,7 +792,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         logger.debug("Attempting password challenge")
 
-        usr.p = crypto.encrypt_password(self._password, r["s"], r["i"], sp)
+        usr.p = util.crypto.encrypt_password(self._password, r["s"], r["i"], sp)
         m1 = usr.process_challenge(r["s"], r["B"])
         if m1 is None:
             msg = "Failed to process challenge"
@@ -816,8 +813,8 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         logger.debug("Decrypting SPD data in response")
 
-        spd = decode_plist(
-            crypto.decrypt_spd_aes_cbc(
+        spd = util.parsers.decode_plist(
+            util.crypto.decrypt_spd_aes_cbc(
                 usr.get_session_key() or b"",
                 r["spd"],
             ),
@@ -856,7 +853,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         msg = f"Unknown auth value: {au}"
         raise UnhandledProtocolError(msg)
 
-    @require_login_state(LoginState.AUTHENTICATED)
+    @_require_login_state(LoginState.AUTHENTICATED)
     async def _login_mobileme(self) -> LoginState:
         logger.info("Logging into com.apple.mobileme")
         data = plistlib.dumps(
@@ -1036,7 +1033,7 @@ class AppleAccount(BaseAppleAccount):
         *,
         anisette_libs_path: str | Path | None = None,
     ) -> AppleAccount:
-        val = read_data_json(val)
+        val = util.files.read_data_json(val)
         try:
             ani_provider = get_provider_from_mapping(val["anisette"], libs_path=anisette_libs_path)
             return cls(ani_provider, state_info=val)

@@ -16,10 +16,9 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from typing_extensions import override
 
+from findmy import util
 from findmy.accessory import RollingKeyPairSource
-from findmy.keys import HasHashedPublicKey, KeyPair, KeyPairMapping, KeyType
-from findmy.util.abc import Serializable
-from findmy.util.files import read_data_json, save_and_return_json
+from findmy.keys import HasHashedPublicKey, KeyPair, KeyPairMapping, KeyPairType
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -52,7 +51,7 @@ class LocationReportDecryptedMapping(TypedDict):
 LocationReportMapping = Union[LocationReportEncryptedMapping, LocationReportDecryptedMapping]
 
 
-class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
+class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMapping]):
     """Location report corresponding to a certain :meth:`HasHashedPublicKey`."""
 
     def __init__(
@@ -239,7 +238,7 @@ class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
             include_key = self.is_decrypted
 
         if include_key:
-            return save_and_return_json(
+            return util.files.save_and_return_json(
                 {
                     "type": "locReportDecrypted",
                     "payload": base64.b64encode(self._payload).decode("utf-8"),
@@ -248,7 +247,7 @@ class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
                 },
                 dst,
             )
-        return save_and_return_json(
+        return util.files.save_and_return_json(
             {
                 "type": "locReportEncrypted",
                 "payload": base64.b64encode(self._payload).decode("utf-8"),
@@ -260,7 +259,7 @@ class LocationReport(HasHashedPublicKey, Serializable[LocationReportMapping]):
     @classmethod
     @override
     def from_json(cls, val: str | Path | LocationReportMapping, /) -> LocationReport:
-        val = read_data_json(val)
+        val = util.files.read_data_json(val)
         assert val["type"] == "locReportEncrypted" or val["type"] == "locReportDecrypted"
 
         try:
@@ -463,10 +462,10 @@ class LocationReportsFetcher:
             # split into primary and secondary keys
             # (UNKNOWN keys are filed as primary)
             new_keys_primary: set[str] = {
-                key.hashed_adv_key_b64 for key in key_batch if key.key_type == KeyType.PRIMARY
+                key.hashed_adv_key_b64 for key in key_batch if key.key_type == KeyPairType.PRIMARY
             }
             new_keys_secondary: set[str] = {
-                key.hashed_adv_key_b64 for key in key_batch if key.key_type != KeyType.PRIMARY
+                key.hashed_adv_key_b64 for key in key_batch if key.key_type != KeyPairType.PRIMARY
             }
 
             # 290 seems to be the maximum number of keys that Apple accepts in a single request,
