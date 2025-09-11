@@ -26,18 +26,15 @@ import bs4
 import srp._pysrp as srp
 from typing_extensions import Concatenate, ParamSpec, override
 
+from findmy import util
 from findmy.errors import (
     InvalidCredentialsError,
     InvalidStateError,
     UnauthorizedError,
     UnhandledProtocolError,
 )
-from findmy.reports.anisette import AnisetteMapping, get_provider_from_mapping
-from findmy.util import crypto
-from findmy.util.abc import Closable, Serializable
-from findmy.util.files import read_data_json, save_and_return_json
-from findmy.util.http import HttpResponse, HttpSession, decode_plist
 
+from .anisette import AnisetteMapping, get_provider_from_mapping
 from .reports import LocationReport, LocationReportsFetcher
 from .state import LoginState
 from .twofactor import (
@@ -141,7 +138,7 @@ def _extract_phone_numbers(html: str) -> list[dict]:
     return data.get("direct", {}).get("phoneNumberVerification", {}).get("trustedPhoneNumbers", [])
 
 
-class BaseAppleAccount(Closable, Serializable[AccountStateMapping], ABC):
+class BaseAppleAccount(util.abc.Closable, util.abc.Serializable[AccountStateMapping], ABC):
     """Base class for an Apple account."""
 
     @property
@@ -376,7 +373,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             state_info["account"]["info"] if state_info else None
         )
 
-        self._http: HttpSession = HttpSession()
+        self._http: util.http.HttpSession = util.http.HttpSession()
         self._reports: LocationReportsFetcher = LocationReportsFetcher(self)
         self._closed: bool = False
 
@@ -452,7 +449,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             "anisette": self._anisette.to_json(),
         }
 
-        return save_and_return_json(res, path)
+        return util.files.save_and_return_json(res, path)
 
     @classmethod
     @override
@@ -463,7 +460,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         *,
         anisette_libs_path: str | Path | None = None,
     ) -> AsyncAppleAccount:
-        val = read_data_json(val)
+        val = util.files.read_data_json(val)
         assert val["type"] == "account"
 
         try:
@@ -647,7 +644,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             ],
         }
 
-        async def _do_request() -> HttpResponse:
+        async def _do_request() -> util.http.HttpResponse:
             return await self._http.post(
                 self._ENDPOINT_REPORTS_FETCH,
                 auth=auth,
@@ -795,7 +792,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         logger.debug("Attempting password challenge")
 
-        usr.p = crypto.encrypt_password(self._password, r["s"], r["i"], sp)
+        usr.p = util.crypto.encrypt_password(self._password, r["s"], r["i"], sp)
         m1 = usr.process_challenge(r["s"], r["B"])
         if m1 is None:
             msg = "Failed to process challenge"
@@ -816,8 +813,8 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         logger.debug("Decrypting SPD data in response")
 
-        spd = decode_plist(
-            crypto.decrypt_spd_aes_cbc(
+        spd = util.parsers.decode_plist(
+            util.crypto.decrypt_spd_aes_cbc(
                 usr.get_session_key() or b"",
                 r["spd"],
             ),
@@ -1036,7 +1033,7 @@ class AppleAccount(BaseAppleAccount):
         *,
         anisette_libs_path: str | Path | None = None,
     ) -> AppleAccount:
-        val = read_data_json(val)
+        val = util.files.read_data_json(val)
         try:
             ani_provider = get_provider_from_mapping(val["anisette"], libs_path=anisette_libs_path)
             return cls(ani_provider, state_info=val)

@@ -13,9 +13,7 @@ from typing import TYPE_CHECKING, Literal, TypedDict, overload
 
 from typing_extensions import override
 
-from findmy.util.abc import Serializable
-from findmy.util.files import read_data_json, read_data_plist, save_and_return_json
-
+from . import util
 from .keys import KeyGenerator, KeyPair, KeyPairType
 from .util import crypto
 
@@ -93,7 +91,7 @@ class RollingKeyPairSource(ABC):
                 yield ind, key
 
 
-class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]):
+class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessoryMapping]):
     """A findable Find My-accessory using official key rollover."""
 
     def __init__(  # noqa: PLR0913
@@ -270,7 +268,7 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         name: str | None = None,
     ) -> FindMyAccessory:
         """Create a FindMyAccessory from a .plist file dumped from the FindMy app."""
-        device_data = read_data_plist(plist)
+        device_data = util.files.read_data_plist(plist)
 
         # PRIVATE master key. 28 (?) bytes.
         master_key = device_data["privateKey"]["key"]["data"][-28:]
@@ -295,7 +293,7 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         alignment_date = None
         index = None
         if key_alignment_plist:
-            alignment_data = read_data_plist(key_alignment_plist)
+            alignment_data = util.files.read_data_plist(key_alignment_plist)
 
             # last observed date
             alignment_date = alignment_data["lastIndexObservationDate"].replace(
@@ -335,7 +333,7 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
             "alignment_index": self._alignment_index,
         }
 
-        return save_and_return_json(res, path)
+        return util.files.save_and_return_json(res, path)
 
     @classmethod
     @override
@@ -344,7 +342,7 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         val: str | Path | FindMyAccessoryMapping,
         /,
     ) -> FindMyAccessory:
-        val = read_data_json(val)
+        val = util.files.read_data_json(val)
         assert val["type"] == "accessory"
 
         try:

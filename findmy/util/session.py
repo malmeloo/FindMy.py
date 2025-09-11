@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from typing import TYPE_CHECKING, Any, Generic, Self, TypeVar, Union
 
-from findmy.util.abc import Closable, Serializable
+from .abc import Closable, Serializable
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -15,9 +15,7 @@ from typing import BinaryIO, Literal, TypedDict, Union
 from anisette import Anisette, AnisetteHeaders
 from typing_extensions import override
 
-from findmy.util.abc import Closable, Serializable
-from findmy.util.files import read_data_json, save_and_return_json
-from findmy.util.http import HttpSession
+from findmy import util
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +51,7 @@ def get_provider_from_mapping(
     raise ValueError(msg)
 
 
-class BaseAnisetteProvider(Closable, Serializable, ABC):
+class BaseAnisetteProvider(util.abc.Closable, util.abc.Serializable, ABC):
     """
     Abstract base class for Anisette providers.
 
@@ -188,7 +186,7 @@ class BaseAnisetteProvider(Closable, Serializable, ABC):
         return cpd
 
 
-class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMapping]):
+class RemoteAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[RemoteAnisetteMapping]):
     """Anisette provider. Fetches headers from a remote Anisette server."""
 
     _ANISETTE_DATA_VALID_FOR = 30
@@ -199,7 +197,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
 
         self._server_url = server_url
 
-        self._http = HttpSession()
+        self._http = util.http.HttpSession()
 
         self._anisette_data: dict[str, str] | None = None
         self._anisette_data_expires_at: float = 0
@@ -208,7 +206,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
     @override
     def to_json(self, dst: str | Path | None = None, /) -> RemoteAnisetteMapping:
         """See :meth:`BaseAnisetteProvider.serialize`."""
-        return save_and_return_json(
+        return util.files.save_and_return_json(
             {
                 "type": "aniRemote",
                 "url": self._server_url,
@@ -220,7 +218,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
     @override
     def from_json(cls, val: str | Path | RemoteAnisetteMapping) -> RemoteAnisetteProvider:
         """See :meth:`BaseAnisetteProvider.deserialize`."""
-        val = read_data_json(val)
+        val = util.files.read_data_json(val)
 
         assert val["type"] == "aniRemote"
 
@@ -282,7 +280,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, Serializable[RemoteAnisetteMa
             logger.warning("Error closing anisette HTTP session: %s", e)
 
 
-class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapping]):
+class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAnisetteMapping]):
     """Local anisette provider using the `anisette` library."""
 
     def __init__(
@@ -333,7 +331,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapp
             self._ani.save_provisioning(buf)
             prov_data = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-        return save_and_return_json(
+        return util.files.save_and_return_json(
             {
                 "type": "aniLocal",
                 "prov_data": prov_data,
@@ -350,7 +348,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, Serializable[LocalAnisetteMapp
         libs_path: str | Path | None = None,
     ) -> LocalAnisetteProvider:
         """See :meth:`BaseAnisetteProvider.deserialize`."""
-        val = read_data_json(val)
+        val = util.files.read_data_json(val)
 
         assert val["type"] == "aniLocal"
 
