@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from typing_extensions import override
 
 from findmy.accessory import RollingKeyPairSource
-from findmy.keys import HasHashedPublicKey, KeyPair, KeyPairMapping, KeyType
+from findmy.keys import HasHashedPublicKey, KeyPair, KeyPairMapping, KeyPairType
 from findmy.util.abc import Serializable
 from findmy.util.files import read_data_json, save_and_return_json
 
@@ -463,10 +463,10 @@ class LocationReportsFetcher:
             # split into primary and secondary keys
             # (UNKNOWN keys are filed as primary)
             new_keys_primary: set[str] = {
-                key.hashed_adv_key_b64 for key in key_batch if key.key_type == KeyType.PRIMARY
+                key.hashed_adv_key_b64 for key in key_batch if key.key_type == KeyPairType.PRIMARY
             }
             new_keys_secondary: set[str] = {
-                key.hashed_adv_key_b64 for key in key_batch if key.key_type != KeyType.PRIMARY
+                key.hashed_adv_key_b64 for key in key_batch if key.key_type != KeyPairType.PRIMARY
             }
 
             # 290 seems to be the maximum number of keys that Apple accepts in a single request,

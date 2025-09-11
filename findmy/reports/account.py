@@ -106,7 +106,7 @@ _A = TypeVar("_A", bound="BaseAppleAccount")
 _F = Callable[Concatenate[_A, _P], _R]
 
 
-def require_login_state(*states: LoginState) -> Callable[[_F], _F]:
+def _require_login_state(*states: LoginState) -> Callable[[_F], _F]:
     """Enforce a login state as precondition for a method."""
 
     def decorator(func: _F) -> _F:
@@ -403,7 +403,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._login_state
 
     @property
-    @require_login_state(
+    @_require_login_state(
         LoginState.LOGGED_IN,
         LoginState.AUTHENTICATED,
         LoginState.REQUIRE_2FA,
@@ -414,7 +414,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._account_info["account_name"] if self._account_info else None
 
     @property
-    @require_login_state(
+    @_require_login_state(
         LoginState.LOGGED_IN,
         LoginState.AUTHENTICATED,
         LoginState.REQUIRE_2FA,
@@ -425,7 +425,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._account_info["first_name"] if self._account_info else None
 
     @property
-    @require_login_state(
+    @_require_login_state(
         LoginState.LOGGED_IN,
         LoginState.AUTHENTICATED,
         LoginState.REQUIRE_2FA,
@@ -496,7 +496,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         except (RuntimeError, OSError, ConnectionError) as e:
             logger.warning("Error closing HTTP session: %s", e)
 
-    @require_login_state(LoginState.LOGGED_OUT)
+    @_require_login_state(LoginState.LOGGED_OUT)
     @override
     async def login(self, username: str, password: str) -> LoginState:
         """See :meth:`BaseAppleAccount.login`."""
@@ -508,7 +508,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         # AUTHENTICATED -> LOGGED_IN
         return await self._login_mobileme()
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def get_2fa_methods(self) -> Sequence[AsyncSecondFactorMethod]:
         """See :meth:`BaseAppleAccount.get_2fa_methods`."""
@@ -537,7 +537,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         return methods
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def sms_2fa_request(self, phone_number_id: int) -> None:
         """See :meth:`BaseAppleAccount.sms_2fa_request`."""
@@ -549,7 +549,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             data,
         )
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def sms_2fa_submit(self, phone_number_id: int, code: str) -> LoginState:
         """See :meth:`BaseAppleAccount.sms_2fa_submit`."""
@@ -574,7 +574,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         # AUTHENTICATED -> LOGGED_IN
         return await self._login_mobileme()
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def td_2fa_request(self) -> None:
         """See :meth:`BaseAppleAccount.td_2fa_request`."""
@@ -588,7 +588,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             headers=headers,
         )
 
-    @require_login_state(LoginState.REQUIRE_2FA)
+    @_require_login_state(LoginState.REQUIRE_2FA)
     @override
     async def td_2fa_submit(self, code: str) -> LoginState:
         """See :meth:`BaseAppleAccount.td_2fa_submit`."""
@@ -612,7 +612,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         # AUTHENTICATED -> LOGGED_IN
         return await self._login_mobileme()
 
-    @require_login_state(LoginState.LOGGED_IN)
+    @_require_login_state(LoginState.LOGGED_IN)
     async def fetch_raw_reports(
         self,
         devices: list[tuple[list[str], list[str]]],
@@ -740,7 +740,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         keys: Sequence[HasHashedPublicKey | RollingKeyPairSource],
     ) -> dict[HasHashedPublicKey | RollingKeyPairSource, LocationReport | None]: ...
 
-    @require_login_state(LoginState.LOGGED_IN)
+    @_require_login_state(LoginState.LOGGED_IN)
     @override
     async def fetch_location(
         self,
@@ -759,7 +759,7 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         return {dev: sorted(reports)[-1] if reports else None for dev, reports in hist.items()}
 
-    @require_login_state(LoginState.LOGGED_OUT, LoginState.REQUIRE_2FA, LoginState.LOGGED_IN)
+    @_require_login_state(LoginState.LOGGED_OUT, LoginState.REQUIRE_2FA, LoginState.LOGGED_IN)
     async def _gsa_authenticate(
         self,
         username: str | None = None,
@@ -856,7 +856,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         msg = f"Unknown auth value: {au}"
         raise UnhandledProtocolError(msg)
 
-    @require_login_state(LoginState.AUTHENTICATED)
+    @_require_login_state(LoginState.AUTHENTICATED)
     async def _login_mobileme(self) -> LoginState:
         logger.info("Logging into com.apple.mobileme")
         data = plistlib.dumps(

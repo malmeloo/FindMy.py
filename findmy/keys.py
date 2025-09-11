@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-class KeyType(Enum):
+class KeyPairType(Enum):
     """Enum of possible key types."""
 
     UNKNOWN = 0
@@ -133,7 +133,7 @@ class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
     def __init__(
         self,
         private_key: bytes,
-        key_type: KeyType = KeyType.UNKNOWN,
+        key_type: KeyPairType = KeyPairType.UNKNOWN,
         name: str | None = None,
     ) -> None:
         """Initialize the :meth:`KeyPair` with the private key bytes."""
@@ -147,7 +147,7 @@ class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
         self._name = name
 
     @property
-    def key_type(self) -> KeyType:
+    def key_type(self) -> KeyPairType:
         """Type of this key."""
         return self._key_type
 
@@ -217,7 +217,7 @@ class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
         try:
             return cls(
                 private_key=base64.b64decode(val["private_key"]),
-                key_type=KeyType(val["key_type"]),
+                key_type=KeyPairType(val["key_type"]),
                 name=val["name"],
             )
         except KeyError as e:

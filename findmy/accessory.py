@@ -16,7 +16,7 @@ from typing_extensions import override
 from findmy.util.abc import Serializable
 from findmy.util.files import read_data_json, read_data_plist, save_and_return_json
 
-from .keys import KeyGenerator, KeyPair, KeyType
+from .keys import KeyGenerator, KeyPair, KeyPairType
 from .util import crypto
 
 if TYPE_CHECKING:
@@ -116,8 +116,8 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
         :param skn: The SKN for the primary key.
         :param sks: The SKS for the secondary key.
         """
-        self._primary_gen = AccessoryKeyGenerator(master_key, skn, KeyType.PRIMARY)
-        self._secondary_gen = AccessoryKeyGenerator(master_key, sks, KeyType.SECONDARY)
+        self._primary_gen = _AccessoryKeyGenerator(master_key, skn, KeyPairType.PRIMARY)
+        self._secondary_gen = _AccessoryKeyGenerator(master_key, sks, KeyPairType.SECONDARY)
         self._paired_at: datetime = paired_at
         if self._paired_at.tzinfo is None:
             self._paired_at = self._paired_at.astimezone()
@@ -368,14 +368,14 @@ class FindMyAccessory(RollingKeyPairSource, Serializable[FindMyAccessoryMapping]
             raise ValueError(msg) from None
 
 
-class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
+class _AccessoryKeyGenerator(KeyGenerator[KeyPair]):
     """KeyPair generator. Uses the same algorithm internally as FindMy accessories do."""
 
     def __init__(
         self,
         master_key: bytes,
         initial_sk: bytes,
-        key_type: KeyType = KeyType.UNKNOWN,
+        key_type: KeyPairType = KeyPairType.UNKNOWN,
     ) -> None:
         """
         Initialize the key generator.
@@ -411,7 +411,7 @@ class AccessoryKeyGenerator(KeyGenerator[KeyPair]):
         return self._initial_sk
 
     @property
-    def key_type(self) -> KeyType:
+    def key_type(self) -> KeyPairType:
         """The type of key this generator produces."""
         return self._key_type
 
