@@ -48,7 +48,7 @@ class Closable(ABC):
 _T = TypeVar("_T", bound=Mapping)
 
 
-class Serializable(Generic[_T], ABC):
+class Serializable(ABC, Generic[_T]):
     """ABC for serializable classes."""
 
     @abstractmethod

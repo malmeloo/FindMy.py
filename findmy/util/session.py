@@ -102,7 +102,7 @@ class MixedSessionManager(_BaseSessionManager[Union[Serializable, Closable]]):
         self._add(obj, path)
 
 
-class UniformSessionManager(Generic[_SC], _BaseSessionManager[_SC]):
+class UniformSessionManager(_BaseSessionManager[_SC], Generic[_SC]):
     """Only allows a single type of Serializable object."""
 
     def __init__(self, obj_type: type[_SC]) -> None:

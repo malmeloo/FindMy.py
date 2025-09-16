@@ -5,7 +5,7 @@ default_install_hook_types:
   - post-rewrite
 repos:
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.8.4
+    rev: 0.8.17
     hooks:
       - id: uv-sync
         args: ["--all-groups"]
