@@ -19,6 +19,10 @@
       <a href="https://pypi.org/project/FindMy/">
         PyPI
       </a>
+      <span> | </span>
+      <a href="https://discord.gg/EF6UCG2TF6">
+        Discord
+      </a>
 </div>
 
 ## 🚀 Overview
