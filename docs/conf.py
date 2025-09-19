@@ -24,6 +24,8 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.inheritance_diagram",
     "autoapi.extension",
+    "sphinx_togglebutton",
+    "sphinx_design",
 ]
 
 templates_path = ["_templates"]

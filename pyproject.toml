@@ -31,6 +31,8 @@ docs = [
     "sphinx>=8.2.3,<8.3.0; python_full_version >= '3.11'",
     "sphinx-autoapi==3.6.0",
     "sphinx-book-theme>=1.1.4",
+    "sphinx-design>=0.6.1",
+    "sphinx-togglebutton>=0.3.2",
 ]
 
 [tool.pyright]
