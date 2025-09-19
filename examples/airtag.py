@@ -36,11 +36,10 @@ def main(airtag_path: Path) -> int:
     airtag = FindMyAccessory.from_json(airtag_path)
 
     # Step 1: log into an Apple account
-    print("Logging into account")
     acc = get_account_sync(STORE_PATH, ANISETTE_SERVER, ANISETTE_LIBS_PATH)
+    print(f"Logged in as: {acc.account_name} ({acc.first_name} {acc.last_name})")
 
     # step 2: fetch reports!
-    print("Fetching location")
     location = acc.fetch_location(airtag)
 
     # step 3: print 'em

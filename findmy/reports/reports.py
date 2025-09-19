@@ -306,10 +306,10 @@ class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMap
 
     def __lt__(self, other: LocationReport) -> bool:
         """
-        Compare against another :meth:`KeyReport`.
+        Compare against another :meth:`LocationReport`.
 
-        A :meth:`KeyReport` is said to be "less than" another :meth:`KeyReport` iff its recorded
-        timestamp is strictly less than the other report.
+        A :meth:`LocationReport` is said to be "less than" another :meth:`LocationReport` iff
+        its recorded timestamp is strictly less than the other report.
         """
         if isinstance(other, LocationReport):
             return self.timestamp < other.timestamp
@@ -318,7 +318,7 @@ class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMap
     @override
     def __repr__(self) -> str:
         """Human-readable string representation of the location report."""
-        msg = f"KeyReport(hashed_adv_key={self.hashed_adv_key_b64}, timestamp={self.timestamp}"
+        msg = f"LocationReport(hashed_adv_key={self.hashed_adv_key_b64}, timestamp={self.timestamp}"
         if self.is_decrypted:
             msg += f", lat={self.latitude}, lon={self.longitude}"
         msg += ")"
