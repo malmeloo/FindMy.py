@@ -21,6 +21,7 @@ Home <self>
 :maxdepth: 2
 
 getstarted/index
+related/index
 technical/index
 reveng/index
 ```

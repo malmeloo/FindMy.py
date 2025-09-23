@@ -5,7 +5,7 @@
 
 <div align="center">
 
-  _Query Apple's FindMy network with Python!_
+_Query Apple's FindMy network with Python!_
 
   <h5>
       <a href="https://docs.mikealmel.ooo/FindMy.py">
@@ -26,6 +26,7 @@
 </div>
 
 ## 🚀 Overview
+
 The current "Find My-scene" is quite fragmented, with code
 being all over the place across multiple repositories,
 written by [several authors](#Credits). This project aims to
@@ -36,7 +37,7 @@ application wishing to integrate with the Find My network.
 > This project is currently in Alpha. While existing functionality
 > will likely not change much, the API design is subject to change
 > without prior warning.
-> 
+>
 > You are encouraged to report any issues you can find on the
 > [issue tracker](https://github.com/malmeloo/FindMy.py/issues/)!
 
@@ -45,7 +46,7 @@ application wishing to integrate with the Find My network.
 - [x] Cross-platform: no Mac needed
 - [x] Fetch and decrypt location reports
   - [x] Official accessories (AirTags, iDevices, etc.)
-  - [x] Custom AirTags (OpenHaystack) 
+  - [x] Custom AirTags (OpenHaystack)
 - [x] Apple account sign-in
   - [x] SMS 2FA support
   - [x] Trusted Device 2FA support
@@ -86,14 +87,8 @@ before committing it.
 
 ## 🧠 Derivative projects
 
-There are several other cool projects based on this library! Some of them have been listed below, make sure to check them out as well.
-
-* [OfflineFindRecovery](https://github.com/hajekj/OfflineFindRecovery) - Set of scripts to precisely locate your lost MacBook.
-* [SwiftFindMy](https://github.com/airy10/SwiftFindMy) - Swift port of FindMy.py.
-* [FindMy Home Assistant (1)](https://github.com/malmeloo/hass-FindMy) - Home Assistant integration made by the author of FindMy.py.
-* [FindMy Home Assistant (2)](github.com/krmax44/homeassistant-findmy) - Home Assistant integration made by [krmax44](https://github.com/krmax44).
-* [OpenTagViewer](https://github.com/parawanderer/OpenTagViewer) - Android App to locate your AirTags.
-* [Find My Dad](https://github.com/NickCrews/findmydad) - Geofencing application for AirTags using Google Sheets and SMS.
+There are several other cool projects in the FindMy space!
+You can check them out [here](http://docs.mikealmel.ooo/FindMy.py/related/index.html).
 
 ## 🏅 Credits
 
