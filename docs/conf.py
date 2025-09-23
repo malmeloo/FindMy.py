@@ -51,3 +51,42 @@ autoapi_options = [
 
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
+html_logo = "../assets/icon.png"
+html_title = "FindMy.py"
+html_copy_source = True
+html_favicon = html_logo
+html_last_updated_fmt = ""
+html_theme_options = {
+    "path_to_docs": "docs",
+    "repository_url": "https://github.com/malmeloo/FindMy.py",
+    "repository_branch": "main",
+    "use_edit_page_button": True,
+    "use_source_button": True,
+    "use_issues_button": True,
+    "use_repository_button": True,
+    "use_download_button": True,
+    "use_sidenotes": True,
+    "show_toc_level": 2,
+    "logo": {
+        "image_dark": html_logo,
+        "text": html_title,
+    },
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/malmeloo/FindMy.py",
+            "icon": "fa-brands fa-github",
+        },
+        {
+            "name": "Discord",
+            "url": "https://discord.gg/EF6UCG2TF6",
+            "icon": "fa-brands fa-discord",
+        },
+        {
+            "name": "PyPI",
+            "url": "https://pypi.org/project/FindMy/",
+            "icon": "https://img.shields.io/pypi/dw/findmy",
+            "type": "url",
+        },
+    ],
+}
