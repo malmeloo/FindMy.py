@@ -61,9 +61,11 @@ class RollingKeyPairSource(ABC):
     @abstractmethod
     def update_alignment(self, dt: datetime, index: int) -> None:
         """
-        Update alignment of the accessory.
+        Update alignment of the accessory based on a key index that was observed at a specific time.
 
-        Alignment can be updated based on a LocationReport that was observed at a specific index.
+        Implementations of this method should consider that this method may be called
+        multiple times, sometimes with seemingly conflicting data: the same index may be
+        observed at different times, or multiple indices may be observed at the same time.
         """
         raise NotImplementedError
 
@@ -222,8 +224,13 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
 
     @override
     def update_alignment(self, dt: datetime, index: int) -> None:
-        if dt < self._alignment_date:
-            # we only care about the most recent report
+        if dt < self._alignment_date or index < self._alignment_index:
+            # We only care about the most recent report and index.
+            # Multiple calls to this method may be made with
+            # possibly conflicting data, so we just ignore
+            # anything that seems to go backwards in time or index.
+            # Saving the newest data is at least likely to be stable
+            # over multiple fetches.
             return
 
         logger.info("Updating alignment based on report observed at index %i", index)
