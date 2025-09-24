@@ -1,5 +1,5 @@
 <div align="center">
-  <img alt="FindMy.py Logo" src="assets/icon.png" width="500">
+  <img alt="FindMy.py Logo" src="https://raw.githubusercontent.com/malmeloo/FindMy.py/refs/heads/main/assets/icon.png" width="500">
   <h1>FindMy.py</h1>
 </div>
 
@@ -29,17 +29,10 @@ _Query Apple's FindMy network with Python!_
 
 The current "Find My-scene" is quite fragmented, with code
 being all over the place across multiple repositories,
-written by [several authors](#Credits). This project aims to
-unify this scene, providing common building blocks for any
-application wishing to integrate with the Find My network.
-
-> [!IMPORTANT]
-> This project is currently in Alpha. While existing functionality
-> will likely not change much, the API design is subject to change
-> without prior warning.
->
-> You are encouraged to report any issues you can find on the
-> [issue tracker](https://github.com/malmeloo/FindMy.py/issues/)!
+written by [several authors](#-credits). This makes it hard to
+integrate FindMy functionality with your project. FindMy.py
+aims to make it easy for you to query the location of your
+AirTags, iDevices and DIY tags with an easy to use Python library.
 
 ## 🧪 Features
 

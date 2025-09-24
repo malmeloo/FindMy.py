@@ -1,7 +1,7 @@
 [project]
 name = "FindMy"
 version = "0.9.0"
-description = "Everything you need to work with Apple's Find My network!"
+description = "Query the location of your FindMy devices with Python!"
 readme = "README.md"
 authors = [{ name = "Mike Almeloo", email = "git@mikealmel.ooo" }]
 license-files = ["LICENSE.md"]
