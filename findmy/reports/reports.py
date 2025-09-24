@@ -431,7 +431,7 @@ class LocationReportsFetcher:
         # state variables
         cur_keys_primary: set[str] = set()
         cur_keys_secondary: set[str] = set()
-        cur_index = accessory.get_min_index(start_date)
+        cur_index = accessory.get_max_index(start_date)
         ret: set[LocationReport] = set()
 
         async def _fetch() -> set[LocationReport]:
@@ -446,17 +446,15 @@ class LocationReportsFetcher:
                 report.decrypt(key)
 
                 # update alignment data on every report
-                # if a key maps to multiple indices, only feed it the maximum index,
-                # since apple only returns the latest reports per request.
-                # This makes the value more likely to be stable.
-                accessory.update_alignment(report.timestamp, max(key_to_ind[key]))
+                for i in key_to_ind[key]:
+                    accessory.update_alignment(report.timestamp, i)
 
             cur_keys_primary.clear()
             cur_keys_secondary.clear()
 
             return set(new_reports)
 
-        while cur_index <= accessory.get_max_index(end_date):
+        while cur_index >= accessory.get_min_index(end_date):
             key_batch = accessory.keys_at(cur_index)
 
             # split into primary and secondary keys
@@ -483,7 +481,7 @@ class LocationReportsFetcher:
             cur_keys_primary |= new_keys_primary
             cur_keys_secondary |= new_keys_secondary
 
-            cur_index += 1
+            cur_index -= 1
 
         if cur_keys_primary or cur_keys_secondary:
             # fetch remaining keys
