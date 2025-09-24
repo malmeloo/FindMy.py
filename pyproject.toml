@@ -1,6 +1,6 @@
 [project]
 name = "FindMy"
-version = "0.9.0"
+version = "0.9.1"
 description = "Query the location of your FindMy devices with Python!"
 readme = "README.md"
 authors = [{ name = "Mike Almeloo", email = "git@mikealmel.ooo" }]
