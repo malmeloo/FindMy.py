@@ -447,7 +447,11 @@ class LocationReportsFetcher:
                 report.decrypt(key)
 
                 # update alignment data on every report
-                for i in key_to_ind[key]:
+                # iterate in reverse sorted order to prevent potentially
+                # excessive internal updates and logging in the accessory,
+                # because most accessories probably only really care about
+                # the latest index anyway.
+                for i in sorted(key_to_ind[key], reverse=True):
                     accessory.update_alignment(report.timestamp, i)
 
             cur_keys_primary.clear()
