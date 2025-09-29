@@ -384,7 +384,7 @@ class LocationReportsFetcher:
 
         if isinstance(device, RollingKeyPairSource):
             # key generator
-            return await self._fetch_accessory_report(device)
+            return await self._fetch_accessory_reports(device, only_latest=True)
 
         if not isinstance(device, list) or not all(
             isinstance(x, HasHashedPublicKey | RollingKeyPairSource) for x in device
@@ -406,7 +406,7 @@ class LocationReportsFetcher:
                 static_keys.append(dev)
             elif isinstance(dev, RollingKeyPairSource):
                 # query immediately
-                reports[dev] = await self._fetch_accessory_report(dev)
+                reports[dev] = await self._fetch_accessory_reports(dev, only_latest=True)
 
         if static_keys:  # batch request for static keys
             key_reports = await self._fetch_key_reports(static_keys)
@@ -414,9 +414,10 @@ class LocationReportsFetcher:
 
         return reports
 
-    async def _fetch_accessory_report(
+    async def _fetch_accessory_reports(
         self,
         accessory: RollingKeyPairSource,
+        only_latest: bool = False,
     ) -> list[LocationReport]:
         logger.debug("Fetching location report for accessory")
 
@@ -431,7 +432,7 @@ class LocationReportsFetcher:
         # state variables
         cur_keys_primary: set[str] = set()
         cur_keys_secondary: set[str] = set()
-        cur_index = accessory.get_max_index(start_date)
+        cur_index = accessory.get_max_index(end_date)
         ret: set[LocationReport] = set()
 
         async def _fetch() -> set[LocationReport]:
@@ -446,7 +447,11 @@ class LocationReportsFetcher:
                 report.decrypt(key)
 
                 # update alignment data on every report
-                for i in key_to_ind[key]:
+                # iterate in reverse sorted order to prevent potentially
+                # excessive internal updates and logging in the accessory,
+                # because most accessories probably only really care about
+                # the latest index anyway.
+                for i in sorted(key_to_ind[key], reverse=True):
                     accessory.update_alignment(report.timestamp, i)
 
             cur_keys_primary.clear()
@@ -454,7 +459,7 @@ class LocationReportsFetcher:
 
             return set(new_reports)
 
-        while cur_index >= accessory.get_min_index(end_date):
+        while cur_index >= accessory.get_min_index(start_date):
             key_batch = accessory.keys_at(cur_index)
 
             # split into primary and secondary keys
@@ -473,6 +478,11 @@ class LocationReportsFetcher:
                 or len(cur_keys_secondary | new_keys_secondary) > 290
             ):
                 ret |= await _fetch()
+
+                # if we only want the latest report, we can stop here
+                # since we are iterating backwards in time
+                if only_latest and ret:
+                    return sorted(ret)
 
             # build mappings before adding to current keys
             for key in key_batch:
