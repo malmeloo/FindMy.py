@@ -610,7 +610,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return await self._login_mobileme()
 
     @_require_login_state(LoginState.LOGGED_IN)
-    async def fetch_raw_reports(
+    async def fetch_raw_reports(  # noqa: C901
         self,
         devices: list[tuple[list[str], list[str]]],
     ) -> list[LocationReport]:
@@ -645,12 +645,32 @@ class AsyncAppleAccount(BaseAppleAccount):
         }
 
         async def _do_request() -> util.http.HttpResponse:
-            return await self._http.post(
-                self._ENDPOINT_REPORTS_FETCH,
-                auth=auth,
-                headers=await self.get_anisette_headers(),
-                json=data,
-            )
+            # bandaid fix for https://github.com/malmeloo/FindMy.py/issues/185
+            # Symptom: HTTP 200 but empty response
+            # Remove when real issue fixed
+            retry_counter = 1
+            while True:
+                resp = await self._http.post(
+                    self._ENDPOINT_REPORTS_FETCH,
+                    auth=auth,
+                    headers=await self.get_anisette_headers(),
+                    json=data,
+                )
+
+                if resp.status_code != 200 or resp.text().strip():
+                    return resp
+
+                logger.warning(
+                    "Empty response received when fetching reports, retrying (%d/3)",
+                    retry_counter,
+                )
+                retry_counter += 1
+
+                if retry_counter > 3:
+                    logger.warning("Max retries reached, returning empty response")
+                    return resp
+
+                await asyncio.sleep(2)
 
         r = await _do_request()
         if r.status_code == 401:
