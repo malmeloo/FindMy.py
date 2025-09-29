@@ -432,7 +432,7 @@ class LocationReportsFetcher:
         # state variables
         cur_keys_primary: set[str] = set()
         cur_keys_secondary: set[str] = set()
-        cur_index = accessory.get_max_index(start_date)
+        cur_index = accessory.get_max_index(end_date)
         ret: set[LocationReport] = set()
 
         async def _fetch() -> set[LocationReport]:
@@ -455,7 +455,7 @@ class LocationReportsFetcher:
 
             return set(new_reports)
 
-        while cur_index >= accessory.get_min_index(end_date):
+        while cur_index >= accessory.get_min_index(start_date):
             key_batch = accessory.keys_at(cur_index)
 
             # split into primary and secondary keys
