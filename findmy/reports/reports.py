@@ -384,7 +384,7 @@ class LocationReportsFetcher:
 
         if isinstance(device, RollingKeyPairSource):
             # key generator
-            return await self._fetch_accessory_report(device)
+            return await self._fetch_accessory_reports(device, only_latest=True)
 
         if not isinstance(device, list) or not all(
             isinstance(x, HasHashedPublicKey | RollingKeyPairSource) for x in device
@@ -406,7 +406,7 @@ class LocationReportsFetcher:
                 static_keys.append(dev)
             elif isinstance(dev, RollingKeyPairSource):
                 # query immediately
-                reports[dev] = await self._fetch_accessory_report(dev)
+                reports[dev] = await self._fetch_accessory_reports(dev, only_latest=True)
 
         if static_keys:  # batch request for static keys
             key_reports = await self._fetch_key_reports(static_keys)
@@ -414,9 +414,10 @@ class LocationReportsFetcher:
 
         return reports
 
-    async def _fetch_accessory_report(
+    async def _fetch_accessory_reports(
         self,
         accessory: RollingKeyPairSource,
+        only_latest: bool = False,
     ) -> list[LocationReport]:
         logger.debug("Fetching location report for accessory")
 
@@ -473,6 +474,11 @@ class LocationReportsFetcher:
                 or len(cur_keys_secondary | new_keys_secondary) > 290
             ):
                 ret |= await _fetch()
+
+                # if we only want the latest report, we can stop here
+                # since we are iterating backwards in time
+                if only_latest and ret:
+                    return sorted(ret)
 
             # build mappings before adding to current keys
             for key in key_batch:
