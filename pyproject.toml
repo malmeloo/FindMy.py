@@ -13,7 +13,7 @@ dependencies = [
     "aiohttp>=3.9.5,<4.0.0",
     "bleak>=1.0.0,<2.0.0",
     "typing-extensions>=4.12.2,<5.0.0",
-    "anisette>=1.2.3,<2.0.0",
+    "anisette>=1.2.4,<2.0.0",
 ]
 
 [dependency-groups]
