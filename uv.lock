@@ -173,7 +173,7 @@ wheels = [
 
 [[package]]
 name = "anisette"
-version = "1.2.3"
+version = "1.2.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -183,9 +183,9 @@ dependencies = [
     { name = "unicorn" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b7/97/0226feb82a3338e0d5ed9bf8a7591f7fc1cba6672e51a978a5d363d54a0c/anisette-1.2.3.tar.gz", hash = "sha256:622728f8ea75b1038e169dd6ba30c0405d74edaadb1a93a2de809172d77128af", size = 92456, upload-time = "2025-09-16T19:26:49.653Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3e/1b/5e110b7243fc695459e52888548cac693d25da97ab05640003f401994ad4/anisette-1.2.4.tar.gz", hash = "sha256:061866f05fdbde2990d2e2617457264a20ca12679217941bb38b5fefef492e62", size = 92432, upload-time = "2025-10-09T18:43:06.233Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/c0/b01ef5d9d536c66cd8deb45b55be666008f868516540ef582ba9a66ce9a9/anisette-1.2.3-py3-none-any.whl", hash = "sha256:2b9d4485fcfd4c2b5c23203538f5dcd456b7e9cae5dbd8f90e0efdd122f06e7c", size = 32193, upload-time = "2025-09-16T19:26:48.465Z" },
+    { url = "https://files.pythonhosted.org/packages/c4/38/2f8b4c7d97d3eca76c1794348ea142bba393da11950ed836e741692d133e/anisette-1.2.4-py3-none-any.whl", hash = "sha256:f61e620aa736f0cac0ca102dd44a02cc2caea1a072eab0f1ef7f2d8b534e03dc", size = 32143, upload-time = "2025-10-09T18:43:04.719Z" },
 ]
 
 [[package]]
@@ -618,7 +618,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.9.5,<4.0.0" },
-    { name = "anisette", specifier = ">=1.2.3,<2.0.0" },
+    { name = "anisette", specifier = ">=1.2.4,<2.0.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5.0.0" },
     { name = "bleak", specifier = ">=1.0.0,<2.0.0" },
     { name = "cryptography", specifier = ">=42.0.0,<46.0.0" },
