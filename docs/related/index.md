@@ -83,7 +83,13 @@ Geofencing for FindMy devices. Also includes a map to view device locations.
 
 _Author: [franga2000](https://github.com/pablobuenaposada/)_
 
-Basic web UI for AirTags and other MFI trackers. 
+Basic web UI for AirTags and other MFI trackers.
+
+#### 🐍 [Simply-Haystack](https://github.com/alyxdeburca/simply-haystack/)
+
+_Author: [alyxdeburca](https://github.com/alyxdeburca/)_
+
+Web interface to track your FindMy devices.
 
 ## Libraries
 
