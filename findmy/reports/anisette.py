@@ -397,7 +397,12 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
         with_client_info: bool = False,
     ) -> dict[str, str]:
         """See :meth:`BaseAnisetteProvider.get_headers`."""
-        self._ani_data = (await self._get_ani()).get_data()
+        ani = await self._get_ani()
+
+        # run in executor to prevent blocking the event loop,
+        # since get_data may make blocking network requests.
+        loop = asyncio.get_running_loop()
+        self._ani_data = await loop.run_in_executor(None, ani.get_data)
 
         return await super().get_headers(user_id, device_id, serial, with_client_info)
 
