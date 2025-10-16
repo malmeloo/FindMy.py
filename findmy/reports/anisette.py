@@ -296,17 +296,6 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
         if isinstance(libs_path, str):
             libs_path = Path(libs_path)
 
-        if libs_path is None or not libs_path.is_file():
-            logger.info(
-                "The Anisette engine will download libraries required for operation, "
-                "this may take a few seconds...",
-            )
-        if libs_path is None:
-            logger.info(
-                "To speed up future local Anisette initializations, "
-                "provide a filesystem path to load the libraries from.",
-            )
-
         # we do not yet initialize Anisette in order to prevent blocking the event loop,
         # since the anisette library will download the required libraries synchronously.
         self._ani: Anisette | None = None
@@ -323,6 +312,17 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
         if self._ani is not None:
             return self._ani
 
+        if self._libs_path is None or not self._libs_path.is_file():
+            logger.info(
+                "The Anisette engine will download libraries required for operation, "
+                "this may take a few seconds...",
+            )
+        if self._libs_path is None:
+            logger.info(
+                "To speed up future local Anisette initializations, "
+                "provide a filesystem path to load the libraries from.",
+            )
+
         files: list[BinaryIO | Path] = []
         if self._state_blob is not None:
             files.append(self._state_blob)
@@ -331,15 +331,19 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
 
         loop = asyncio.get_running_loop()
         ani = await loop.run_in_executor(None, Anisette.load, *files)
+        is_provisioned = await loop.run_in_executor(None, lambda: ani.is_provisioned)
 
         if self._libs_path is not None:
             ani.save_libs(self._libs_path)
 
-        if not self._is_new_session and not ani.is_provisioned:
+        if not self._is_new_session and not is_provisioned:
             logger.warning(
                 "The Anisette state that was loaded has not yet been provisioned. "
                 "Was the previous session saved properly?",
             )
+
+        # pre-provision to ensure that the VM has initialized
+        await loop.run_in_executor(None, ani.provision)
 
         self._ani = ani
         return ani
