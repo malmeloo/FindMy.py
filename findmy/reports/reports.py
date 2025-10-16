@@ -21,6 +21,7 @@ from findmy.accessory import RollingKeyPairSource
 from findmy.keys import HasHashedPublicKey, KeyPair, KeyPairMapping, KeyPairType
 
 if TYPE_CHECKING:
+    import io
     from collections.abc import Sequence
     from pathlib import Path
 
@@ -199,7 +200,7 @@ class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMap
     @overload
     def to_json(
         self,
-        dst: str | Path | None = None,
+        dst: str | Path | io.TextIOBase | None = None,
         /,
         *,
         include_key: Literal[True],
@@ -209,7 +210,7 @@ class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMap
     @overload
     def to_json(
         self,
-        dst: str | Path | None = None,
+        dst: str | Path | io.TextIOBase | None = None,
         /,
         *,
         include_key: Literal[False],
@@ -219,7 +220,7 @@ class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMap
     @overload
     def to_json(
         self,
-        dst: str | Path | None = None,
+        dst: str | Path | io.TextIOBase | None = None,
         /,
         *,
         include_key: None = None,
@@ -229,7 +230,7 @@ class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMap
     @override
     def to_json(
         self,
-        dst: str | Path | None = None,
+        dst: str | Path | io.TextIOBase | None = None,
         /,
         *,
         include_key: bool | None = None,
@@ -258,7 +259,9 @@ class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMap
 
     @classmethod
     @override
-    def from_json(cls, val: str | Path | LocationReportMapping, /) -> LocationReport:
+    def from_json(
+        cls, val: str | Path | io.TextIOBase | io.BufferedIOBase | LocationReportMapping, /
+    ) -> LocationReport:
         val = util.files.read_data_json(val)
         assert val["type"] == "locReportEncrypted" or val["type"] == "locReportDecrypted"
 

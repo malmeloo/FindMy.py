@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import io
 import locale
 import logging
 import time
@@ -205,7 +206,7 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[RemoteA
         self._closed = False
 
     @override
-    def to_json(self, dst: str | Path | None = None, /) -> RemoteAnisetteMapping:
+    def to_json(self, dst: str | Path | io.TextIOBase | None = None, /) -> RemoteAnisetteMapping:
         """See :meth:`BaseAnisetteProvider.serialize`."""
         return util.files.save_and_return_json(
             {
@@ -217,7 +218,9 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[RemoteA
 
     @classmethod
     @override
-    def from_json(cls, val: str | Path | RemoteAnisetteMapping) -> RemoteAnisetteProvider:
+    def from_json(
+        cls, val: str | Path | io.TextIOBase | io.BufferedIOBase | RemoteAnisetteMapping
+    ) -> RemoteAnisetteProvider:
         """See :meth:`BaseAnisetteProvider.deserialize`."""
         val = util.files.read_data_json(val)
 
@@ -349,7 +352,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
         return ani
 
     @override
-    def to_json(self, dst: str | Path | None = None, /) -> LocalAnisetteMapping:
+    def to_json(self, dst: str | Path | io.TextIOBase | None = None, /) -> LocalAnisetteMapping:
         """See :meth:`BaseAnisetteProvider.serialize`."""
         if self._ani is None:
             # Anisette has not been called yet, so the future has not yet resolved.
@@ -378,7 +381,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
     @override
     def from_json(
         cls,
-        val: str | Path | LocalAnisetteMapping,
+        val: str | Path | io.TextIOBase | io.BufferedIOBase | LocalAnisetteMapping,
         *,
         libs_path: str | Path | None = None,
     ) -> LocalAnisetteProvider:
