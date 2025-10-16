@@ -18,6 +18,7 @@ from findmy.util.files import read_data_json, save_and_return_json
 from .util import crypto, parsers
 
 if TYPE_CHECKING:
+    import io
     from collections.abc import Generator
     from pathlib import Path
 
@@ -197,7 +198,7 @@ class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
         return int.to_bytes(key_bytes, 28, "big")
 
     @override
-    def to_json(self, dst: str | Path | None = None, /) -> KeyPairMapping:
+    def to_json(self, dst: str | Path | io.TextIOBase | None = None, /) -> KeyPairMapping:
         return save_and_return_json(
             {
                 "type": "keypair",
@@ -210,7 +211,9 @@ class KeyPair(HasPublicKey, Serializable[KeyPairMapping]):
 
     @classmethod
     @override
-    def from_json(cls, val: str | Path | KeyPairMapping, /) -> KeyPair:
+    def from_json(
+        cls, val: str | Path | io.TextIOBase | io.BufferedIOBase | KeyPairMapping, /
+    ) -> KeyPair:
         val = read_data_json(val)
         assert val["type"] == "keypair"
 
