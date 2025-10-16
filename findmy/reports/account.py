@@ -48,6 +48,7 @@ from .twofactor import (
 )
 
 if TYPE_CHECKING:
+    import io
     from collections.abc import Sequence
     from pathlib import Path
 
@@ -433,7 +434,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         return self._account_info["last_name"] if self._account_info else None
 
     @override
-    def to_json(self, path: str | Path | None = None, /) -> AccountStateMapping:
+    def to_json(self, path: str | Path | io.TextIOBase | None = None, /) -> AccountStateMapping:
         res: AccountStateMapping = {
             "type": "account",
             "ids": {"uid": self._uid, "devid": self._devid},
@@ -455,7 +456,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     @override
     def from_json(
         cls,
-        val: str | Path | AccountStateMapping,
+        val: str | Path | io.TextIOBase | io.BufferedIOBase | AccountStateMapping,
         /,
         *,
         anisette_libs_path: str | Path | None = None,
@@ -1048,7 +1049,7 @@ class AppleAccount(BaseAppleAccount):
     @override
     def from_json(
         cls,
-        val: str | Path | AccountStateMapping,
+        val: str | Path | io.TextIOBase | io.BufferedIOBase | AccountStateMapping,
         /,
         *,
         anisette_libs_path: str | Path | None = None,
