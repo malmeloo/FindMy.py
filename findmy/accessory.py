@@ -18,6 +18,7 @@ from .keys import KeyGenerator, KeyPair, KeyPairType
 from .util import crypto
 
 if TYPE_CHECKING:
+    import io
     from collections.abc import Generator
     from pathlib import Path
 
@@ -269,7 +270,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
     @classmethod
     def from_plist(
         cls,
-        plist: str | Path | dict | bytes,
+        plist: str | Path | dict | bytes | io.BufferedIOBase,
         key_alignment_plist: str | Path | dict | bytes | None = None,
         *,
         name: str | None = None,
@@ -322,7 +323,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
         )
 
     @override
-    def to_json(self, path: str | Path | None = None, /) -> FindMyAccessoryMapping:
+    def to_json(self, path: str | Path | io.TextIOBase | None = None, /) -> FindMyAccessoryMapping:
         alignment_date = None
         if self._alignment_date is not None:
             alignment_date = self._alignment_date.isoformat()
@@ -346,7 +347,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
     @override
     def from_json(
         cls,
-        val: str | Path | FindMyAccessoryMapping,
+        val: str | Path | io.TextIOBase | io.BufferedIOBase | FindMyAccessoryMapping,
         /,
     ) -> FindMyAccessory:
         val = util.files.read_data_json(val)
