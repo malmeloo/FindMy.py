@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO, Literal, TypedDict, Union
+from typing import BinaryIO, Literal, TypedDict
 
 from anisette import Anisette, AnisetteHeaders
 from typing_extensions import override
@@ -36,7 +36,7 @@ class LocalAnisetteMapping(TypedDict):
     prov_data: str | None
 
 
-AnisetteMapping = Union[RemoteAnisetteMapping, LocalAnisetteMapping]
+AnisetteMapping = RemoteAnisetteMapping | LocalAnisetteMapping
 
 
 def get_provider_from_mapping(
