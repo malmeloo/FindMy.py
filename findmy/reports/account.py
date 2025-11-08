@@ -9,12 +9,13 @@ import logging
 import plistlib
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 from typing import (
     TYPE_CHECKING,
     Any,
-    Callable,
+    Concatenate,
     Literal,
     TypedDict,
     TypeVar,
@@ -24,7 +25,7 @@ from typing import (
 
 import bs4
 import srp._pysrp as srp
-from typing_extensions import Concatenate, ParamSpec, override
+from typing_extensions import ParamSpec, override
 
 from findmy import util
 from findmy.errors import (

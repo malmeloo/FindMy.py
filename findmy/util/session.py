@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from typing_extensions import Self
 
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from types import TracebackType
 
 _S = TypeVar("_S", bound=Serializable)
-_SC = TypeVar("_SC", bound=Union[Serializable, Closable])
+_SC = TypeVar("_SC", bound=Serializable | Closable)
 
 
 class _BaseSessionManager(Generic[_SC]):
@@ -67,7 +67,7 @@ class _BaseSessionManager(Generic[_SC]):
         self.save()
 
 
-class MixedSessionManager(_BaseSessionManager[Union[Serializable, Closable]]):
+class MixedSessionManager(_BaseSessionManager[Serializable | Closable]):
     """Allows any Serializable or Closable object."""
 
     def new(

@@ -9,7 +9,7 @@ import logging
 import struct
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Literal, TypedDict, Union, overload
+from typing import TYPE_CHECKING, Literal, TypedDict, overload
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -49,7 +49,7 @@ class LocationReportDecryptedMapping(TypedDict):
     key: KeyPairMapping
 
 
-LocationReportMapping = Union[LocationReportEncryptedMapping, LocationReportDecryptedMapping]
+LocationReportMapping = LocationReportEncryptedMapping | LocationReportDecryptedMapping
 
 
 class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMapping]):
