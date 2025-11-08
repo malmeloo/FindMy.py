@@ -20,7 +20,7 @@ obtain the authentication tokens necessary to request device locations.
 OpenHaystack also includes scripts and firmware to turn devices such as the Micro:Bit and
 generic Linux devices into DIY AirTags.
 
-#### [FindMy](https://github.com/beimster/FindMy/)
+#### [FindMy](https://github.com/biemster/FindMy/)
 
 _Author: [biemster](https://github.com/biemster)_
 
