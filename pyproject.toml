@@ -5,7 +5,7 @@ description = "Query the location of your FindMy devices with Python!"
 readme = "README.md"
 authors = [{ name = "Mike Almeloo", email = "git@mikealmel.ooo" }]
 license-files = ["LICENSE.md"]
-requires-python = ">=3.9,<3.15"
+requires-python = ">=3.10,<3.15"
 dependencies = [
     "srp>=1.0.21,<2.0.0",
     "cryptography>=42.0.0,<46.0.0",
