@@ -603,7 +603,7 @@ requires-dist = [
     { name = "anisette", specifier = ">=1.2.4,<2.0.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.3,<5.0.0" },
     { name = "bleak", specifier = ">=1.0.0,<2.0.0" },
-    { name = "cryptography", specifier = ">=42.0.0,<46.0.0" },
+    { name = "cryptography", specifier = ">=42.0.0,<47.0.0" },
     { name = "srp", specifier = ">=1.0.21,<2.0.0" },
     { name = "typing-extensions", specifier = ">=4.12.2,<5.0.0" },
 ]
