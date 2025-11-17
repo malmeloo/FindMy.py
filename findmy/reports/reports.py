@@ -18,6 +18,7 @@ from typing_extensions import override
 
 from findmy import util
 from findmy.accessory import RollingKeyPairSource
+from findmy.errors import EmptyResponseError
 from findmy.keys import HasHashedPublicKey, KeyPair, KeyPairMapping, KeyPairType
 
 if TYPE_CHECKING:
@@ -417,7 +418,7 @@ class LocationReportsFetcher:
 
         return reports
 
-    async def _fetch_accessory_reports(
+    async def _fetch_accessory_reports(  # noqa: C901
         self,
         accessory: RollingKeyPairSource,
         only_latest: bool = False,
@@ -480,7 +481,10 @@ class LocationReportsFetcher:
                 len(cur_keys_primary | new_keys_primary) > 290
                 or len(cur_keys_secondary | new_keys_secondary) > 290
             ):
-                ret |= await _fetch()
+                try:
+                    ret |= await _fetch()
+                except EmptyResponseError:
+                    return []
 
                 # if we only want the latest report, we can stop here
                 # since we are iterating backwards in time
@@ -498,7 +502,10 @@ class LocationReportsFetcher:
 
         if cur_keys_primary or cur_keys_secondary:
             # fetch remaining keys
-            ret |= await _fetch()
+            try:
+                ret |= await _fetch()
+            except EmptyResponseError:
+                return []
 
         return sorted(ret)
 
@@ -510,7 +517,10 @@ class LocationReportsFetcher:
 
         # fetch all as primary keys
         ids = [([key.hashed_adv_key_b64], []) for key in keys]
-        encrypted_reports: list[LocationReport] = await self._account.fetch_raw_reports(ids)
+        try:
+            encrypted_reports: list[LocationReport] = await self._account.fetch_raw_reports(ids)
+        except EmptyResponseError:
+            encrypted_reports = []
 
         id_to_key: dict[bytes, HasHashedPublicKey] = {key.hashed_adv_key_bytes: key for key in keys}
         reports: dict[HasHashedPublicKey, list[LocationReport]] = {key: [] for key in keys}
