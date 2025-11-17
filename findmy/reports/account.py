@@ -29,6 +29,7 @@ from typing_extensions import ParamSpec, override
 
 from findmy import util
 from findmy.errors import (
+    EmptyResponseError,
     InvalidCredentialsError,
     InvalidStateError,
     UnauthorizedError,
@@ -669,8 +670,14 @@ class AsyncAppleAccount(BaseAppleAccount):
                 retry_counter += 1
 
                 if retry_counter > 3:
-                    logger.warning("Max retries reached, returning empty response")
-                    return resp
+                    logger.warning(
+                        "Max retries reached, returning empty response. \
+                            Location reports might be missing!"
+                    )
+                    msg = "Empty response received from Apple servers. \
+                        This is most likely a bug on Apple's side. \
+                        More info: https://github.com/malmeloo/FindMy.py/issues/185"
+                    raise EmptyResponseError(msg)
 
                 await asyncio.sleep(2)
 

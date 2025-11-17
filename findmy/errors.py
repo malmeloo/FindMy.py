@@ -17,6 +17,14 @@ class UnhandledProtocolError(RuntimeError):
     """
 
 
+class EmptyResponseError(RuntimeError):
+    """
+    Raised when Apple servers return an empty response when querying location reports.
+
+    This is a bug on Apple's side. More info: https://github.com/malmeloo/FindMy.py/issues/185
+    """
+
+
 class InvalidStateError(RuntimeError):
     """
     Raised when a method is used that is in conflict with the internal account state.
