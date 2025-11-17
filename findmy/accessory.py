@@ -373,6 +373,22 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
             msg = f"Failed to restore account data: {e}"
             raise ValueError(msg) from None
 
+    @override
+    def __hash__(self) -> int:
+        master = crypto.bytes_to_int(self.master_key)
+        skn = crypto.bytes_to_int(self.skn)
+        sks = crypto.bytes_to_int(self.sks)
+        return hash((master, skn, sks))
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, FindMyAccessory):
+            return False
+
+        return (
+            self.master_key == other.master_key and self.skn == other.skn and self.sks == other.sks
+        )
+
 
 class _AccessoryKeyGenerator(KeyGenerator[KeyPair]):
     """KeyPair generator. Uses the same algorithm internally as FindMy accessories do."""
