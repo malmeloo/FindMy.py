@@ -396,7 +396,7 @@ class _AccessoryKeyGenerator(KeyGenerator[KeyPair]):
     # cache enough keys for an entire week.
     # every interval'th key is cached.
     _CACHE_SIZE = 4 * 24 * 7  # 4 keys / hour
-    _CACHE_INTERVAL = 10
+    _CACHE_INTERVAL = 1  # cache every key
 
     def __init__(
         self,
@@ -460,7 +460,7 @@ class _AccessoryKeyGenerator(KeyGenerator[KeyPair]):
                 cur_sk = self._sk_cache[cached_ind]
 
         # compute and update cache
-        for cur_ind in range(start_ind, ind):
+        for cur_ind in range(start_ind + 1, ind + 1):
             cur_sk = crypto.x963_kdf(cur_sk, b"update", 32)
 
             # insert intermediate result into cache and evict oldest entry if necessary
