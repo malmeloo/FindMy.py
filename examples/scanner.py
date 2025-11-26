@@ -24,9 +24,14 @@ async def scan(check_key: KeyPair | FindMyAccessory | None = None) -> bool:
 
     scan_device = None
 
-    async for device in scanner.scan_for(10, extend_timeout=True):
+    scan_out_file = Path("scan_results.jsonl")
+    # Clear previous scan results
+    if scan_out_file.exists():
+        scan_out_file.unlink()
+
+    async for device in scanner.scan_for(10, extend_timeout=True, print_summary=True):
         if isinstance(device, (SeparatedOfflineFindingDevice, NearbyOfflineFindingDevice)):
-            device.print_device()
+            device.print_device(out_file=scan_out_file)
         else:
             print(f"Unknown device: {device}")
             print()
