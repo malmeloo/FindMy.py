@@ -34,6 +34,35 @@ APPLE_DEVICE_TYPE = {
 BATTERY_LEVEL = {0b00: "Full", 0b01: "Medium", 0b10: "Low", 0b11: "Very Low"}
 
 
+def _print_scanning_results(seen_devices: dict[str, list[OfflineFindingDevice]]) -> None:
+    """Print summary of each device seen."""
+    # ruff: noqa: T201
+    print("================  RESULTS  =========================")
+    for mac, devices in seen_devices.items():
+        avg_rssi = sum(d.rssi for d in devices if d.rssi is not None) / len(
+            [d for d in devices if d.rssi is not None]
+        )
+        print(f"Device {mac} seen {len(devices)} times, average RSSI: {avg_rssi:.1f}")
+        of_type = "nearby" if isinstance(devices[0], NearbyOfflineFindingDevice) else "separated"
+        print(
+            f"    {devices[0].device_type} with {devices[0].battery_level} battery"
+            f" ({of_type} state)"
+        )
+
+        if isinstance(devices[0], SeparatedOfflineFindingDevice):
+            print(f"    Public key: {devices[0].adv_key_b64}")
+            print(f"    Lookup key: {devices[0].hashed_adv_key_b64}")
+    print("===============================================")
+
+    device_type_counts: dict[str, int] = {}
+    for devs in seen_devices.values():
+        dev_type = devs[0].device_type
+        device_type_counts[dev_type] = device_type_counts.get(dev_type, 0) + 1
+
+    for dev_type, count in device_type_counts.items():
+        print(f"Total {dev_type}: {count}")
+
+
 class OfflineFindingDevice(ABC):
     """Device discoverable through Apple's bluetooth-based Offline Finding protocol."""
 
@@ -417,36 +446,6 @@ class OfflineFindingScanner:
 
         self._scanner_count: int = 0
 
-    def print_scanning_results(self, seen_devices: dict[str, list[OfflineFindingDevice]]) -> None:
-        """Print summary of each device seen."""
-        # ruff: noqa: T201
-        print("================  RESULTS  =========================")
-        for mac, devices in seen_devices.items():
-            avg_rssi = sum(d.rssi for d in devices if d.rssi is not None) / len(
-                [d for d in devices if d.rssi is not None]
-            )
-            print(f"Device {mac} seen {len(devices)} times, average RSSI: {avg_rssi:.1f}")
-            of_type = (
-                "nearby" if isinstance(devices[0], NearbyOfflineFindingDevice) else "separated"
-            )
-            print(
-                f"    {devices[0].device_type} with {devices[0].battery_level} battery"
-                f" ({of_type} state)"
-            )
-
-            if isinstance(devices[0], SeparatedOfflineFindingDevice):
-                print(f"    Public key: {devices[0].adv_key_b64}")
-                print(f"    Lookup key: {devices[0].hashed_adv_key_b64}")
-        print("===============================================")
-
-        device_type_counts: dict[str, int] = {}
-        for devs in seen_devices.values():
-            dev_type = devs[0].device_type
-            device_type_counts[dev_type] = device_type_counts.get(dev_type, 0) + 1
-
-        for dev_type, count in device_type_counts.items():
-            print(f"Total {dev_type}: {count}")
-
     @classmethod
     async def create(cls) -> OfflineFindingScanner:
         """Create an instance of the scanner."""
@@ -547,7 +546,7 @@ class OfflineFindingScanner:
         except asyncio.TimeoutError:  # timeout reached
             self._device_fut = self._loop.create_future()
             if print_summary:
-                self.print_scanning_results(devices_seen)
+                _print_scanning_results(devices_seen)
             return
         finally:
             await self._stop_scan()
