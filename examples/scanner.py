@@ -22,11 +22,6 @@ async def scan(check_key: KeyPair | FindMyAccessory | None = None) -> bool:
 
     scan_device = None
 
-    scan_out_file = Path("scan_results.jsonl")
-    # Clear previous scan results
-    if scan_out_file.exists():
-        scan_out_file.unlink()
-
     async for device in scanner.scan_for(10, extend_timeout=True, print_summary=True):
         if check_key and device.is_from(check_key):
             scan_device = device
