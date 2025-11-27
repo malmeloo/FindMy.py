@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -18,8 +17,8 @@ from findmy.keys import HasPublicKey
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
-    from pathlib import Path
 
+    from _typeshed import SupportsWrite
     from bleak.backends.device import BLEDevice
     from bleak.backends.scanner import AdvertisementData
 
@@ -100,7 +99,7 @@ class OfflineFindingDevice(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def print_device(self, out_file: Path | None = None) -> None:
+    def print(self, file: SupportsWrite[str] | None = None) -> None:
         """Print human-readable information about the device to stdout or file."""
         raise NotImplementedError
 
@@ -254,33 +253,17 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
         )
 
     @override
-    def print_device(self, out_file: Path | None = None) -> None:
+    def print(self, file: SupportsWrite[str] | None = None) -> None:
         """Print human-readable information about the device to stdout or file."""
         # ruff: noqa: T201
-        if out_file:
-            data = {
-                "mac_address": self.mac_address,
-                "status": self.status,
-                "device_type": self.device_type,
-                "battery_level": self.battery_level,
-                "rssi": self.rssi,
-                "detected_at": self.detected_at.isoformat(),
-                "additional_data": self.additional_data,
-            }
-
-            with out_file.open("a", encoding="utf-8") as f:
-                # Indent json for readability
-                json.dump(data, f, indent=4)
-                f.write("\n")
-        else:
-            print(f"Nearby {self.device_type} - {self.mac_address}")
-            print(f"  Status byte:  0x{self.status:x}")
-            print(f"  Battery lvl:  {self.battery_level}")
-            print(f"  RSSI:         {self.rssi}")
-            print("  Extra data:")
-            for k, v in sorted(self.additional_data.items()):
-                print(f"    {k:20}: {v}")
-            print("\n")
+        print(f"Nearby {self.device_type} - {self.mac_address}", file=file)
+        print(f"  Status byte:  0x{self.status:x}", file=file)
+        print(f"  Battery lvl:  {self.battery_level}", file=file)
+        print(f"  RSSI:         {self.rssi}", file=file)
+        print("  Extra data:", file=file)
+        for k, v in sorted(self.additional_data.items()):
+            print(f"    {k:20}: {v}", file=file)
+        print("\n", file=file)
 
 
 class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
@@ -383,38 +366,20 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
         )
 
     @override
-    def print_device(self, out_file: Path | None = None) -> None:
+    def print(self, file: SupportsWrite[str] | None = None) -> None:
         """Print human-readable information about the device to stdout or file."""
         # ruff: noqa: T201
-        if out_file:
-            data = {
-                "mac_address": self.mac_address,
-                "public_key": self.adv_key_b64,
-                "lookup_key": self.hashed_adv_key_b64,
-                "status": self.status,
-                "device_type": self.device_type,
-                "battery_level": self.battery_level,
-                "hint": self.hint,
-                "rssi": self.rssi,
-                "detected_at": self.detected_at.isoformat(),
-                "additional_data": self.additional_data,
-            }
-
-            with out_file.open("a", encoding="utf-8") as f:
-                json.dump(data, f, indent=4)
-                f.write("\n")
-        else:
-            print(f"Separated {self.device_type} - {self.mac_address}")
-            print(f"  Public key:   {self.adv_key_b64}")
-            print(f"  Lookup key:   {self.hashed_adv_key_b64}")
-            print(f"  Status byte:  0x{self.status:x}")
-            print(f"  Battery lvl:  {self.battery_level}")
-            print(f"  Hint byte:    0x{self.hint:x}")
-            print(f"  RSSI:         {self.rssi}")
-            print("  Extra data:")
-            for k, v in sorted(self.additional_data.items()):
-                print(f"    {k:20}: {v}")
-            print("\n")
+        print(f"Separated {self.device_type} - {self.mac_address}", file=file)
+        print(f"  Public key:   {self.adv_key_b64}", file=file)
+        print(f"  Lookup key:   {self.hashed_adv_key_b64}", file=file)
+        print(f"  Status byte:  0x{self.status:x}", file=file)
+        print(f"  Battery lvl:  {self.battery_level}", file=file)
+        print(f"  Hint byte:    0x{self.hint:x}", file=file)
+        print(f"  RSSI:         {self.rssi}", file=file)
+        print("  Extra data:", file=file)
+        for k, v in sorted(self.additional_data.items()):
+            print(f"    {k:20}: {v}", file=file)
+        print("\n", file=file)
 
     @override
     def __repr__(self) -> str:
