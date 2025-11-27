@@ -8,9 +8,7 @@ from pathlib import Path
 from findmy import (
     FindMyAccessory,
     KeyPair,
-    NearbyOfflineFindingDevice,
     OfflineFindingScanner,
-    SeparatedOfflineFindingDevice,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -30,13 +28,6 @@ async def scan(check_key: KeyPair | FindMyAccessory | None = None) -> bool:
         scan_out_file.unlink()
 
     async for device in scanner.scan_for(10, extend_timeout=True, print_summary=True):
-        if isinstance(device, (SeparatedOfflineFindingDevice, NearbyOfflineFindingDevice)):
-            device.print_device(out_file=scan_out_file)
-        else:
-            print(f"Unknown device: {device}")
-            print()
-            continue
-
         if check_key and device.is_from(check_key):
             scan_device = device
 
