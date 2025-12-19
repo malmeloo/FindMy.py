@@ -47,7 +47,7 @@ def _get_beaconstore_key() -> bytes:
             "/usr/bin/security find-generic-password -l 'BeaconStore' -w"
         )  # noqa: S605
         if not key_in_hex:
-            raise ValueError("Empty output from security -w")  # noqa: EM101, TRY003
+            raise ValueError("Empty output from security -w")  # noqa: EM101, TRY003, TRY301
         return bytes.fromhex(key_in_hex)
     except (ValueError, subprocess.SubprocessError):
         output = subprocess.getoutput("/usr/bin/security find-generic-password -l 'BeaconStore'")  # noqa: S605
