@@ -43,14 +43,12 @@ def _parse_beaconstore_key_from_output(output: str) -> bytes:
 def _get_beaconstore_key() -> bytes:
     try:
         # This thing will pop up 2 Password Input windows...
-        key_in_hex = subprocess.getoutput(
-            "/usr/bin/security find-generic-password -l 'BeaconStore' -w"
-        )
+        key_in_hex = subprocess.getoutput("/usr/bin/security find-generic-password -l 'BeaconStore' -w") # noqa: S605
         if not key_in_hex:
-            raise ValueError("Empty output from security -w")
+            raise ValueError("Empty output from security -w")  # noqa: EM101, TRY003
         return bytes.fromhex(key_in_hex)
-    except Exception:
-        output = subprocess.getoutput("/usr/bin/security find-generic-password -l 'BeaconStore'")
+    except (ValueError, subprocess.SubprocessError):
+        output = subprocess.getoutput("/usr/bin/security find-generic-password -l 'BeaconStore'") # noqa: S605
         return _parse_beaconstore_key_from_output(output)
 
 
