@@ -43,7 +43,7 @@ def _parse_beaconstore_key_from_output(output: str) -> bytes:
 def _get_beaconstore_key() -> bytes:
     try:
         # This thing will pop up 2 Password Input windows...
-        key_in_hex = subprocess.getoutput( # noqa: S605
+        key_in_hex = subprocess.getoutput(  # noqa: S605
             "/usr/bin/security find-generic-password -l 'BeaconStore' -w"
         )
         if not key_in_hex:
