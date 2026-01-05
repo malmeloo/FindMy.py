@@ -666,12 +666,14 @@ class AsyncAppleAccount(BaseAppleAccount):
 
                 if retry_counter > _max_retries:
                     logger.warning(
-                        "Max retries reached, returning empty response. \
-                            Location reports might be missing!"
+                        "Max retries reached, returning empty response. "
+                        "Location reports might be missing!"
                     )
-                    msg = "Empty response received from Apple servers. \
-                        This is most likely a bug on Apple's side. \
-                        More info: https://github.com/malmeloo/FindMy.py/issues/185"
+                    msg = (
+                        "Empty response received from Apple servers. "
+                        "This is most likely a bug on Apple's side."
+                        "More info: https://github.com/malmeloo/FindMy.py/issues/185"
+                    )
                     raise EmptyResponseError(msg)
 
                 retry_time = 2 * retry_counter
