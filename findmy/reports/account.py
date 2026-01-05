@@ -652,6 +652,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             # Symptom: HTTP 200 but empty response
             # Remove when real issue fixed
             retry_counter = 1
+            _max_retries = 5
             while True:
                 resp = await self._http.post(
                     self._ENDPOINT_REPORTS_FETCH,
@@ -663,23 +664,28 @@ class AsyncAppleAccount(BaseAppleAccount):
                 if resp.status_code != 200 or resp.text().strip():
                     return resp
 
-                logger.warning(
-                    "Empty response received when fetching reports, retrying (%d/3)",
-                    retry_counter,
-                )
-                retry_counter += 1
-
-                if retry_counter > 3:
+                if retry_counter > _max_retries:
                     logger.warning(
-                        "Max retries reached, returning empty response. \
-                            Location reports might be missing!"
+                        "Max retries reached, returning empty response. "
+                        "Location reports might be missing!"
                     )
-                    msg = "Empty response received from Apple servers. \
-                        This is most likely a bug on Apple's side. \
-                        More info: https://github.com/malmeloo/FindMy.py/issues/185"
+                    msg = (
+                        "Empty response received from Apple servers. "
+                        "This is most likely a bug on Apple's side."
+                        "More info: https://github.com/malmeloo/FindMy.py/issues/185"
+                    )
                     raise EmptyResponseError(msg)
 
-                await asyncio.sleep(2)
+                retry_time = 2 * retry_counter
+                logger.warning(
+                    "Empty response received when fetching reports, retrying in %d seconds (%d/%d)",
+                    retry_time,
+                    retry_counter,
+                    _max_retries,
+                )
+
+                await asyncio.sleep(retry_time)
+                retry_counter += 1
 
         r = await _do_request()
         if r.status_code == 401:
