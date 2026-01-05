@@ -467,36 +467,38 @@ class _AccessoryKeyGenerator(KeyGenerator[KeyPair]):
 
             # Use bisect to find the largest index < ind in O(log n)
             pos = bisect.bisect_left(indices, ind)
-            if pos > 0:
-                cached_ind = indices[pos - 1]
-                if cached_ind > best_ind:
-                    best_ind = cached_ind
-                    best_sk = cache[cached_ind]
+            if pos == 0:  # No cached index less than ind
+                continue
+
+            cached_ind = indices[pos - 1]
+            if cached_ind > best_ind:
+                best_ind = cached_ind
+                best_sk = cache[cached_ind]
 
         return best_ind, best_sk
 
     def _update_caches(self, ind: int, sk: bytes) -> None:
         """Update all applicable cache tiers with the computed key."""
         for tier_idx, tier in enumerate(self._CACHE_TIERS):
-            if ind % tier.interval == 0:
-                cache = self._sk_caches[tier_idx]
-                indices = self._cache_indices[tier_idx]
+            if ind % tier.interval != 0:
+                continue
 
-                # Add to cache if not already present
-                if ind not in cache:
-                    cache[ind] = sk
-                    bisect.insort(indices, ind)
+            cache = self._sk_caches[tier_idx]
+            indices = self._cache_indices[tier_idx]
 
-                    # Evict if cache exceeds size limit
-                    if tier.max_size is not None and len(cache) > tier.max_size:
-                        # If adding a historical key, evict smallest (oldest)
-                        # If adding a future key, evict largest (newest old key)
-                        if indices and ind > indices[0]:
-                            evict_ind = indices.pop(0)
-                        else:
-                            evict_ind = indices.pop(-1)
+            # Add to cache if not already present
+            if ind in cache:
+                continue
+            cache[ind] = sk
+            bisect.insort(indices, ind)
 
-                        del cache[evict_ind]
+            # Evict if cache exceeds size limit
+            if tier.max_size is not None and len(cache) > tier.max_size:
+                # If adding a historical key, evict smallest index
+                # If adding a future key, evict largest
+                evict_ind = indices.pop(0 if indices and ind > indices[0] else -1)
+
+                del cache[evict_ind]
 
     def _get_sk(self, ind: int) -> bytes:
         if ind < 0:
