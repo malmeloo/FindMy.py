@@ -8,12 +8,15 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from _login import get_account_sync
 
 from findmy import FindMyAccessory
-from findmy.accessory import RollingKeyPairSource
-from findmy.keys import HasHashedPublicKey
+
+if TYPE_CHECKING:
+    from findmy.accessory import RollingKeyPairSource
+    from findmy.keys import HasHashedPublicKey
 
 # Default path where login session will be stored.
 # This is necessary to avoid generating a new session every time we log in.
