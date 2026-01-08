@@ -51,7 +51,7 @@ def get_airtag_name(airtag: FindMyAccessory, path: Path) -> str:
 def main(airtag_paths: list[Path], store_path: str) -> int:
     # Step 0: create accessory key generators for all paths
     airtags = [FindMyAccessory.from_json(path) for path in airtag_paths]
-    airtag_to_path = dict(zip(airtags, airtag_paths))
+    airtag_to_path = dict(zip(airtags, airtag_paths, strict=False))
 
     # Step 1: log into an Apple account
     acc = get_account_sync(store_path, ANISETTE_SERVER, ANISETTE_LIBS_PATH)
@@ -72,7 +72,7 @@ def main(airtag_paths: list[Path], store_path: str) -> int:
 
     # step 4: save current account state to disk
     acc.to_json(store_path)
-    for airtag, path in zip(airtags, airtag_paths):
+    for airtag, path in zip(airtags, airtag_paths, strict=False):
         airtag.to_json(path)
 
     return 0
@@ -80,9 +80,13 @@ def main(airtag_paths: list[Path], store_path: str) -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("airtag_paths", type=Path, nargs='+')
-    parser.add_argument("--store-path", type=str, default=DEFAULT_STORE_PATH,
-                        help=f"Path to account session file (default: {DEFAULT_STORE_PATH})")
+    parser.add_argument("airtag_paths", type=Path, nargs="+")
+    parser.add_argument(
+        "--store-path",
+        type=str,
+        default=DEFAULT_STORE_PATH,
+        help=f"Path to account session file (default: {DEFAULT_STORE_PATH})",
+    )
     args = parser.parse_args()
 
     sys.exit(main(args.airtag_paths, args.store_path))
