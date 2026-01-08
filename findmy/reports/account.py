@@ -652,7 +652,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             # Symptom: HTTP 200 but empty response
             # Remove when real issue fixed
             retry_counter = 1
-            _max_retries = 5
+            _max_retries = 20
             while True:
                 resp = await self._http.post(
                     self._ENDPOINT_REPORTS_FETCH,
