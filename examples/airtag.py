@@ -12,6 +12,8 @@ from pathlib import Path
 from _login import get_account_sync
 
 from findmy import FindMyAccessory
+from findmy.accessory import RollingKeyPairSource
+from findmy.keys import HasHashedPublicKey
 
 # Default path where login session will be stored.
 # This is necessary to avoid generating a new session every time we log in.
@@ -39,19 +41,20 @@ def get_battery_level(status: int) -> str:
     return BATTERY_LEVEL.get(battery_id, "Unknown")
 
 
-def get_airtag_name(airtag: FindMyAccessory, path: Path) -> str:
+def get_airtag_name(airtag: HasHashedPublicKey | RollingKeyPairSource, path: Path) -> str:
     """Get a human-readable name for an airtag, with fallbacks."""
-    if airtag.name:
-        return airtag.name
-    if airtag.identifier:
-        return airtag.identifier
+    if isinstance(airtag, FindMyAccessory):
+        if airtag.name:
+            return airtag.name
+        if airtag.identifier:
+            return airtag.identifier
     return path.stem  # filename without extension
 
 
 def main(airtag_paths: list[Path], store_path: str) -> int:
     # Step 0: create accessory key generators for all paths
     airtags = [FindMyAccessory.from_json(path) for path in airtag_paths]
-    airtag_to_path = dict(zip(airtags, airtag_paths))
+    airtag_to_path: dict[HasHashedPublicKey | RollingKeyPairSource, Path] = dict(zip(airtags, airtag_paths))
 
     # Step 1: log into an Apple account
     acc = get_account_sync(store_path, ANISETTE_SERVER, ANISETTE_LIBS_PATH)
@@ -62,8 +65,9 @@ def main(airtag_paths: list[Path], store_path: str) -> int:
 
     # step 3: print 'em
     print("Last known locations:")
-    for airtag, location in locations.items():
-        name = get_airtag_name(airtag, airtag_to_path[airtag])
+    for airtag, path in airtag_to_path.items():
+        location = locations.get(airtag)  # type: ignore[union-attr]
+        name = get_airtag_name(airtag, path)
         if location:
             battery = get_battery_level(location.status)
             print(f" - {name}: {location} (Battery: {battery})")
