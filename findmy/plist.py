@@ -27,13 +27,20 @@ logger = logging.getLogger(__name__)
 _DEFAULT_SEARCH_PATH = Path.home() / "Library" / "com.apple.icloud.searchpartyd"
 
 
-def _parse_beaconstore_key_from_output(output: str) -> bytes:
+def _parse_beaconstore_key_from_string_output(output: str) -> bytes:
     if '"acct"<blob>="BeaconStoreKey"' not in output:
         raise ValueError
     m = re.search(r'"gena"<blob>=0x([0-9A-Fa-f]+)', output)
     if not m:
         raise ValueError
     return bytes.fromhex(m.group(1))
+
+
+def _parse_beaconstore_key_from_hex_output(output: str) -> bytes:
+    if not output:
+        msg = "Empty output from security -w"
+        raise ValueError(msg)
+    return bytes.fromhex(output)
 
 
 # consider switching to this library https://github.com/microsoft/keyper
@@ -46,12 +53,10 @@ def _get_beaconstore_key() -> bytes:
         key_in_hex = subprocess.getoutput(  # noqa: S605
             "/usr/bin/security find-generic-password -l 'BeaconStore' -w"
         )
-        if not key_in_hex:
-            raise ValueError("Empty output from security -w")
-        return bytes.fromhex(key_in_hex)
+        return _parse_beaconstore_key_from_hex_output(key_in_hex)
     except (ValueError, subprocess.SubprocessError):
         output = subprocess.getoutput("/usr/bin/security find-generic-password -l 'BeaconStore'")  # noqa: S605
-        return _parse_beaconstore_key_from_output(output)
+        return _parse_beaconstore_key_from_string_output(output)
 
 
 def _get_accessory_name(
