@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from _login import get_account_sync
 
-from findmy import FindMyAccessory
+from findmy import FindMyAccessory, FixedRollingKeyPairAccessory
 
 if TYPE_CHECKING:
     from findmy.accessory import RollingKeyPairSource
@@ -46,7 +46,7 @@ def get_battery_level(status: int) -> str:
 
 def get_airtag_name(airtag: HasHashedPublicKey | RollingKeyPairSource, path: Path) -> str:
     """Get a human-readable name for an airtag, with fallbacks."""
-    if isinstance(airtag, FindMyAccessory):
+    if isinstance(airtag, (FindMyAccessory, FixedRollingKeyPairAccessory)):
         if airtag.name:
             return airtag.name
         if airtag.identifier:
