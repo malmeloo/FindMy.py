@@ -38,6 +38,7 @@ class FindMyAccessoryMapping(TypedDict):
     name: str | None
     model: str | None
     identifier: str | None
+    group_identifier: str | None
     alignment_date: str | None
     alignment_index: int | None
 
@@ -109,6 +110,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
         name: str | None = None,
         model: str | None = None,
         identifier: str | None = None,
+        group_identifier: str | None = None,
         alignment_date: datetime | None = None,
         alignment_index: int | None = None,
     ) -> None:
@@ -132,6 +134,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
         self._name = name
         self._model = model
         self._identifier = identifier
+        self._group_identifier = group_identifier
         self._alignment_date = alignment_date if alignment_date is not None else paired_at
         self._alignment_index = alignment_index if alignment_index is not None else 0
         if self._alignment_date.tzinfo is None:
@@ -179,6 +182,11 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
     def identifier(self) -> str | None:
         """Internal identifier of this accessory."""
         return self._identifier
+
+    @property
+    def group_identifier(self) -> str | None:
+        """Group identifier this accessory belongs to (e.g. shared by AirPods case + buds)."""
+        return self._group_identifier
 
     @property
     @override
@@ -299,6 +307,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
 
         model = device_data["model"]
         identifier = device_data["identifier"]
+        group_identifier = device_data.get("groupIdentifier")
 
         alignment_date = None
         index = None
@@ -320,6 +329,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
             name=name,
             model=model,
             identifier=identifier,
+            group_identifier=group_identifier,
             alignment_date=alignment_date,
             alignment_index=index,
         )
@@ -339,6 +349,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
             "name": self.name,
             "model": self.model,
             "identifier": self.identifier,
+            "group_identifier": self.group_identifier,
             "alignment_date": alignment_date,
             "alignment_index": self._alignment_index,
         }
@@ -368,6 +379,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
                 name=val["name"],
                 model=val["model"],
                 identifier=val["identifier"],
+                group_identifier=val.get("group_identifier"),
                 alignment_date=alignment_date,
                 alignment_index=val["alignment_index"],
             )
