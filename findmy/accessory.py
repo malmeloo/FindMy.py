@@ -27,6 +27,30 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _extract_serial_from_stable_id(stable: list[str] | None) -> str | None:
+    """
+    Extract the hardware serial from a plist `stableIdentifier`.
+
+    Observed formats of the first entry:
+      AirTag:     "2006~#<hwid>~#<serial>"
+      3rd-party:  "a:/<uuid>~#<serial>"
+      AirPods:    "a:/<uuid>~#¶<model>§<hwid>§<hex-ascii-serial>§<position>"
+                  position 0/1 = left/right bud, 2 = case.
+    """
+    if not stable:
+        return None
+    tail = stable[0].split("~#")[-1]
+    if tail.startswith("\u00b6"):  # ¶ — AirPods-style structured tail
+        sections = tail.split("\u00a7")  # § — section separator
+        if len(sections) >= 3:
+            try:
+                return bytes.fromhex(sections[2]).decode("ascii")
+            except (ValueError, UnicodeDecodeError):
+                return None
+        return None
+    return tail if tail != stable[0] else None
+
+
 class FindMyAccessoryMapping(TypedDict):
     """JSON mapping representing state of a FindMyAccessory instance."""
 
@@ -38,6 +62,7 @@ class FindMyAccessoryMapping(TypedDict):
     name: str | None
     model: str | None
     identifier: str | None
+    serial_number: str | None
     alignment_date: str | None
     alignment_index: int | None
 
@@ -109,6 +134,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
         name: str | None = None,
         model: str | None = None,
         identifier: str | None = None,
+        serial_number: str | None = None,
         alignment_date: datetime | None = None,
         alignment_index: int | None = None,
     ) -> None:
@@ -132,6 +158,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
         self._name = name
         self._model = model
         self._identifier = identifier
+        self._serial_number = serial_number
         self._alignment_date = alignment_date if alignment_date is not None else paired_at
         self._alignment_index = alignment_index if alignment_index is not None else 0
         if self._alignment_date.tzinfo is None:
@@ -179,6 +206,11 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
     def identifier(self) -> str | None:
         """Internal identifier of this accessory."""
         return self._identifier
+
+    @property
+    def serial_number(self) -> str | None:
+        """Hardware serial number of this accessory, if known."""
+        return self._serial_number
 
     @property
     @override
@@ -300,6 +332,10 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
         model = device_data["model"]
         identifier = device_data["identifier"]
 
+        serial_number = _extract_serial_from_stable_id(
+            device_data.get("stableIdentifier"),
+        )
+
         alignment_date = None
         index = None
         if key_alignment_plist:
@@ -320,6 +356,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
             name=name,
             model=model,
             identifier=identifier,
+            serial_number=serial_number,
             alignment_date=alignment_date,
             alignment_index=index,
         )
@@ -339,6 +376,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
             "name": self.name,
             "model": self.model,
             "identifier": self.identifier,
+            "serial_number": self.serial_number,
             "alignment_date": alignment_date,
             "alignment_index": self._alignment_index,
         }
@@ -368,6 +406,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
                 name=val["name"],
                 model=val["model"],
                 identifier=val["identifier"],
+                serial_number=val.get("serial_number"),
                 alignment_date=alignment_date,
                 alignment_index=val["alignment_index"],
             )
