@@ -64,17 +64,30 @@ def _get_accessory_name(
     key: bytes,
     *,
     search_path: Path | None = None,
+    group_id: str | None = None,
 ) -> str | None:
+    # Grouped devices (e.g. AirPods: case + L/R buds) carry the user-facing
+    # label on the group ("Yannik's AirPods Pro") and the per-component role
+    # on BeaconNamingRecord ("Case" / "Left"). Combine as "<group> - <role>".
     search_path = search_path or _DEFAULT_SEARCH_PATH
+    group_name: str | None = None
+    if group_id is not None:
+        group_path = search_path / "OwnedBeaconGroups" / f"{group_id}.record"
+        if group_path.exists():
+            group_name = decrypt_plist(group_path, key).get("name")
+
+    role_name: str | None = None
     path = next((search_path / "BeaconNamingRecord" / accessory_id).glob(pattern="*.record"), None)
-    if path is None:
+    if path is not None:
+        role_name = decrypt_plist(path, key).get("name")
+    elif group_name is None:
         logger.warning(
             "Accessory %s does not have a BeaconNamingRecord, defaulting to None", accessory_id
         )
-        return None
 
-    naming_record_plist = decrypt_plist(path, key)
-    return naming_record_plist.get("name", None)
+    if group_name and role_name:
+        return f"{group_name} - {role_name}"
+    return group_name or role_name
 
 
 def _get_alignment_plist(
@@ -145,7 +158,7 @@ def list_accessories(
     encrypted_plist_paths = search_path.glob("OwnedBeacons/*.record")
     for path in encrypted_plist_paths:
         plist = decrypt_plist(path, key)
-        name = _get_accessory_name(path.stem, key)
+        name = _get_accessory_name(path.stem, key, group_id=plist.get("groupIdentifier"))
         alignment_plist = _get_alignment_plist(path.stem, key)
 
         accessory = FindMyAccessory.from_plist(plist, alignment_plist, name=name)

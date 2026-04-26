@@ -27,6 +27,30 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _extract_serial_from_stable_id(stable: list[str] | None) -> str | None:
+    """
+    Extract the hardware serial from a plist `stableIdentifier`.
+
+    Observed formats of the first entry:
+      AirTag:     "2006~#<hwid>~#<serial>"
+      3rd-party:  "a:/<uuid>~#<serial>"
+      AirPods:    "a:/<uuid>~#¶<model>§<hwid>§<hex-ascii-serial>§<position>"
+                  position 0/1 = left/right bud, 2 = case.
+    """
+    if not stable:
+        return None
+    tail = stable[0].split("~#")[-1]
+    if tail.startswith("\u00b6"):  # ¶ — AirPods-style structured tail
+        sections = tail.split("\u00a7")  # § — section separator
+        if len(sections) >= 3:
+            try:
+                return bytes.fromhex(sections[2]).decode("ascii")
+            except (ValueError, UnicodeDecodeError):
+                return None
+        return None
+    return tail if tail != stable[0] else None
+
+
 class FindMyAccessoryMapping(TypedDict):
     """JSON mapping representing state of a FindMyAccessory instance."""
 
@@ -39,6 +63,7 @@ class FindMyAccessoryMapping(TypedDict):
     model: str | None
     identifier: str | None
     group_identifier: str | None
+    serial_number: str | None
     alignment_date: str | None
     alignment_index: int | None
 
@@ -111,6 +136,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
         model: str | None = None,
         identifier: str | None = None,
         group_identifier: str | None = None,
+        serial_number: str | None = None,
         alignment_date: datetime | None = None,
         alignment_index: int | None = None,
     ) -> None:
@@ -135,6 +161,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
         self._model = model
         self._identifier = identifier
         self._group_identifier = group_identifier
+        self._serial_number = serial_number
         self._alignment_date = alignment_date if alignment_date is not None else paired_at
         self._alignment_index = alignment_index if alignment_index is not None else 0
         if self._alignment_date.tzinfo is None:
@@ -187,6 +214,11 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
     def group_identifier(self) -> str | None:
         """Group identifier this accessory belongs to (e.g. shared by AirPods case + buds)."""
         return self._group_identifier
+
+    @property
+    def serial_number(self) -> str | None:
+        """Hardware serial number of this accessory, if known."""
+        return self._serial_number
 
     @property
     @override
@@ -309,6 +341,10 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
         identifier = device_data["identifier"]
         group_identifier = device_data.get("groupIdentifier")
 
+        serial_number = _extract_serial_from_stable_id(
+            device_data.get("stableIdentifier"),
+        )
+
         alignment_date = None
         index = None
         if key_alignment_plist:
@@ -330,6 +366,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
             model=model,
             identifier=identifier,
             group_identifier=group_identifier,
+            serial_number=serial_number,
             alignment_date=alignment_date,
             alignment_index=index,
         )
@@ -350,6 +387,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
             "model": self.model,
             "identifier": self.identifier,
             "group_identifier": self.group_identifier,
+            "serial_number": self.serial_number,
             "alignment_date": alignment_date,
             "alignment_index": self._alignment_index,
         }
@@ -380,6 +418,7 @@ class FindMyAccessory(RollingKeyPairSource, util.abc.Serializable[FindMyAccessor
                 model=val["model"],
                 identifier=val["identifier"],
                 group_identifier=val.get("group_identifier"),
+                serial_number=val.get("serial_number"),
                 alignment_date=alignment_date,
                 alignment_index=val["alignment_index"],
             )
