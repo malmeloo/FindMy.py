@@ -11,7 +11,6 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Literal, TypedDict, overload
 
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from typing_extensions import override
@@ -134,7 +133,6 @@ class LocationReport(HasHashedPublicKey, util.abc.Serializable[LocationReportMap
         decryptor = Cipher(
             algorithms.AES(decryption_key),
             modes.GCM(iv, tag),
-            default_backend(),
         ).decryptor()
         decrypted_payload = decryptor.update(enc_data) + decryptor.finalize()
 
