@@ -1,6 +1,12 @@
 """A package providing everything you need to work with Apple's FindMy network."""
 
-from .accessory import FindMyAccessory, FindMyAccessoryMapping, RollingKeyPairSource
+from .accessory import (
+    FindMyAccessory,
+    FindMyAccessoryMapping,
+    FixedRollingKeyPairAccessory,
+    FixedRollingKeyPairAccessoryMapping,
+    RollingKeyPairSource,
+)
 from .errors import (
     InvalidCredentialsError,
     InvalidStateError,
@@ -51,6 +57,8 @@ __all__ = (
     "BaseSecondFactorMethod",
     "FindMyAccessory",
     "FindMyAccessoryMapping",
+    "FixedRollingKeyPairAccessory",
+    "FixedRollingKeyPairAccessoryMapping",
     "HasHashedPublicKey",
     "HasPublicKey",
     "InvalidCredentialsError",
