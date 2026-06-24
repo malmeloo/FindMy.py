@@ -342,18 +342,24 @@ class LocationReportsFetcher:
     async def fetch_location_history(
         self,
         device: HasHashedPublicKey,
+        *,
+        only_latest: bool = False,
     ) -> list[LocationReport]: ...
 
     @overload
     async def fetch_location_history(
         self,
         device: RollingKeyPairSource,
+        *,
+        only_latest: bool = False,
     ) -> list[LocationReport]: ...
 
     @overload
     async def fetch_location_history(
         self,
         device: Sequence[HasHashedPublicKey | RollingKeyPairSource],
+        *,
+        only_latest: bool = False,
     ) -> dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]: ...
 
     async def fetch_location_history(
@@ -361,6 +367,8 @@ class LocationReportsFetcher:
         device: HasHashedPublicKey
         | RollingKeyPairSource
         | Sequence[HasHashedPublicKey | RollingKeyPairSource],
+        *,
+        only_latest: bool = False,
     ) -> (
         list[LocationReport] | dict[HasHashedPublicKey | RollingKeyPairSource, list[LocationReport]]
     ):
@@ -386,7 +394,7 @@ class LocationReportsFetcher:
 
         if isinstance(device, RollingKeyPairSource):
             # key generator
-            return await self._fetch_accessory_reports(device, only_latest=True)
+            return await self._fetch_accessory_reports(device, only_latest=only_latest)
 
         if not isinstance(device, list) or not all(
             isinstance(x, HasHashedPublicKey | RollingKeyPairSource) for x in device
@@ -408,7 +416,7 @@ class LocationReportsFetcher:
                 static_keys.append(dev)
             elif isinstance(dev, RollingKeyPairSource):
                 # query immediately
-                reports[dev] = await self._fetch_accessory_reports(dev, only_latest=True)
+                reports[dev] = await self._fetch_accessory_reports(dev, only_latest=only_latest)
 
         if static_keys:  # batch request for static keys
             key_reports = await self._fetch_key_reports(static_keys)

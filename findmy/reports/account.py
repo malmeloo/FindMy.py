@@ -785,7 +785,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         | None
     ):
         """See :meth:`BaseAppleAccount.fetch_location`."""
-        hist = await self.fetch_location_history(keys)
+        hist = await self._reports.fetch_location_history(keys, only_latest=True)
         if isinstance(hist, list):
             return sorted(hist)[-1] if hist else None
 
@@ -1188,11 +1188,8 @@ class AppleAccount(BaseAppleAccount):
         | None
     ):
         """See :meth:`BaseAppleAccount.fetch_location`."""
-        hist = self.fetch_location_history(keys)
-        if isinstance(hist, list):
-            return sorted(hist)[-1] if hist else None
-
-        return {dev: sorted(reports)[-1] if reports else None for dev, reports in hist.items()}
+        coro = self._asyncacc.fetch_location(keys)
+        return self._evt_loop.run_until_complete(coro)
 
     @override
     def get_anisette_headers(
