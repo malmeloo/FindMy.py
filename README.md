@@ -60,6 +60,30 @@ For usage examples, see the [examples](examples) directory.
 We are also building out a CLI. Try `python -m findmy` to see the current state of it.
 Documentation can be found [here](http://docs.mikealmel.ooo/FindMy.py/).
 
+## 🍎 Getting accessory keys on macOS 26 (Tahoe)
+
+On macOS 26, the built-in `python -m findmy decrypt` can no longer read your
+accessory keys: the `BeaconStoreKey` is locked behind an Apple-only keychain
+entitlement, so the local decrypt path is blocked (see
+[issue #177](https://github.com/malmeloo/FindMy.py/issues/177)).
+
+Instead, export your keys from **iCloud Keychain** with
+[`export-findmy`](https://github.com/stek29/export-findmy), which writes
+FindMy.py-compatible JSON directly — no second Mac and no disabling SIP:
+
+1. Build it (`cargo build --release`; needs `protoc` and `openssl`). macOS 26
+   support — native system anisette plus a Mac device profile — currently lives
+   in [this PR](https://github.com/stek29/export-findmy/pull/1); until it is
+   merged, build from that branch.
+2. Copy `device-profile.template.toml` to `.local/device-profile.toml` and fill
+   the `[software]` section with your Mac's real identity
+   (`sysctl -n hw.model`, `sw_vers`).
+3. Run `export-findmy --apple-id you@example.com --device-profile
+   .local/device-profile.toml`, sign in, and pick your Mac's escrow bottle
+   (its passcode is your Mac login password).
+4. Copy the exported AirTag `.json` into `devices/` and query it, e.g.
+   `python3 examples/airtag.py devices/your_airtag.json`.
+
 ## 🤝 Contributing
 
 Want to contribute code? That's great! For new features, please open an
