@@ -15,18 +15,27 @@ from pathlib import Path
 from typing import BinaryIO, Literal, TypedDict
 
 from anisette import Anisette, AnisetteHeaders
-from typing_extensions import override
+from typing_extensions import Required, override
 
 from findmy import util
 
 logger = logging.getLogger(__name__)
 
 
-class RemoteAnisetteMapping(TypedDict):
+class RemoteAnisetteMapping(TypedDict, total=False):
     """JSON mapping representing state of a remote Anisette provider."""
 
-    type: Literal["aniRemote"]
-    url: str
+    type: Required[Literal["aniRemote"]]
+    url: Required[str]
+
+    allow_unverified_https: bool
+    """
+    Only written when it is true, so existing files stay valid and unchanged.
+
+    It has to be written at all because a provider is reconstructed from this: a user whose
+    own server has a self-signed certificate would otherwise find that saving and reloading
+    an account silently turned their working setup into a failing one.
+    """
 
 
 class LocalAnisetteMapping(TypedDict):
@@ -193,13 +202,29 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[RemoteA
 
     _ANISETTE_DATA_VALID_FOR = 30
 
-    def __init__(self, server_url: str) -> None:
-        """Initialize the provider with URL to te remote server."""
+    def __init__(self, server_url: str, *, allow_unverified_https: bool = False) -> None:
+        """
+        Initialize the provider with URL to te remote server.
+
+        :param server_url: Where to fetch Anisette headers from.
+        :param allow_unverified_https: Skip certificate verification for **this server
+            only**. Off by default, and the only switch of its kind in the library.
+
+            It exists for one case: an Anisette server you run yourself, over HTTPS, with a
+            self-signed certificate. A server reached over plain `http://` needs nothing --
+            there is no TLS to verify -- and a public server with a real certificate needs
+            nothing either. Everything Apple-facing is verified regardless of this flag; it
+            reaches no request but the one to this URL.
+
+            Turning it on means anything on the network path to that server can read and
+            alter the Anisette data your logins are built from.
+        """
         super().__init__()
 
         self._server_url = server_url
+        self._allow_unverified_https = allow_unverified_https
 
-        self._http = util.http.HttpSession()
+        self._http = util.http.HttpSession(verify_tls=not allow_unverified_https)
 
         self._anisette_data: dict[str, str] | None = None
         self._anisette_data_expires_at: float = 0
@@ -208,13 +233,14 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[RemoteA
     @override
     def to_json(self, dst: str | Path | io.TextIOBase | None = None, /) -> RemoteAnisetteMapping:
         """See :meth:`BaseAnisetteProvider.serialize`."""
-        return util.files.save_and_return_json(
-            {
-                "type": "aniRemote",
-                "url": self._server_url,
-            },
-            dst,
-        )
+        state: RemoteAnisetteMapping = {
+            "type": "aniRemote",
+            "url": self._server_url,
+        }
+        if self._allow_unverified_https:
+            state["allow_unverified_https"] = True
+
+        return util.files.save_and_return_json(state, dst)
 
     @classmethod
     @override
@@ -228,7 +254,10 @@ class RemoteAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[RemoteA
 
         server_url = val["url"]
 
-        return cls(server_url)
+        return cls(
+            server_url,
+            allow_unverified_https=val.get("allow_unverified_https", False),
+        )
 
     @property
     @override
