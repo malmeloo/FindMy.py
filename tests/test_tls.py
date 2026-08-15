@@ -122,7 +122,10 @@ def test_the_opt_in_reaches_the_session_and_survives_a_round_trip() -> None:
     assert provider._http._ssl is False  # noqa: SLF001
 
     state = provider.to_json()
-    assert state["allow_unverified_https"] is True
+    # `.get`, because the key is `NotRequired` on the mapping -- it is written only when
+    # true, so a subscript is an access the type checker is right to object to. The
+    # assertion is unchanged: present, and true.
+    assert state.get("allow_unverified_https") is True
 
     assert RemoteAnisetteProvider.from_json(state)._http._ssl is False  # noqa: SLF001
 
