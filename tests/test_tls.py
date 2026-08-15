@@ -17,6 +17,7 @@ from findmy.util.tls import (
     tls_setting,
 )
 
+
 def _common_names(context: ssl.SSLContext) -> set[str]:
     """Every trust anchor the context holds, by common name."""
     return {
