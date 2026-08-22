@@ -124,6 +124,30 @@ class RollingKeyPairSource(ABC):
                 yielded.add(key)
                 yield ind, key
 
+    def current_keys(self, now: datetime | None = None) -> set[KeyPair]:
+        """
+        Get the set of keys the accessory might currently be advertising.
+
+        Spans the full :meth:`get_min_index`-:meth:`get_max_index` range for `now`
+        (rather than a single index) to account for rollover uncertainty since the
+        last observed alignment -- see those methods for why that range can be wider
+        than one index.
+        """
+        if now is None:
+            now = datetime.now(timezone.utc)
+
+        return {key for _, key in self.keys_between(now, now)}
+
+    def current_mac_addresses(self, now: datetime | None = None) -> set[str]:
+        """
+        Get the set of BLE MAC addresses the accessory might currently be advertising.
+
+        Useful to recognize an owned accessory's own advertisement in a BLE scan,
+        e.g. to trigger it directly (playing a sound) without going through Apple's
+        Find My network. See :meth:`current_keys` for the underlying key selection.
+        """
+        return {key.mac_address for key in self.current_keys(now)}
+
 
 class FixedRollingKeyPairAccessory(
     RollingKeyPairSource, util.abc.Serializable[FixedRollingKeyPairAccessoryMapping]
