@@ -124,7 +124,11 @@ class RollingKeyPairSource(ABC):
                 yielded.add(key)
                 yield ind, key
 
-    def current_keys(self, now: datetime | None = None) -> set[KeyPair]:
+    def current_keys(
+        self,
+        now: datetime | None = None,
+        margin: timedelta | None = None,
+    ) -> set[KeyPair]:
         """
         Get the set of keys the accessory might currently be advertising.
 
@@ -132,21 +136,40 @@ class RollingKeyPairSource(ABC):
         (rather than a single index) to account for rollover uncertainty since the
         last observed alignment -- see those methods for why that range can be wider
         than one index.
+
+        `margin` widens that range on *both* sides. Without it the range starts at
+        the alignment index, so an accessory whose true index has ended up below
+        where alignment believes it is can never be matched: it is simply never
+        recognized, with nothing raising anywhere. This has been observed on a real
+        accessory, advertising steadily a metre from the scanner and absent from its
+        own candidate set. :meth:`findmy.scanner.NearbyOfflineFindingDevice.is_from`
+        takes the same precaution, with a 12 hour margin.
+
+        Widening only adds candidate keys, so callers that match against a set pay
+        nothing for it at match time -- though each extra index costs a derivation
+        here.
         """
         if now is None:
             now = datetime.now(timezone.utc)
+        if margin is None:
+            margin = timedelta(0)
 
-        return {key for _, key in self.keys_between(now, now)}
+        return {key for _, key in self.keys_between(now - margin, now + margin)}
 
-    def current_mac_addresses(self, now: datetime | None = None) -> set[str]:
+    def current_mac_addresses(
+        self,
+        now: datetime | None = None,
+        margin: timedelta | None = None,
+    ) -> set[str]:
         """
         Get the set of BLE MAC addresses the accessory might currently be advertising.
 
         Useful to recognize an owned accessory's own advertisement in a BLE scan,
         e.g. to trigger it directly (playing a sound) without going through Apple's
-        Find My network. See :meth:`current_keys` for the underlying key selection.
+        Find My network. See :meth:`current_keys` for the underlying key selection,
+        and for why `margin` is worth passing.
         """
-        return {key.mac_address for key in self.current_keys(now)}
+        return {key.mac_address for key in self.current_keys(now, margin)}
 
 
 class FixedRollingKeyPairAccessory(
