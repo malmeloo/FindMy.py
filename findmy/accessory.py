@@ -195,9 +195,7 @@ class RollingKeyPairSource(ABC):
         See :meth:`current_keys` for the underlying key selection, for why `margin`
         is worth passing, and for what feeding the index back saves.
         """
-        return {
-            key.mac_address: ind for key, ind in self.current_keys(now, margin).items()
-        }
+        return {key.mac_address: ind for key, ind in self.current_keys(now, margin).items()}
 
 
 class FixedRollingKeyPairAccessory(

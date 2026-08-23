@@ -86,9 +86,7 @@ def test_a_margin_reaches_indices_below_the_alignment_point() -> None:
     accessory.update_alignment(now, 2880)
 
     behind = {k.adv_key_bytes for k in accessory.keys_at(2879)}
-    with_margin = {
-        k.adv_key_bytes for k in accessory.current_keys(now, margin=timedelta(hours=12))
-    }
+    with_margin = {k.adv_key_bytes for k in accessory.current_keys(now, margin=timedelta(hours=12))}
     forward_only = {
         k.adv_key_bytes for _, k in accessory.keys_between(now, now + timedelta(hours=12))
     }
