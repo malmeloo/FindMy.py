@@ -128,48 +128,76 @@ class RollingKeyPairSource(ABC):
         self,
         now: datetime | None = None,
         margin: timedelta | None = None,
-    ) -> set[KeyPair]:
+    ) -> dict[KeyPair, int]:
         """
-        Get the set of keys the accessory might currently be advertising.
+        Get the keys the accessory might currently be advertising, each with its index.
 
         Spans the full :meth:`get_min_index`-:meth:`get_max_index` range for `now`
         (rather than a single index) to account for rollover uncertainty since the
         last observed alignment -- see those methods for why that range can be wider
         than one index.
 
-        `margin` widens that range on *both* sides. Without it the range starts at
-        the alignment index, so an accessory whose true index has ended up below
-        where alignment believes it is can never be matched: it is simply never
-        recognized, with nothing raising anywhere. This has been observed on a real
-        accessory, advertising steadily a metre from the scanner and absent from its
-        own candidate set. :meth:`findmy.scanner.NearbyOfflineFindingDevice.is_from`
-        takes the same precaution, with a 12 hour margin.
+        Returns a mapping rather than a set so that a caller which matches an
+        advertisement can pass the matching index back to :meth:`update_alignment`.
+        That is what keeps the range narrow, and the difference is not small: on a
+        30-day-old accessory aligned at index 2880, a 12 hour margin derives 100 keys
+        where a fresh alignment needs 3, at roughly 100x the cost. Membership tests
+        and iteration behave as they would on a set, so ``key in acc.current_keys()``
+        still reads the same.
 
-        Widening only adds candidate keys, so callers that match against a set pay
-        nothing for it at match time -- though each extra index costs a derivation
-        here.
+        **A bare call assumes the alignment is trustworthy**, which is the common case
+        only for a caller that keeps it so. `margin` widens the range on *both* sides
+        and exists for when it is not: without it the range starts at the alignment
+        index, so an accessory whose true index has ended up below where alignment
+        believes it is can never be matched -- it is simply never recognized, with
+        nothing raising anywhere. This has been observed on a real accessory,
+        advertising steadily a metre from the scanner and absent from its own
+        candidate set. :meth:`findmy.scanner.NearbyOfflineFindingDevice.is_from` takes
+        the same precaution, with a 12 hour margin.
+
+        So the two work together: pass a margin to recover from drift, feed the index
+        of whatever matched back into :meth:`update_alignment`, and subsequent calls
+        collapse to the cheap case.
         """
         if now is None:
             now = datetime.now(timezone.utc)
         if margin is None:
             margin = timedelta(0)
 
-        return {key for _, key in self.keys_between(now - margin, now + margin)}
+        return {key: ind for ind, key in self.keys_between(now - margin, now + margin)}
 
     def current_mac_addresses(
         self,
         now: datetime | None = None,
         margin: timedelta | None = None,
-    ) -> set[str]:
+    ) -> dict[str, int]:
         """
-        Get the set of BLE MAC addresses the accessory might currently be advertising.
+        Get the BLE MAC addresses the accessory might currently be advertising.
 
         Useful to recognize an owned accessory's own advertisement in a BLE scan,
         e.g. to trigger it directly (playing a sound) without going through Apple's
-        Find My network. See :meth:`current_keys` for the underlying key selection,
-        and for why `margin` is worth passing.
+        Find My network.
+
+        Maps each address to the key index it came from, so a scanner can report a
+        match straight back to :meth:`update_alignment`::
+
+            candidates = accessory.current_mac_addresses(margin=timedelta(hours=12))
+            ...
+            index = candidates.get(seen_address)
+            if index is not None:
+                accessory.update_alignment(seen_at, index)
+
+        The index is the first one in the searched range at which that key is valid,
+        which for a secondary key is a lower bound: one covers 96 primary indices.
+        Handing it to :meth:`update_alignment` is still safe, since that ignores any
+        index below the one it already holds.
+
+        See :meth:`current_keys` for the underlying key selection, for why `margin`
+        is worth passing, and for what feeding the index back saves.
         """
-        return {key.mac_address for key in self.current_keys(now, margin)}
+        return {
+            key.mac_address: ind for key, ind in self.current_keys(now, margin).items()
+        }
 
 
 class FixedRollingKeyPairAccessory(
