@@ -57,6 +57,9 @@ pip install findmy
 ```
 
 For usage examples, see the [examples](examples) directory.
+For accounts protected by hardware security keys, see the opt-in Linux
+[experimental FIDO2/WebAuthn login example](examples/security_key/README.md).
+It is not yet integrated into the default CLI or stable second-factor API.
 We are also building out a CLI. Try `python -m findmy` to see the current state of it.
 Documentation can be found [here](http://docs.mikealmel.ooo/FindMy.py/).
 
