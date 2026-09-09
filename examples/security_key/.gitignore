@@ -1,0 +1,2 @@
+# Private authentication attempts must never be committed.
+data/
