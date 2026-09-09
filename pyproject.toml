@@ -19,12 +19,13 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pre-commit>=4.0.0,<5.0.0",
+    "fido2==2.0.0", # optional security-key example tooling
     "basedpyright>=1.31.1,<2.0.0",
     "ruff>=0.8.4,<1.0.0",
     "tomli>=2.0.1,<3.0.0",
     "packaging>=26.2,<26.3",
 ]
-test = ["pytest>=9.0.3,<9.1.0"]
+test = ["pytest>=9.0.3,<9.1.0", "fido2==2.0.0"]
 docs = [
     "furo>=2025.7.19",
     "myst-parser>=4.0.1; python_full_version >= '3.10'",
@@ -38,6 +39,7 @@ docs = [
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+extraPaths = ["examples/security_key", "tests/security_key"]
 
 # rule overrides
 typeCheckingMode = "standard"
@@ -66,6 +68,23 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"examples/security_key/*.py" = [
+    "SLF001", # opt-in adapter intentionally targets the current SDK internals
+    "ANN401", # checked kwargs forward aiohttp's heterogeneous request contract
+    "C901",   # keep protocol validation and bounded diagnostic traversal together
+    "TRY300", # return is deliberately inside the schema-validation exception boundary
+    "TRY301", # save failure must enter cleanup before re-raising
+    "BLE001", # terminal/schema boundaries suppress potentially secret exception payloads
+    "PLC0415", # load diagnostics/error helpers only in their explicit CLI modes
+]
+"tests/security_key/*.py" = [
+    "ANN", "D", # pytest fixture parameters and small synthetic mocks
+    "SLF001",   # exercise internal auth states without real accounts
+    "ARG",      # callback/transport mock signatures include intentionally unused arguments
+    "S105", "S106", # explicitly labeled synthetic credentials only
+    "EM101", "TRY003", # synthetic exception payloads test secret suppression
+]
+
 "docs/*" = [
     "INP001", # implicit namespaces
 ]

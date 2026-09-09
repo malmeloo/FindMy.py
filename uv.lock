@@ -555,6 +555,18 @@ wheels = [
 ]
 
 [[package]]
+name = "fido2"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cryptography" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8d/b9/6ec8d8ec5715efc6ae39e8694bd48d57c189906f0628558f56688d0447b2/fido2-2.0.0.tar.gz", hash = "sha256:3061cd05e73b3a0ef6afc3b803d57c826aa2d6a9732d16abd7277361f58e7964", size = 274942, upload-time = "2025-05-20T09:45:00.974Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4c/7d/a1dba174d7ec4b6b8d6360eed0ac3a4a4e2aa45f234e903592d3184c6c3f/fido2-2.0.0-py3-none-any.whl", hash = "sha256:685f54a50a57e019c6156e2dd699802a603e3abf70bab334f26affdd4fb8d4f7", size = 224761, upload-time = "2025-05-20T09:44:59.029Z" },
+]
+
+[[package]]
 name = "filelock"
 version = "3.19.1"
 source = { registry = "https://pypi.org/simple" }
@@ -580,6 +592,7 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "basedpyright" },
+    { name = "fido2" },
     { name = "packaging" },
     { name = "pre-commit" },
     { name = "ruff" },
@@ -595,6 +608,7 @@ docs = [
     { name = "sphinx-togglebutton" },
 ]
 test = [
+    { name = "fido2" },
     { name = "pytest" },
 ]
 
@@ -612,6 +626,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "basedpyright", specifier = ">=1.31.1,<2.0.0" },
+    { name = "fido2", specifier = "==2.0.0" },
     { name = "packaging", specifier = ">=26.2,<26.3" },
     { name = "pre-commit", specifier = ">=4.0.0,<5.0.0" },
     { name = "ruff", specifier = ">=0.8.4,<1.0.0" },
@@ -626,7 +641,10 @@ docs = [
     { name = "sphinx-design", specifier = ">=0.6.1" },
     { name = "sphinx-togglebutton", specifier = ">=0.3.2" },
 ]
-test = [{ name = "pytest", specifier = ">=9.0.3,<9.1.0" }]
+test = [
+    { name = "fido2", specifier = "==2.0.0" },
+    { name = "pytest", specifier = ">=9.0.3,<9.1.0" },
+]
 
 [[package]]
 name = "frozenlist"
