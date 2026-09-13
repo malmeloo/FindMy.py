@@ -126,10 +126,7 @@ class BaseAnisetteProvider(util.abc.Closable, util.abc.Serializable, ABC):
         a GSA plist, which surfaces as HTTP 503. `com.apple.akd` is the daemon that
         actually performs this request on macOS, and is answered normally.
         """
-        return (
-            "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> "
-            "<com.apple.AuthKit/1 (com.apple.akd/1.0)>"
-        )
+        return "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
 
     async def get_headers(
         self,
