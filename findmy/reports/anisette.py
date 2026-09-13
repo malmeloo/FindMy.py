@@ -134,10 +134,7 @@ class BaseAnisetteProvider(util.abc.Closable, util.abc.Serializable, ABC):
         Apple's GSA endpoint refuses requests that identify as Xcode with an HTTP 503,
         so this is the string to send alongside an ``akd`` user agent.
         """
-        return (
-            "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> "
-            "<com.apple.AOSKit/282 (com.apple.akd/1.0)>"
-        )
+        return "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> <com.apple.AOSKit/282 (com.apple.akd/1.0)>"
 
     async def get_headers(
         self,
