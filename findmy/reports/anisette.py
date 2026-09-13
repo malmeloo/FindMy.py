@@ -117,12 +117,18 @@ class BaseAnisetteProvider(util.abc.Closable, util.abc.Serializable, ABC):
             BUILD: The build number of the OS (e.g. 19C57)
             AUTHKIT_BUNDLE_ID: The bundle ID of the AuthKit framework (e.g. com.apple.AuthKit)
             AUTHKIT_VERSION: The version of the AuthKit framework (e.g. 1)
-            APP_BUNDLE_ID: The bundle ID of the app (e.g. com.apple.dt.Xcode)
-            APP_VERSION: The version of the app (e.g. 3594.4.19)
+            APP_BUNDLE_ID: The bundle ID of the app (e.g. com.apple.akd)
+            APP_VERSION: The version of the app (e.g. 1.0)
+
+        The app must not be reported as `com.apple.dt.Xcode`. Since early September 2026
+        Apple's edge refuses any Grand Slam request whose client info names Xcode, before
+        any credential is examined: a 190-byte HTML page from `Server: Apple` rather than
+        a GSA plist, which surfaces as HTTP 503. `com.apple.akd` is the daemon that
+        actually performs this request on macOS, and is answered normally.
         """
         return (
             "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> "
-            "<com.apple.AOSKit/282 (com.apple.dt.Xcode/3594.4.19)>"
+            "<com.apple.AuthKit/1 (com.apple.akd/1.0)>"
         )
 
     async def get_headers(
