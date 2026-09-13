@@ -979,7 +979,7 @@ class AsyncAppleAccount(BaseAppleAccount):
             "Content-Type": "text/x-xml-plist",
             "Accept": "*/*",
             "User-Agent": "akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0",
-            "X-MMe-Client-Info": self._anisette.client,
+            "X-MMe-Client-Info": self._anisette.client_akd,
         }
 
         resp = await self._http.post(

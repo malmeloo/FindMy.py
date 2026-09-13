@@ -125,6 +125,20 @@ class BaseAnisetteProvider(util.abc.Closable, util.abc.Serializable, ABC):
             "<com.apple.AOSKit/282 (com.apple.dt.Xcode/3594.4.19)>"
         )
 
+    @property
+    def client_akd(self) -> str:
+        """
+        Client string identifying as ``akd``, the daemon that performs Grand Slam requests.
+
+        Same format and platform as :attr:`client`, differing only in the app bundle.
+        Apple's GSA endpoint refuses requests that identify as Xcode with an HTTP 503,
+        so this is the string to send alongside an ``akd`` user agent.
+        """
+        return (
+            "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> "
+            "<com.apple.AOSKit/282 (com.apple.akd/1.0)>"
+        )
+
     async def get_headers(
         self,
         user_id: str,
