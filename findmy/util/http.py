@@ -13,6 +13,7 @@ from typing_extensions import Unpack, override
 
 from .abc import Closable
 from .parsers import decode_plist
+from .tls import tls_setting
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +72,23 @@ class HttpResponse:
 class HttpSession(Closable):
     """Asynchronous HTTP session manager. For internal use only."""
 
-    def __init__(self) -> None:  # noqa: D107
+    def __init__(self, *, verify_tls: bool = True) -> None:
+        """
+        Initialize the session.
+
+        :param verify_tls: Whether to verify server certificates. **Leave this alone.**
+            Every Apple host this library talks to verifies against
+            :func:`~findmy.util.tls.apple_trust_context`, and turning this off makes each
+            request readable and alterable by anything on the network path -- a login
+            included. The one case it exists for is a self-hosted Anisette server with a
+            self-signed certificate, which is why the switch a caller actually sees is on
+            that provider rather than here.
+        """
         super().__init__()
 
         self._session: ClientSession | None = None
         self._closed: bool = False
+        self._ssl = tls_setting(verify=verify_tls)
 
     async def _get_session(self) -> ClientSession:
         if self._closed:
@@ -133,7 +146,7 @@ class HttpSession(Closable):
                 async with await session.request(
                     method,
                     url,
-                    ssl=False,
+                    ssl=self._ssl,
                     raise_for_status=auto_retry,
                     **options,
                 ) as r:
