@@ -165,3 +165,9 @@ airtag.plist
 DO_NOT_COMMIT*
 .direnv/
 accessories/
+
+# Local FindMy artifacts — never commit (device keys, saved sessions,
+# downloaded anisette libraries)
+devices/
+account.json
+ani_libs.bin
