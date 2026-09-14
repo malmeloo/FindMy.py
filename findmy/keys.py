@@ -98,7 +98,9 @@ class HasPublicKey(HasHashedPublicKey, ABC):
     @property
     def mac_address(self) -> str:
         """Get the mac address from the public key."""
-        first_byte = (self.adv_key_bytes[0] | 0b11000000).to_bytes(1)
+        # Both arguments spelled out: int.to_bytes only gained defaults in 3.11, and
+        # this package supports 3.10.
+        first_byte = (self.adv_key_bytes[0] | 0b11000000).to_bytes(1, "big")
         return ":".join([parsers.format_hex_byte(x) for x in first_byte + self.adv_key_bytes[1:6]])
 
     def adv_data(self, status: int = 0, hint: int = 0) -> bytes:
