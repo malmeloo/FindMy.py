@@ -32,19 +32,30 @@ from findmy.errors import (
     EmptyResponseError,
     InvalidCredentialsError,
     InvalidStateError,
+    SecurityKeyError,
     UnauthorizedError,
     UnhandledProtocolError,
 )
 
 from .anisette import AnisetteMapping, get_provider_from_mapping
 from .reports import LocationReport, LocationReportsFetcher
+from .security_key import (
+    SECURITY_KEY_ORIGIN,
+    SECURITY_KEY_RESPONSE_LIMIT,
+    SecurityKeyAssertion,
+    SecurityKeyChallenge,
+    parse_security_key_challenge,
+    security_key_payload,
+)
 from .state import LoginState
 from .twofactor import (
     AsyncSecondFactorMethod,
+    AsyncSecurityKeySecondFactor,
     AsyncSmsSecondFactor,
     AsyncTrustedDeviceSecondFactor,
     BaseSecondFactorMethod,
     SyncSecondFactorMethod,
+    SyncSecurityKeySecondFactor,
     SyncSmsSecondFactor,
     SyncTrustedDeviceSecondFactor,
 )
@@ -191,7 +202,7 @@ class BaseAppleAccount(util.abc.Closable, util.abc.Serializable[AccountStateMapp
         """
         Get a list of 2FA methods that can be used as a secondary challenge.
 
-        Currently, only SMS-based 2FA methods are supported.
+        SMS, trusted-device and supported hardware-security-key methods may be returned.
         """
         raise NotImplementedError
 
@@ -229,6 +240,18 @@ class BaseAppleAccount(util.abc.Closable, util.abc.Serializable[AccountStateMapp
 
         Consider using :meth:`BaseSecondFactorMethod.submit` instead.
         """
+        raise NotImplementedError
+
+    def security_key_2fa_request(self) -> MaybeCoro[SecurityKeyChallenge]:
+        """Request and validate an Apple HSA2 hardware-security-key challenge."""
+        raise NotImplementedError
+
+    def security_key_2fa_submit(
+        self,
+        challenge: SecurityKeyChallenge,
+        assertion: SecurityKeyAssertion,
+    ) -> MaybeCoro[LoginState]:
+        """Submit a security-key assertion and finish account authentication."""
         raise NotImplementedError
 
     @overload
@@ -342,6 +365,7 @@ class AsyncAppleAccount(BaseAppleAccount):
     _ENDPOINT_2FA_SMS_SUBMIT = "https://gsa.apple.com/auth/verify/phone/securitycode"
     _ENDPOINT_2FA_TD_REQUEST = "https://gsa.apple.com/auth/verify/trusteddevice"
     _ENDPOINT_2FA_TD_SUBMIT = "https://gsa.apple.com/grandslam/GsService2/validate"
+    _ENDPOINT_2FA_SECURITY_KEY_SUBMIT = "https://gsa.apple.com/auth/verify/security/key"
 
     # reports endpoints
     _ENDPOINT_REPORTS_FETCH = "https://gateway.icloud.com/findmyservice/v2/fetch"
@@ -378,6 +402,8 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         self._http: util.http.HttpSession = util.http.HttpSession()
         self._reports: LocationReportsFetcher = LocationReportsFetcher(self)
+        self._2fa_continuation_headers: dict[str, str] = {}
+        self._security_key_challenge: SecurityKeyChallenge | None = None
         self._closed: bool = False
 
     def _set_login_state(
@@ -500,6 +526,8 @@ class AsyncAppleAccount(BaseAppleAccount):
     @override
     async def login(self, username: str, password: str) -> LoginState:
         """See :meth:`BaseAppleAccount.login`."""
+        self._2fa_continuation_headers.clear()
+        self._security_key_challenge = None
         # LOGGED_OUT -> (REQUIRE_2FA or AUTHENTICATED)
         new_state = await self._gsa_authenticate(username, password)
         if new_state == LoginState.REQUIRE_2FA:  # pass control back to handle 2FA
@@ -520,8 +548,13 @@ class AsyncAppleAccount(BaseAppleAccount):
         if self._account_info["trusted_device_2fa"]:
             methods.append(AsyncTrustedDeviceSecondFactor(self))
 
-        # sms
+        # The auth page advertises code-based and security-key factors together.
         auth_page = await self._sms_2fa_request("GET", self._ENDPOINT_2FA_METHODS)
+        challenge = parse_security_key_challenge(auth_page)
+        if challenge is not None:
+            self._security_key_challenge = challenge
+            methods.append(AsyncSecurityKeySecondFactor(self, challenge))
+
         try:
             phone_numbers = _extract_phone_numbers(auth_page)
             methods.extend(
@@ -610,6 +643,50 @@ class AsyncAppleAccount(BaseAppleAccount):
             raise UnhandledProtocolError(msg)
 
         # AUTHENTICATED -> LOGGED_IN
+        return await self._login_mobileme()
+
+    @_require_login_state(LoginState.REQUIRE_2FA)
+    @override
+    async def security_key_2fa_request(self) -> SecurityKeyChallenge:
+        """See :meth:`BaseAppleAccount.security_key_2fa_request`."""
+        auth_page = await self._sms_2fa_request("GET", self._ENDPOINT_2FA_METHODS)
+        challenge = parse_security_key_challenge(auth_page, required=True)
+        if challenge is None:  # pragma: no cover - ``required`` guarantees an exception
+            msg = "Apple did not provide a hardware-security-key challenge."
+            raise SecurityKeyError(msg)
+        self._security_key_challenge = challenge
+        return challenge
+
+    @_require_login_state(LoginState.REQUIRE_2FA)
+    @override
+    async def security_key_2fa_submit(
+        self,
+        challenge: SecurityKeyChallenge,
+        assertion: SecurityKeyAssertion,
+    ) -> LoginState:
+        """See :meth:`BaseAppleAccount.security_key_2fa_submit`."""
+        if challenge is not self._security_key_challenge:
+            msg = "Security-key assertion does not match the active account challenge."
+            raise SecurityKeyError(msg)
+        self._security_key_challenge = None
+        payload = security_key_payload(challenge, assertion)
+        await self._sms_2fa_request(
+            "POST",
+            self._ENDPOINT_2FA_SECURITY_KEY_SUBMIT,
+            payload,
+            headers={
+                "Accept": "application/json",
+                "Origin": SECURITY_KEY_ORIGIN,
+                "Referer": SECURITY_KEY_ORIGIN + "/auth",
+            },
+            accepted_statuses=frozenset({200, 204, 250}),
+        )
+
+        # Endpoint acceptance alone is insufficient: require both state transitions.
+        new_state = await self._gsa_authenticate()
+        if new_state != LoginState.AUTHENTICATED:
+            msg = f"Unexpected state after submitting security-key 2FA: {new_state}"
+            raise UnhandledProtocolError(msg)
         return await self._login_mobileme()
 
     @_require_login_state(LoginState.LOGGED_IN)
@@ -934,32 +1011,43 @@ class AsyncAppleAccount(BaseAppleAccount):
         url: str,
         data: dict[str, Any] | None = None,
         headers: dict[str, Any] | None = None,
+        accepted_statuses: frozenset[int] | None = None,
     ) -> str:
         adsid = self._login_state_data["adsid"]
         idms_token = self._login_state_data["idms_token"]
         identity_token = base64.b64encode((adsid + ":" + idms_token).encode()).decode()
 
-        headers = headers or {}
-        headers.update(
+        request_headers = dict(headers or {})
+        request_headers.update(self._2fa_continuation_headers)
+        request_headers.update(
             {
                 "User-Agent": "Xcode",
                 "Accept-Language": "en-us",
                 "X-Apple-Identity-Token": identity_token,
             },
         )
-        headers.update(await self.get_anisette_headers(with_client_info=True))
+        request_headers.update(await self.get_anisette_headers(with_client_info=True))
 
-        r = await self._http.request(
+        response = await self._http.request(
             method,
             url,
             json=data,
-            headers=headers,
+            headers=request_headers,
+            allow_redirects=False,
+            max_response_size=SECURITY_KEY_RESPONSE_LIMIT,
         )
-        if not r.ok:
-            msg = f"SMS 2FA request failed: {r.status_code}"
+        for name in ("scnt", "x-apple-id-session-id"):
+            if value := response.headers.get(name):
+                self._2fa_continuation_headers[name] = value
+        if accepted_statuses is not None:
+            accepted = response.status_code in accepted_statuses
+        else:
+            accepted = response.ok
+        if not accepted:
+            msg = f"2FA request failed: {response.status_code}"
             raise UnhandledProtocolError(msg)
 
-        return r.text()
+        return response.text()
 
     async def _gsa_request(self, parameters: dict[str, Any]) -> dict[str, Any]:
         body = {
@@ -1090,7 +1178,9 @@ class AppleAccount(BaseAppleAccount):
 
         res = []
         for m in methods:
-            if isinstance(m, AsyncSmsSecondFactor):
+            if isinstance(m, AsyncSecurityKeySecondFactor):
+                res.append(SyncSecurityKeySecondFactor(self, m.challenge))
+            elif isinstance(m, AsyncSmsSecondFactor):
                 res.append(SyncSmsSecondFactor(self, m.phone_number_id, m.phone_number))
             elif isinstance(m, AsyncTrustedDeviceSecondFactor):
                 res.append(SyncTrustedDeviceSecondFactor(self))
@@ -1125,6 +1215,22 @@ class AppleAccount(BaseAppleAccount):
     def td_2fa_submit(self, code: str) -> LoginState:
         """See :meth:`AsyncAppleAccount.td_2fa_submit`."""
         coro = self._asyncacc.td_2fa_submit(code)
+        return self._evt_loop.run_until_complete(coro)
+
+    @override
+    def security_key_2fa_request(self) -> SecurityKeyChallenge:
+        """See :meth:`AsyncAppleAccount.security_key_2fa_request`."""
+        coro = self._asyncacc.security_key_2fa_request()
+        return self._evt_loop.run_until_complete(coro)
+
+    @override
+    def security_key_2fa_submit(
+        self,
+        challenge: SecurityKeyChallenge,
+        assertion: SecurityKeyAssertion,
+    ) -> LoginState:
+        """See :meth:`AsyncAppleAccount.security_key_2fa_submit`."""
+        coro = self._asyncacc.security_key_2fa_submit(challenge, assertion)
         return self._evt_loop.run_until_complete(coro)
 
     @overload
