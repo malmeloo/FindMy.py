@@ -44,12 +44,12 @@ will need to re-download the bundle every time. The size of the bundle is approx
 
 Logging into an Apple Account is an interactive process: depending on the circumstances, 2FA may or may
 not be required, and there are multiple different methods to perform 2FA authentication. FindMy.py supports
-both SMS and Trusted Device challenges to pass the 2FA check, but you must handle the sign-in flow manually in your application.
+SMS, Trusted Device and HSA2 hardware-security-key challenges, but you must handle the sign-in flow manually
+in your application.
 
 ```{attention}
-FindMy.py currently does not support passkey authentication: [#159](https://github.com/malmeloo/FindMy.py/issues/159).
-If you use a passkey to secure your Apple Account, you must disable it to use FindMy.py. This is because enabling
-passkeys for your account will disable other 2FA mechanisms.
+Hardware security keys used as an HSA2 second factor are distinct from primary passkey/passwordless
+authentication. The latter is not implemented. Legacy FSA1/U2F-only keys are also outside the supported flow.
 ```
 
 To start the authentication process, provide your email and password as follows:
@@ -66,7 +66,12 @@ In order to pass the 2FA challenge, we first need to find out which challenges A
 one of these challenges to continue the login flow.
 
 ```python
-from findmy import LoginState, TrustedDeviceSecondFactorMethod, SmsSecondFactorMethod
+from findmy import (
+    LoginState,
+    SmsSecondFactorMethod,
+    SyncSecurityKeySecondFactor,
+    TrustedDeviceSecondFactorMethod,
+)
 
 if state == LoginState.REQUIRE_2FA:  # Account requires 2FA
     methods = account.get_2fa_methods()
@@ -74,6 +79,8 @@ if state == LoginState.REQUIRE_2FA:  # Account requires 2FA
     for i, method in enumerate(methods):
         if isinstance(method, TrustedDeviceSecondFactorMethod):
             print(f"{i} - Trusted Device")
+        elif isinstance(method, SyncSecurityKeySecondFactor):
+            print(f"{i} - Hardware Security Key")
         elif isinstance(method, SmsSecondFactorMethod):
             print(f"{i} - SMS ({method.phone_number})")
 
@@ -84,8 +91,7 @@ if state == LoginState.REQUIRE_2FA:  # Account requires 2FA
 ```
 
 Depending on your account configuration, you will either get more or fewer 2FA challenge options.
-In order to pass one of these challenges, we will first call its `request()` method to request a code
-(on a Trusted Device or via SMS), and then use the `submit()` method to submit the code and pass the challenge.
+Code-based factors first use `request()` and then `submit(code)`:
 
 ```python
     ind = int(input("Method? > "))
@@ -96,6 +102,21 @@ In order to pass one of these challenges, we will first call its `request()` met
 
     method.submit(code)
 ```
+
+Hardware-security-key factors deliberately do not force a WebAuthn assertion through the code-based
+`submit(code)` API. Use `authenticate(signer)` instead. The callback receives a validated
+`SecurityKeyChallenge` and returns a dependency-free `SecurityKeyAssertion`:
+
+```python
+from findmy import SyncSecurityKeySecondFactor
+
+method = next(item for item in methods if isinstance(item, SyncSecurityKeySecondFactor))
+state = method.authenticate(signer)
+```
+
+The signer can use a browser, platform authenticator or another WebAuthn frontend. The optional
+Linux USB example under `examples/security_key` shows an adapter for `python-fido2`.
+`python-fido2` is not a runtime dependency of FindMy.py.
 
 If all went well, you should now be logged in!
 

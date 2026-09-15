@@ -53,10 +53,11 @@ HSA2 payload (not the primary-FSA2 payload):
 The HSA2 caller leaves `requestId` undefined; JSON serialization omits it.
 POST the validated assertion to `/auth/verify/security/key`, preserving known
 continuation headers. Frontend terminal acceptance statuses are 200/204/250;
-202/409 are not treated as success. Do not log identity tokens or assertions.
+202/409 are not treated as success. FindMy's native HTTP session verifies TLS,
+refuses redirects for this flow and bounds the response. Do not log identity
+tokens or assertions.
 
 Then explicitly repeat GrandSlam authentication and complete MobileMe login.
-Check AUTHENTICATED, LOGGED_IN and presence of the search-party session token.
-Only then save a private session with its password removed. This does not prove
-that arbitrary downstream callers use verified TLS; the example's checked
-transport intentionally only permits authentication URLs.
+Check AUTHENTICATED and LOGGED_IN before treating the factor as successful. The
+optional CLI additionally requires a search-party session token before saving a
+password-free account file.

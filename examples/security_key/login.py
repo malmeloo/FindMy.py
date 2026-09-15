@@ -3,7 +3,6 @@
 
 import argparse
 import asyncio
-import functools
 import getpass
 import json
 import logging
@@ -13,13 +12,23 @@ import stat
 import sys
 from pathlib import Path
 
-from apple_fido import ORIGIN, CheckedHttpSession, FidoAppleAccount, FidoError, sign_usb
+from apple_fido import FidoError, sign_usb
 from fido2.client import ClientError, UserInteraction
 from fido2.ctap2.pin import ClientPin
 from fido2.hid import CtapHidDevice
 from typing_extensions import override
 
-from findmy import LocalAnisetteProvider, LoginState
+from findmy import (
+    AsyncAppleAccount,
+    AsyncSecurityKeySecondFactor,
+    LocalAnisetteProvider,
+    LoginState,
+    SecurityKeyAssertion,
+    SecurityKeyChallenge,
+    SecurityKeyError,
+)
+from findmy.reports.security_key import SECURITY_KEY_ORIGIN, SECURITY_KEY_RESPONSE_LIMIT
+from findmy.util.http import HttpSession
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
@@ -80,7 +89,7 @@ def prepare_private_directory(*, fresh: bool = False) -> Path:
     return DATA
 
 
-def save_session(account: FidoAppleAccount, directory: Path | None = None) -> None:
+def save_session(account: AsyncAppleAccount, directory: Path | None = None) -> None:
     if account.login_state != LoginState.LOGGED_IN:
         message = "Refusing to save an unconfirmed session."
         raise FidoError(message)
@@ -130,9 +139,13 @@ async def preflight() -> int:
     count = len(found)
     for d in found:
         d.close()
-    http = CheckedHttpSession()
+    http = HttpSession()
     try:
-        resp = await http.get(ORIGIN + "/auth")
+        resp = await http.get(
+            SECURITY_KEY_ORIGIN + "/auth",
+            allow_redirects=False,
+            max_response_size=SECURITY_KEY_RESPONSE_LIMIT,
+        )
         emit(
             stage="preflight",
             usb_fido_accessible=count,
@@ -167,8 +180,7 @@ async def login() -> int:
             message = "Cancelled before login."
             raise FidoError(message)
         attempt = prepare_private_directory(fresh=True)
-        account = FidoAppleAccount(LocalAnisetteProvider(libs_path=attempt / "anisette.bin"))
-        account.on_progress = lambda event: emit(**event)
+        account = AsyncAppleAccount(LocalAnisetteProvider(libs_path=attempt / "anisette.bin"))
         try:
             username = input("Apple ID: ")
             password = getpass.getpass("Apple password (hidden): ")
@@ -177,10 +189,27 @@ async def login() -> int:
             password = None  # SDK keeps it in memory until the second SRP completes.
             if state == LoginState.REQUIRE_2FA:
                 emit(stage="security_key_challenge")
-                signer = functools.partial(
-                    sign_usb, device=found[0], interaction=TerminalInteraction()
+                methods = await account.get_2fa_methods()
+                security_keys = [
+                    method for method in methods if isinstance(method, AsyncSecurityKeySecondFactor)
+                ]
+                if len(security_keys) != 1:
+                    message = "Apple did not return exactly one supported security-key method."
+                    raise FidoError(message)
+
+                async def signer(challenge: SecurityKeyChallenge) -> SecurityKeyAssertion:
+                    return await asyncio.to_thread(
+                        sign_usb,
+                        challenge,
+                        device=found[0],
+                        interaction=TerminalInteraction(),
+                    )
+
+                state = await security_keys[0].authenticate(signer)
+                emit(
+                    stage="security_key_authentication_complete",
+                    login_state=state.name,
                 )
-                state = await account.authenticate_security_key(signer)
             if state != LoginState.LOGGED_IN:
                 message = "Nie uzyskano sesji FindMy."
                 raise FidoError(message)
@@ -201,69 +230,6 @@ async def login() -> int:
     return 0
 
 
-async def diagnose_auth() -> int:
-    """One human-assisted SRP attempt then GET auth schema; NEVER sign or finish login."""
-    import tempfile
-
-    from auth_schema import summarize_auth_page
-
-    if not sys.stdin.isatty() or not sys.stdout.isatty() or not sys.stderr.isatty():
-        message = "Diagnostics require a private interactive terminal."
-        raise FidoError(message)
-    print("DIAGNOSTIC: one password-auth attempt and inspection of the Apple 2FA schema.")
-    print("No signature, PIN, location access or session save. Existing data stays unchanged.")
-    print("Only allowlisted field names/types and recognized factors are recorded; no secrets.")
-    if input("Consent to this diagnostic attempt - type YES: ") != "YES":
-        message = "Cancelled before diagnostics."
-        raise FidoError(message)
-    DATA.mkdir(mode=0o700, exist_ok=True)
-    st = DATA.lstat()
-    if (
-        not stat.S_ISDIR(st.st_mode)
-        or st.st_uid != os.getuid()
-        or stat.S_IMODE(st.st_mode) != 0o700
-    ):
-        message = "Diagnostic directory must be user-owned, mode 0700, not a symlink."
-        raise FidoError(message)
-    attempt = Path(tempfile.mkdtemp(prefix="schema-", dir=DATA))
-    account = FidoAppleAccount(LocalAnisetteProvider(libs_path=attempt / "anisette.bin"))
-    password = None
-    try:
-        username = input("Apple ID: ")
-        password = getpass.getpass("Apple password (hidden): ")
-        emit(stage="diagnostic_grandslam_auth")
-        state = await account._gsa_authenticate(username, password)
-        password = None
-        if state != LoginState.REQUIRE_2FA:
-            message = "No second-factor state; diagnostics stopped without completing login."
-            raise FidoError(message)
-        html = await account._fido_request("GET", "/auth")
-        summary = summarize_auth_page(html)
-        html = None
-        output = attempt / "diagnostic.json"
-        raw = json.dumps(summary, ensure_ascii=True, indent=2).encode()
-        fd = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(fd, "wb") as f:
-            f.write(raw)
-            f.flush()
-            os.fsync(f.fileno())
-        if output.read_bytes() != raw or stat.S_IMODE(output.stat().st_mode) != 0o600:
-            message = "Diagnostic write verification failed."
-            raise FidoError(message)
-        emit(
-            stage="diagnostic_saved",
-            file=str(output),
-            raw_values_saved=False,
-            key_signature_requested=False,
-            account_login_completed=False,
-        )
-        return 0
-    finally:
-        password = None
-        account._password = None
-        await account.close()
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -272,15 +238,14 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--preflight", action="store_true")
     mode.add_argument("--login", action="store_true")
-    mode.add_argument("--diagnose-auth", action="store_true")
     args = parser.parse_args()
     logging.disable(logging.CRITICAL)
     os.umask(0o077)
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     try:
-        operation = preflight if args.preflight else diagnose_auth if args.diagnose_auth else login
+        operation = preflight if args.preflight else login
         return asyncio.run(operation())
-    except FidoError as e:
+    except (FidoError, SecurityKeyError) as e:
         emit(status="blocked", reason=str(e), retry=False)
         return 2
     except (KeyboardInterrupt, EOFError):

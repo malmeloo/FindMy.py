@@ -6,7 +6,7 @@ import base64
 import hashlib
 from typing import Any, cast
 
-from apple_fido import Challenge, apple_payload, sign_usb
+from apple_fido import sign_usb
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 from fido2 import cbor
@@ -15,6 +15,9 @@ from fido2.ctap import CtapDevice
 from fido2.hid import CAPABILITY, CTAPHID
 from fido2.webauthn import AuthenticatorData
 from typing_extensions import override
+
+from findmy import SecurityKeyChallenge
+from findmy.reports.security_key import security_key_payload
 
 
 class SyntheticAuthenticator(CtapDevice):
@@ -59,9 +62,9 @@ class SyntheticAuthenticator(CtapDevice):
 
 def test_real_fido2_client_ctap2_codec_and_ecdsa_verification():
     device = SyntheticAuthenticator()
-    c = Challenge(b"\xfb\xff" * 16, "apple.com", (device.credential_id,))
+    c = SecurityKeyChallenge(b"\xfb\xff" * 16, "apple.com", (device.credential_id,))
     result = sign_usb(c, device, UserInteraction())
-    payload = apple_payload(c, result)
+    payload = security_key_payload(c, result)
     client_data = base64.b64decode(payload["clientData"])
     auth_data = base64.b64decode(payload["authenticatorData"])
     signature = base64.b64decode(payload["signatureData"])
@@ -69,4 +72,4 @@ def test_real_fido2_client_ctap2_codec_and_ecdsa_verification():
         signature, auth_data + hashlib.sha256(client_data).digest(), ec.ECDSA(hashes.SHA256())
     )
     assert 2 in device.requests
-    assert result.raw_id == device.credential_id
+    assert result.credential_id == device.credential_id

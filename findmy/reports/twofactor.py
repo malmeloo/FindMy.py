@@ -1,12 +1,14 @@
 """Public classes related to handling two-factor authentication."""
 
 from abc import ABC, abstractmethod
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 from typing_extensions import override
 
 from findmy.util.types import MaybeCoro
 
+from .security_key import SecurityKeyAssertion, SecurityKeyChallenge
 from .state import LoginState
 
 if TYPE_CHECKING:
@@ -125,6 +127,112 @@ class SmsSecondFactorMethod(BaseSecondFactorMethod, ABC):
 
 class TrustedDeviceSecondFactorMethod(BaseSecondFactorMethod, ABC):
     """Base class for trusted device-based two-factor authentication."""
+
+
+class SecurityKeySecondFactorMethod(BaseSecondFactorMethod, ABC):
+    """Base class for Apple HSA2 hardware-security-key second factors."""
+
+    @property
+    @abstractmethod
+    def challenge(self) -> SecurityKeyChallenge:
+        """The current validated challenge."""
+        raise NotImplementedError
+
+
+class AsyncSecurityKeySecondFactor(AsyncSecondFactorMethod, SecurityKeySecondFactorMethod):
+    """An async Apple HSA2 hardware-security-key second-factor method."""
+
+    def __init__(
+        self,
+        account: "AsyncAppleAccount",
+        challenge: SecurityKeyChallenge,
+    ) -> None:
+        """Initialize from a challenge returned by ``get_2fa_methods``."""
+        super().__init__(account)
+        self._challenge = challenge
+        self._attempted = False
+
+    @property
+    @override
+    def challenge(self) -> SecurityKeyChallenge:
+        """The current challenge. Its representation omits credential material."""
+        return self._challenge
+
+    @override
+    async def request(self) -> None:
+        """Refresh the challenge without signing or submitting anything."""
+        if self._attempted:
+            msg = "This security-key method has already been consumed."
+            raise RuntimeError(msg)
+        self._challenge = await self.account.security_key_2fa_request()
+
+    @override
+    async def submit(self, code: str) -> LoginState:
+        """Reject code submission; use :meth:`authenticate` with an authenticator callback."""
+        del code
+        msg = "Security-key methods require authenticate(signer), not submit(code)."
+        raise TypeError(msg)
+
+    async def authenticate(
+        self,
+        signer: Callable[[SecurityKeyChallenge], Awaitable[SecurityKeyAssertion]],
+    ) -> LoginState:
+        """Sign the current challenge once and complete Apple authentication."""
+        if self._attempted:
+            msg = "This security-key method has already been consumed."
+            raise RuntimeError(msg)
+        self._attempted = True
+        self._challenge.validate()
+        assertion = await signer(self._challenge)
+        return await self.account.security_key_2fa_submit(self._challenge, assertion)
+
+
+class SyncSecurityKeySecondFactor(SyncSecondFactorMethod, SecurityKeySecondFactorMethod):
+    """A sync Apple HSA2 hardware-security-key second-factor method."""
+
+    def __init__(
+        self,
+        account: "AppleAccount",
+        challenge: SecurityKeyChallenge,
+    ) -> None:
+        """Initialize from a challenge returned by ``get_2fa_methods``."""
+        super().__init__(account)
+        self._challenge = challenge
+        self._attempted = False
+
+    @property
+    @override
+    def challenge(self) -> SecurityKeyChallenge:
+        """The current challenge. Its representation omits credential material."""
+        return self._challenge
+
+    @override
+    def request(self) -> None:
+        """Refresh the challenge without signing or submitting anything."""
+        if self._attempted:
+            msg = "This security-key method has already been consumed."
+            raise RuntimeError(msg)
+        self._challenge = self.account.security_key_2fa_request()
+
+    @override
+    def submit(self, code: str) -> LoginState:
+        """Reject code submission; use :meth:`authenticate` with an authenticator callback."""
+        del code
+        msg = "Security-key methods require authenticate(signer), not submit(code)."
+        raise TypeError(msg)
+
+    def authenticate(
+        self,
+        signer: Callable[[SecurityKeyChallenge], SecurityKeyAssertion],
+    ) -> LoginState:
+        """Sign the current challenge once and complete Apple authentication."""
+        if self._attempted:
+            msg = "This security-key method has already been consumed."
+            raise RuntimeError(msg)
+        self._attempted = True
+        self._challenge.validate()
+        assertion = signer(self._challenge)
+        return self.account.security_key_2fa_submit(self._challenge, assertion)
 
 
 class AsyncSmsSecondFactor(AsyncSecondFactorMethod, SmsSecondFactorMethod):
