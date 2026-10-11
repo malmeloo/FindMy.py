@@ -25,6 +25,10 @@ class EmptyResponseError(RuntimeError):
     """
 
 
+class SecurityKeyError(RuntimeError):
+    """Raised when an Apple hardware-security-key challenge or assertion is invalid."""
+
+
 class InvalidStateError(RuntimeError):
     """
     Raised when a method is used that is in conflict with the internal account state.

@@ -15,12 +15,16 @@ from .reports import (
     LocationReportEncryptedMapping,
     LocationReportMapping,
 )
+from .security_key import SecurityKeyAssertion, SecurityKeyChallenge
 from .state import LoginState
 from .twofactor import (
+    AsyncSecurityKeySecondFactor,
     AsyncSmsSecondFactor,
     AsyncTrustedDeviceSecondFactor,
     BaseSecondFactorMethod,
+    SecurityKeySecondFactorMethod,
     SmsSecondFactorMethod,
+    SyncSecurityKeySecondFactor,
     SyncSmsSecondFactor,
     SyncTrustedDeviceSecondFactor,
     TrustedDeviceSecondFactorMethod,
@@ -31,6 +35,7 @@ __all__ = (
     "AnisetteMapping",
     "AppleAccount",
     "AsyncAppleAccount",
+    "AsyncSecurityKeySecondFactor",
     "AsyncSmsSecondFactor",
     "AsyncTrustedDeviceSecondFactor",
     "BaseAnisetteProvider",
@@ -45,7 +50,11 @@ __all__ = (
     "LoginState",
     "RemoteAnisetteMapping",
     "RemoteAnisetteProvider",
+    "SecurityKeyAssertion",
+    "SecurityKeyChallenge",
+    "SecurityKeySecondFactorMethod",
     "SmsSecondFactorMethod",
+    "SyncSecurityKeySecondFactor",
     "SyncSmsSecondFactor",
     "SyncTrustedDeviceSecondFactor",
     "TrustedDeviceSecondFactorMethod",

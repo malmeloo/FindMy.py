@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, TypedDict, cast
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, TypedDict, cast
 
 import aiohttp
 from aiohttp import BasicAuth, ClientSession, ClientTimeout
@@ -15,6 +16,9 @@ from .abc import Closable
 from .parsers import decode_plist
 from .tls import tls_setting
 
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,6 +27,8 @@ class _RequestOptions(TypedDict, total=False):
     headers: dict[str, str]
     auto_retry: bool
     data: bytes
+    allow_redirects: bool
+    max_response_size: int | None
 
 
 class _AiohttpRequestOptions(_RequestOptions):
@@ -36,10 +42,18 @@ class _HttpRequestOptions(_RequestOptions, total=False):
 class HttpResponse:
     """Response of a request made by :meth:`HttpSession`."""
 
-    def __init__(self, status_code: int, content: bytes) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        content: bytes,
+        headers: Mapping[str, str] | None = None,
+    ) -> None:
         """Initialize the response."""
         self._status_code = status_code
         self._content = content
+        self._headers = MappingProxyType(
+            {str(key).lower(): str(value) for key, value in (headers or {}).items()}
+        )
 
     @property
     def status_code(self) -> int:
@@ -50,6 +64,11 @@ class HttpResponse:
     def ok(self) -> bool:
         """Whether the status code is "OK" (2xx)."""
         return str(self._status_code).startswith("2")
+
+    @property
+    def headers(self) -> Mapping[str, str]:
+        """Response headers, with lowercase names."""
+        return self._headers
 
     def text(self) -> str:
         """Response content as a UTF-8 encoded string."""
@@ -132,6 +151,12 @@ class HttpSession(Closable):
         """
         session = await self._get_session()
 
+        # Options implemented by this wrapper rather than aiohttp.
+        max_response_size = kwargs.pop("max_response_size", None)
+        if max_response_size is not None and max_response_size < 1:
+            msg = "max_response_size must be positive"
+            raise ValueError(msg)
+
         # cast from http options to library supported options
         auth = kwargs.pop("auth", None)
         if isinstance(auth, tuple):
@@ -150,7 +175,17 @@ class HttpSession(Closable):
                     raise_for_status=auto_retry,
                     **options,
                 ) as r:
-                    return HttpResponse(r.status, await r.content.read())
+                    if max_response_size is None:
+                        content = await r.content.read()
+                    else:
+                        body = bytearray()
+                        async for chunk in r.content.iter_chunked(65536):
+                            body.extend(chunk)
+                            if len(body) > max_response_size:
+                                msg = "HTTP response exceeds configured size limit"
+                                raise ValueError(msg)
+                        content = bytes(body)
+                    return HttpResponse(r.status, content, r.headers)
             except aiohttp.ClientError as e:  # noqa: PERF203
                 if not auto_retry or retry_count > 3:
                     raise e from None
