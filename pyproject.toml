@@ -85,8 +85,8 @@ ignore = [
     "PLC0415", # import not on top of file
 ]
 
-[tool.setuptools]
-packages = ["findmy"]
+[tool.setuptools.packages.find]
+include = ["findmy*"]
 
 [build-system]
 requires = ["setuptools", "setuptools-scm"]

@@ -6,9 +6,10 @@ import asyncio
 import json
 import logging
 from typing import Any, TypedDict, cast
+from urllib.parse import urlsplit
 
 import aiohttp
-from aiohttp import BasicAuth, ClientSession, ClientTimeout
+from aiohttp import BasicAuth, ClientSession, ClientTimeout, TCPConnector
 from typing_extensions import Unpack, override
 
 from .abc import Closable
@@ -23,10 +24,6 @@ class _RequestOptions(TypedDict, total=False):
     headers: dict[str, str]
     auto_retry: bool
     data: bytes
-
-
-class _AiohttpRequestOptions(_RequestOptions):
-    auth: BasicAuth
 
 
 class _HttpRequestOptions(_RequestOptions, total=False):
@@ -87,20 +84,29 @@ class HttpSession(Closable):
         super().__init__()
 
         self._session: ClientSession | None = None
+        self._unpooled: ClientSession | None = None
         self._closed: bool = False
         self._ssl = tls_setting(verify=verify_tls)
 
-    async def _get_session(self) -> ClientSession:
+    async def _get_session(self, url: str) -> ClientSession:
         if self._closed:
             msg = "HttpSession has been closed and cannot be used"
             raise RuntimeError(msg)
 
-        if self._session is not None:
-            return self._session
-
-        logger.debug("Creating aiohttp session")
-        self._session = ClientSession(timeout=ClientTimeout(total=5))
-        return self._session
+        # Grand Slam can reject a pooled `complete` after a successful `init` with 429.
+        unpooled = urlsplit(url).hostname == "gsa.apple.com"
+        session = self._unpooled if unpooled else self._session
+        if session is None:
+            logger.debug("Creating aiohttp session (force_close=%s)", unpooled)
+            session = ClientSession(
+                timeout=ClientTimeout(total=5),
+                connector=TCPConnector(force_close=unpooled),
+            )
+            if unpooled:
+                self._unpooled = session
+            else:
+                self._session = session
+        return session
 
     @override
     async def close(self) -> None:
@@ -110,14 +116,15 @@ class HttpSession(Closable):
 
         self._closed = True
 
-        if self._session is not None:
-            logger.debug("Closing aiohttp session")
-            try:
-                await self._session.close()
-            except (RuntimeError, OSError, ConnectionError) as e:
-                logger.warning("Error closing aiohttp session: %s", e)
-            finally:
-                self._session = None
+        sessions = (self._session, self._unpooled)
+        self._session = self._unpooled = None
+        for session in sessions:
+            if session is not None:
+                logger.debug("Closing aiohttp session")
+                try:
+                    await session.close()
+                except (RuntimeError, OSError, ConnectionError) as e:
+                    logger.warning("Error closing aiohttp session: %s", e)
 
     async def request(
         self,
@@ -130,13 +137,27 @@ class HttpSession(Closable):
 
         Keyword arguments will directly be passed to :meth:`aiohttp.ClientSession.request`.
         """
-        session = await self._get_session()
+        session = await self._get_session(url)
 
         # cast from http options to library supported options
         auth = kwargs.pop("auth", None)
-        if isinstance(auth, tuple):
-            kwargs["auth"] = BasicAuth(auth[0], auth[1])
-        options = cast("_AiohttpRequestOptions", kwargs)
+        if auth is not None:
+            headers = dict(kwargs.get("headers", {}))
+            if any(name.lower() == "authorization" for name in headers):
+                msg = "Cannot combine auth with an Authorization header"
+                raise ValueError(msg)
+            if isinstance(auth, tuple):
+                encoder = getattr(aiohttp, "encode_basic_auth", None)
+                authorization = (
+                    encoder(*auth, encoding="latin1")
+                    if encoder is not None
+                    else BasicAuth(*auth).encode()
+                )
+            else:
+                authorization = auth.encode()
+            headers["Authorization"] = authorization
+            kwargs["headers"] = headers
+        options = cast("_RequestOptions", kwargs)
 
         auto_retry = kwargs.pop("auto_retry", False)
 

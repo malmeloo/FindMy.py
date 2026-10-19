@@ -66,6 +66,12 @@ srp.rfc5054_enable()
 srp.no_username_in_x()
 
 
+def _normalize_2fa_status(status: dict[str, Any]) -> None:
+    """Treat Apple's hsc=409 response without `au` as a trusted-device challenge."""
+    if status.get("hsc") == 409 and not status.get("au"):
+        status["au"] = "trustedDeviceSecondaryAuth"
+
+
 class _AccountInfo(TypedDict):
     account_name: str
     first_name: str
@@ -835,6 +841,7 @@ class AsyncAppleAccount(BaseAppleAccount):
         r = await self._gsa_request(
             {"c": r["c"], "M1": m1, "u": self._username, "o": "complete"},
         )
+        _normalize_2fa_status(r["Status"])
 
         logger.debug("Verifying password challenge response")
 
@@ -902,9 +909,12 @@ class AsyncAppleAccount(BaseAppleAccount):
 
         headers = {
             "X-Apple-ADSID": self._login_state_data["adsid"],
-            "User-Agent": "com.apple.iCloudHelper/282 CFNetwork/1408.0.4 Darwin/22.5.0",
-            "X-Mme-Client-Info": "<MacBookPro18,3> <Mac OS X;13.4.1;22F8>"
-            " <com.apple.AOSKit/282 (com.apple.accountsd/113)>",
+            "User-Agent": self._anisette.user_agent.replace(
+                "akd/1.0", "com.apple.iCloudHelper/282", 1
+            ),
+            "X-Mme-Client-Info": self._anisette.get_client_info(
+                "com.apple.AOSKit/282 (com.apple.accountsd/113)",
+            ),
         }
         headers.update(await self.get_anisette_headers())
 
@@ -962,15 +972,20 @@ class AsyncAppleAccount(BaseAppleAccount):
         return r.text()
 
     async def _gsa_request(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        cpd = await self._anisette.get_cpd(self._uid, self._devid)
+        try:
+            self._uid = base64.b64decode(cpd["X-Apple-I-MD-LU"], validate=True).decode()
+            self._devid = cpd["X-Mme-Device-Id"].lower()
+        except (KeyError, UnicodeDecodeError, ValueError):
+            msg = "The Anisette provider returned an invalid device identity"
+            raise ValueError(msg) from None
+
         body = {
             "Header": {
                 "Version": "1.0.1",
             },
             "Request": {
-                "cpd": await self._anisette.get_cpd(
-                    self._uid,
-                    self._devid,
-                ),
+                "cpd": cpd,
                 **parameters,
             },
         }

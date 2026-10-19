@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import io
+import json
 import locale
 import logging
 import time
@@ -12,14 +13,16 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
-from typing import BinaryIO, Literal, TypedDict
+from typing import Any, BinaryIO, Literal, TypedDict, cast
 
-from anisette import Anisette, AnisetteHeaders
+import anisette
+from anisette import AnisetteHeaders
 from typing_extensions import Required, override
 
 from findmy import util
 
 logger = logging.getLogger(__name__)
+_ANISETTE_CLASS = vars(anisette).get("Anisette") or vars(anisette)["AsyncAnisetteProvider"]
 
 
 class RemoteAnisetteMapping(TypedDict, total=False):
@@ -137,6 +140,15 @@ class BaseAnisetteProvider(util.abc.Closable, util.abc.Serializable, ABC):
         """
         return "<MacBookPro18,3> <Mac OS X;13.4.1;22F8> <com.apple.AuthKit/1 (com.apple.akd/1.0)>"
 
+    def get_client_info(self, application: str) -> str:
+        """Describe an application using the provider's Mac model and OS."""
+        return f"{self.client.rsplit(' <', 1)[0]} <{application}>"
+
+    @property
+    def user_agent(self) -> str:
+        """User agent describing the provider's networking stack."""
+        return "akd/1.0 CFNetwork/1408.0.4 Darwin/22.5.0"
+
     async def get_headers(
         self,
         user_id: str,
@@ -171,7 +183,9 @@ class BaseAnisetteProvider(util.abc.Closable, util.abc.Serializable, ABC):
         }
 
         if with_client_info:
-            headers["X-Mme-Client-Info"] = self.client
+            headers["X-Mme-Client-Info"] = self.get_client_info(
+                "com.apple.AOSKit/282 (com.apple.dt.Xcode/3594.4.19)",
+            )
             headers["X-Apple-App-Info"] = "com.apple.gs.xcode.auth"
             headers["X-Xcode-Version"] = "11.2 (11B41)"
 
@@ -333,7 +347,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
 
         # we do not yet initialize Anisette in order to prevent blocking the event loop,
         # since the anisette library will download the required libraries synchronously.
-        self._ani: Anisette | None = None
+        self._ani: Any | None = None
 
         self._ani_data: AnisetteHeaders | None = None
         self._libs_path: Path | None = libs_path
@@ -343,21 +357,28 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
     def _is_new_session(self) -> bool:
         return self._state_blob is None
 
-    async def _get_ani(self) -> Anisette:
+    async def _get_ani(self) -> Any:  # noqa: ANN401 - the two Anisette APIs have different interfaces.
         if self._ani is not None:
             return self._ani
+
+        if hasattr(_ANISETTE_CLASS, "get_headers"):
+            if self._libs_path is not None:
+                msg = "libs_path requires the legacy API; configure the current backend directly."
+                raise ValueError(msg)
+            loop = asyncio.get_running_loop()
+            if self._state_blob is None:
+                ani = await loop.run_in_executor(None, _ANISETTE_CLASS.init)
+            else:
+                state = json.loads(self._state_blob.getvalue())
+                ani = await loop.run_in_executor(None, _ANISETTE_CLASS.from_json, state)
+            self._ani = ani
+            return ani
 
         if self._libs_path is None or not self._libs_path.is_file():
             logger.info(
                 "The Anisette engine will download libraries required for operation, "
                 "this may take a few seconds...",
             )
-        if self._libs_path is None:
-            logger.info(
-                "To speed up future local Anisette initializations, "
-                "provide a filesystem path to load the libraries from.",
-            )
-
         files: list[BinaryIO | Path] = []
         if self._state_blob is not None:
             files.append(self._state_blob)
@@ -365,7 +386,7 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
             files.append(self._libs_path)
 
         loop = asyncio.get_running_loop()
-        ani = await loop.run_in_executor(None, Anisette.load, *files)
+        ani = await loop.run_in_executor(None, _ANISETTE_CLASS.load, *files)
         is_provisioned = await loop.run_in_executor(None, lambda: ani.is_provisioned)
 
         if self._libs_path is not None:
@@ -395,8 +416,9 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
                 prov_data = None
             else:
                 prov_data = base64.b64encode(self._state_blob.getvalue()).decode("utf-8")
+        elif hasattr(self._ani, "to_json"):
+            prov_data = base64.b64encode(json.dumps(self._ani.to_json()).encode()).decode("utf-8")
         else:
-            # Anisette has been initialized, so we can save the provisioning data.
             with BytesIO() as buf:
                 self._ani.save_provisioning(buf)
                 prov_data = base64.b64encode(buf.getvalue()).decode("utf-8")
@@ -438,12 +460,37 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
         """See :meth:`BaseAnisetteProvider.get_headers`."""
         ani = await self._get_ani()
 
-        # run in executor to prevent blocking the event loop,
-        # since get_data may make blocking network requests.
-        loop = asyncio.get_running_loop()
-        self._ani_data = await loop.run_in_executor(None, ani.get_data)
+        if hasattr(ani, "get_headers"):
+            ani_data = await ani.get_headers()
+        else:
+            # The legacy API can make blocking network requests.
+            loop = asyncio.get_running_loop()
+            ani_data = await loop.run_in_executor(None, ani.get_data)
+        self._ani_data = ani_data
 
-        return await super().get_headers(user_id, device_id, serial, with_client_info)
+        headers = await super().get_headers(user_id, device_id, serial, with_client_info)
+        # Keep the local machine identity; client info is selected for each endpoint.
+        headers.update(
+            {
+                name: value
+                for name, value in cast("dict[str, str]", ani_data).items()
+                if name.lower() != "x-mme-client-info"
+            },
+        )
+        return headers
+
+    @property
+    @override
+    def client(self) -> str:
+        """Use the client identity supplied by the local Anisette session."""
+        return (self._ani_data or {}).get("X-MMe-Client-Info", super().client)
+
+    @property
+    @override
+    def user_agent(self) -> str:
+        """Use the local device's networking stack when available."""
+        device = getattr(self._ani, "device", None)
+        return device.user_agent if device is not None else super().user_agent
 
     @property
     @override
@@ -466,3 +513,5 @@ class LocalAnisetteProvider(BaseAnisetteProvider, util.abc.Serializable[LocalAni
     @override
     async def close(self) -> None:
         """See :meth:`BaseAnisetteProvider.close`."""
+        if self._ani is not None and hasattr(self._ani, "close"):
+            await self._ani.close()
