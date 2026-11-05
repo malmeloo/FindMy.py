@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import getpass
+
 from findmy import (
     AppleAccount,
     AsyncAppleAccount,
@@ -13,7 +15,7 @@ from findmy import (
 
 def _login_sync(account: AppleAccount) -> None:
     email = input("email?  > ")
-    password = input("passwd? > ")
+    password = getpass.getpass("passwd? > ")
 
     state = account.login(email, password)
 
@@ -40,7 +42,7 @@ def _login_sync(account: AppleAccount) -> None:
 
 async def _login_async(account: AsyncAppleAccount) -> None:
     email = input("email?  > ")
-    password = input("passwd? > ")
+    password = getpass.getpass("passwd? > ")
 
     state = await account.login(email, password)
 
