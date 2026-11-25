@@ -45,6 +45,7 @@ AirTags, iDevices and DIY tags with an easy to use Python library.
   - [x] Trusted Device 2FA support
 - [x] Scan for nearby FindMy-devices
   - [x] Decode their info, such as public keys and status bytes
+  - [x] AirTag (2nd generation) support, including when it is near its owner (DULT)
 - [x] Import or create your own accessory keys
 - [x] Both async and sync APIs
 

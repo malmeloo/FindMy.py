@@ -33,6 +33,10 @@ APPLE_DEVICE_TYPE = {
 
 BATTERY_LEVEL = {0b00: "Full", 0b01: "Medium", 0b10: "Low", 0b11: "Very Low"}
 
+# Service data UUID (16-bit: 0xFCB2) of the DULT ("Detecting Unwanted Location Trackers")
+# advertisement. Sent by newer accessories such as the AirTag (2nd generation).
+DULT_SERVICE_UUID = "0000fcb2-0000-1000-8000-00805f9b34fb"
+
 
 def _print_scanning_results(seen_devices: dict[str, list[OfflineFindingDevice]]) -> None:
     """Print summary of each device seen."""
@@ -69,6 +73,10 @@ class OfflineFindingDevice(ABC):
     OF_HEADER_SIZE = 2
     OF_TYPE = 0x12
 
+    DULT_HEADER_SIZE = 2  # network ID, flags
+    DULT_NETWORK_ID_APPLE = 0x01
+    DULT_FLAG_NEAR_OWNER = 0b00000001
+
     def __init__(
         self,
         mac_bytes: bytes,
@@ -83,6 +91,7 @@ class OfflineFindingDevice(ABC):
         self._detected_at: datetime = detected_at
         self._rssi: int | None = rssi
         self._additional_data: dict[Any, Any] = additional_data or {}
+        self._near_owner: bool | None = None
 
     @property
     def mac_address(self) -> str:
@@ -109,6 +118,16 @@ class OfflineFindingDevice(ABC):
     def additional_data(self) -> dict[Any, Any]:
         """Any additional data. No guarantees about the contents of this dictionary."""
         return self._additional_data
+
+    @property
+    def near_owner(self) -> bool | None:
+        """
+        Whether the device reports to be near its owner, as advertised through DULT.
+
+        Only available for devices that broadcast a DULT advertisement, such as the
+        AirTag (2nd generation). `None` if the device did not broadcast one.
+        """
+        return self._near_owner
 
     @property
     def device_type(self) -> str:
@@ -182,6 +201,93 @@ class OfflineFindingDevice(ABC):
             rssi,
             additional_data,
         )
+
+    @classmethod
+    def from_dult_payload(
+        cls,
+        mac_address: str,
+        dult_payload: bytes,
+        detected_at: datetime | None = None,
+        rssi: int | None = None,
+        additional_data: dict[Any, Any] | None = None,
+    ) -> OfflineFindingDevice | None:
+        """
+        Get an OfflineFindingDevice object from the service data of a DULT advertisement.
+
+        Newer accessories, such as the AirTag (2nd generation), broadcast their OF data as
+        service data with UUID :data:`DULT_SERVICE_UUID`. When such an accessory is near its
+        owner, this is the *only* advertisement it broadcasts: there is no Apple manufacturer
+        data to pass to :meth:`from_ble_payload`.
+
+        The service data consists of a network ID (0x01 for Apple), a flags byte (bit 0 is set
+        when the accessory is near its owner) and an OF payload. The OF payload has the same
+        layout as the one in Apple manufacturer data, so the resulting device is either a
+        :class:`NearbyOfflineFindingDevice` or a :class:`SeparatedOfflineFindingDevice`,
+        depending on its length.
+
+        Note that the first byte of the OF payload differs from the status byte in the Apple
+        manufacturer data of the same accessory, so :attr:`device_type` and
+        :attr:`battery_level` may not be accurate for devices created through this method.
+        """
+        if len(dult_payload) < cls.DULT_HEADER_SIZE:
+            logger.debug("Not enough bytes to decode DULT payload: %s", len(dult_payload))
+            return None
+        if dult_payload[0] != cls.DULT_NETWORK_ID_APPLE:
+            logger.debug("Unsupported DULT network ID: %s", dult_payload[0])
+            return None
+
+        of_payload = dult_payload[cls.DULT_HEADER_SIZE :]
+        if not any(
+            getattr(dev, "OF_PAYLOAD_LEN", None) == len(of_payload) for dev in _DEVICE_TYPES
+        ):
+            logger.debug("Unsupported DULT OF payload length: %s", len(of_payload))
+            return None
+
+        device = cls.from_ble_payload(
+            mac_address,
+            bytes([cls.OF_TYPE, len(of_payload)]) + of_payload,
+            detected_at,
+            rssi,
+            additional_data,
+        )
+        if device is not None:
+            device._near_owner = bool(dult_payload[1] & cls.DULT_FLAG_NEAR_OWNER)  # noqa: SLF001
+        return device
+
+    @classmethod
+    def from_advertisement(  # noqa: PLR0913
+        cls,
+        mac_address: str,
+        apple_data: bytes | None = None,
+        dult_data: bytes | None = None,
+        detected_at: datetime | None = None,
+        rssi: int | None = None,
+        additional_data: dict[Any, Any] | None = None,
+    ) -> OfflineFindingDevice | None:
+        """
+        Get an OfflineFindingDevice object from the contents of a BLE advertisement.
+
+        :param apple_data: Apple manufacturer data (company ID 0x004C), without the company ID.
+        :param dult_data: Service data of the DULT service (:data:`DULT_SERVICE_UUID`).
+
+        The Apple manufacturer data takes precedence if it contains OF data. The DULT data is
+        used on its own for accessories that do not broadcast Apple manufacturer data, and
+        otherwise only to determine :attr:`near_owner`.
+        """
+        device = None
+        if apple_data:
+            device = cls.from_ble_payload(
+                mac_address, apple_data, detected_at, rssi, additional_data
+            )
+        if dult_data:
+            dult_device = cls.from_dult_payload(
+                mac_address, dult_data, detected_at, rssi, additional_data
+            )
+            if device is None:
+                device = dult_device
+            elif dult_device is not None:
+                device._near_owner = dult_device.near_owner  # noqa: SLF001
+        return device
 
     @override
     def __eq__(self, other: object) -> bool:
@@ -289,6 +395,8 @@ class NearbyOfflineFindingDevice(OfflineFindingDevice):
         print(f"  Status byte:  0x{self.status:x}", file=file)
         print(f"  Battery lvl:  {self.battery_level}", file=file)
         print(f"  RSSI:         {self.rssi}", file=file)
+        if self.near_owner is not None:
+            print(f"  Near owner:   {self.near_owner}", file=file)
         print("  Extra data:", file=file)
         for k, v in sorted(self.additional_data.items()):
             print(f"    {k:20}: {v}", file=file)
@@ -405,6 +513,8 @@ class SeparatedOfflineFindingDevice(OfflineFindingDevice, HasPublicKey):
         print(f"  Battery lvl:  {self.battery_level}", file=file)
         print(f"  Hint byte:    0x{self.hint:x}", file=file)
         print(f"  RSSI:         {self.rssi}", file=file)
+        if self.near_owner is not None:
+            print(f"  Near owner:   {self.near_owner}", file=file)
         print("  Extra data:", file=file)
         for k, v in sorted(self.additional_data.items()):
             print(f"    {k:20}: {v}", file=file)
@@ -480,7 +590,10 @@ class OfflineFindingScanner:
         device, data = await asyncio.wait_for(self._device_fut, timeout=timeout)
 
         apple_data = data.manufacturer_data.get(self.BLE_COMPANY_APPLE, b"")
-        if not apple_data:
+        # Accessories such as the AirTag (2nd generation) only broadcast DULT service data
+        # (and no Apple manufacturer data) when they are near their owner.
+        dult_data = data.service_data.get(DULT_SERVICE_UUID, b"")
+        if not apple_data and not dult_data:
             return None
 
         detected_at = datetime.now().astimezone()
@@ -494,9 +607,10 @@ class OfflineFindingScanner:
             # Likely Windows host, where details is a '_RawAdvData' object.
             # See: https://github.com/malmeloo/FindMy.py/issues/24
             additional_data = {}
-        return OfflineFindingDevice.from_ble_payload(
+        return OfflineFindingDevice.from_advertisement(
             device.address,
             apple_data,
+            dult_data,
             detected_at,
             rssi,
             additional_data,

@@ -77,6 +77,9 @@ If you are physically close to the tag, you can speed this up significantly by u
 to discover your tag via Bluetooth and update its alignment based on the values that it is currently broadcasting.
 Make sure to give it your device JSON file as argument! Otherwise, the scanner does not know which tag
 to look for.
+
+This also works for the AirTag (2nd generation), whether it is near you or not. See
+[AirTags](#11-AirTags) for details on how it advertises itself.
 ```
 
 ````
